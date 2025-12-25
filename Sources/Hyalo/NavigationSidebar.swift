@@ -343,11 +343,16 @@ struct HyaloNavigationLayout: View {
         }
         .toolbarRole(.editor)
         .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
+        .navigationTitle("")  // Prevent geometry from showing in title area
         .background {
-            // Use SwiftUI's material for vibrancy (works with NSHostingView as content view)
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .ignoresSafeArea()
+            // Use SwiftUI's material for vibrancy, tinted with Emacs background color
+            ZStack {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                Color(nsColor: backgroundColor)
+                    .opacity(Double(backgroundAlpha) * 0.5)
+            }
+            .ignoresSafeArea()
         }
         .onChange(of: sidebarVisible) { _, newValue in
             withAnimation {
