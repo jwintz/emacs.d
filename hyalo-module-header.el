@@ -1,0 +1,252 @@
+;;; hyalo-module-header.el --- Header view management for hyalo-module -*- lexical-binding: t -*-
+
+;; Copyright (C) 2025
+;; Author: Julien Wintz <julien.wintz@inria.fr>
+;; Version: 1.0.0
+;; Package-Requires: ((emacs "30.1"))
+;; Keywords: frames, faces, macos
+
+;;; Commentary:
+
+;; Header view management for hyalo-module.
+;; Handles:
+;; - Formatting and sending mode-line content to Swift header view
+;; - Formatting and sending header-line content to Swift header view
+;; - Hiding native Emacs mode-line and header-line
+;;
+;; Uses deterministic hooks (no timers):
+;; - post-command-hook for immediate updates
+;; - window-configuration-change-hook for window changes
+;; - after-change-major-mode-hook for mode changes
+;;
+;; Usage:
+;;   (require 'hyalo-module-header)
+;;   (hyalo-module-header-mode 1)
+
+;;; Code:
+
+(require 'hyalo-module)
+
+(defgroup hyalo-module-header nil
+  "Header view settings for hyalo-module."
+  :group 'hyalo-module
+  :prefix "hyalo-module-header-")
+
+(defcustom hyalo-module-header-top-padding 12
+  "Top padding for header view in pixels."
+  :type 'integer
+  :group 'hyalo-module-header)
+
+(defcustom hyalo-module-header-left-padding 12
+  "Left padding for header view in pixels."
+  :type 'integer
+  :group 'hyalo-module-header)
+
+(defcustom hyalo-module-header-right-padding 12
+  "Right padding for header view in pixels."
+  :type 'integer
+  :group 'hyalo-module-header)
+
+;;; Internal State
+
+(defvar hyalo-module-header--saved-mode-line-format nil
+  "Saved default mode-line-format to restore when disabling.")
+
+(defvar hyalo-module-header--saved-header-line-format nil
+  "Saved default header-line-format to restore when disabling.")
+
+(defvar hyalo-module-header--buffer-header-lines (make-hash-table :test 'eq :weakness 'key)
+  "Hash table mapping buffers to their original header-line-format.")
+
+(defvar hyalo-module-header--last-mode-line ""
+  "Last mode-line string sent to Swift, for change detection.")
+
+(defvar hyalo-module-header--last-header-line ""
+  "Last header-line string sent to Swift, for change detection.")
+
+(defvar hyalo-module-header--last-window nil
+  "Last window that was updated, for change detection.")
+
+;;; Mode-line Formatting
+
+(defun hyalo-module-header--save-buffer-header-line ()
+  "Save current buffer's header-line-format before hiding."
+  (when header-line-format
+    (puthash (current-buffer) header-line-format hyalo-module-header--buffer-header-lines)))
+
+(defun hyalo-module-header--get-buffer-header-line ()
+  "Get the saved header-line-format for current buffer."
+  (gethash (current-buffer) hyalo-module-header--buffer-header-lines))
+
+(defun hyalo-module-header--format-mode-line ()
+  "Get the formatted mode-line string for the current buffer."
+  (when hyalo-module-header--saved-mode-line-format
+    (format-mode-line hyalo-module-header--saved-mode-line-format)))
+
+(defun hyalo-module-header--format-header-line ()
+  "Get the formatted header-line string for the current buffer."
+  (when-let ((hl (hyalo-module-header--get-buffer-header-line)))
+    (format-mode-line hl)))
+
+;;; Header Update (Hook Function)
+
+(defun hyalo-module-header--update ()
+  "Send current buffer info to Swift header view.
+Called from post-command-hook and window-configuration-change-hook."
+  (when (and (hyalo-module-available-p)
+             (fboundp 'hyalo-update-header)
+             (display-graphic-p))
+    (let* ((current-window (selected-window))
+           (mode-line-str (or (hyalo-module-header--format-mode-line) ""))
+           (header-line-str (or (hyalo-module-header--format-header-line) ""))
+           ;; Only update if content or window changed
+           (mode-line-changed (not (string= mode-line-str hyalo-module-header--last-mode-line)))
+           (header-line-changed (not (string= header-line-str hyalo-module-header--last-header-line)))
+           (window-changed (not (eq current-window hyalo-module-header--last-window))))
+      ;; Update mode-line if changed
+      (when (or mode-line-changed window-changed)
+        (setq hyalo-module-header--last-mode-line mode-line-str)
+        (hyalo-update-header mode-line-str))
+      ;; Update header-line if changed
+      (when (or header-line-changed window-changed)
+        (setq hyalo-module-header--last-header-line header-line-str)
+        (hyalo-update-header-line header-line-str))
+      ;; Track window
+      (setq hyalo-module-header--last-window current-window))))
+
+;;; Native Mode-line Control
+
+(defun hyalo-module-header--hide-native ()
+  "Hide native Emacs mode-line and header-line in all buffers."
+  ;; Save current formats
+  (setq hyalo-module-header--saved-mode-line-format (default-value 'mode-line-format))
+  (setq hyalo-module-header--saved-header-line-format (default-value 'header-line-format))
+  ;; Save and hide in all existing buffers
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf
+      (hyalo-module-header--save-buffer-header-line)
+      (setq mode-line-format nil)
+      (setq header-line-format nil)))
+  ;; Hide globally
+  (setq-default mode-line-format nil)
+  (setq-default header-line-format nil)
+  ;; Hook to hide in new buffers
+  (add-hook 'after-change-major-mode-hook #'hyalo-module-header--enforce-hidden)
+  ;; Add window dividers to compensate for hidden mode-line
+  (setq window-divider-default-places 'bottom-only)
+  (setq window-divider-default-bottom-width 1)
+  (window-divider-mode 1))
+
+(defun hyalo-module-header--enforce-hidden ()
+  "Enforce hidden mode-line in current buffer.
+Called by hooks to override modes that set mode-line-format buffer-locally."
+  (when hyalo-module-header--saved-mode-line-format
+    ;; Save the header-line before hiding (modes like info set it)
+    (when header-line-format
+      (hyalo-module-header--save-buffer-header-line))
+    (setq mode-line-format nil)
+    (setq header-line-format nil)))
+
+(defun hyalo-module-header--restore-native ()
+  "Restore native Emacs mode-line and header-line."
+  ;; Remove hooks
+  (remove-hook 'after-change-major-mode-hook #'hyalo-module-header--enforce-hidden)
+  ;; Restore defaults
+  (when hyalo-module-header--saved-mode-line-format
+    (setq-default mode-line-format hyalo-module-header--saved-mode-line-format))
+  (when hyalo-module-header--saved-header-line-format
+    (setq-default header-line-format hyalo-module-header--saved-header-line-format))
+  ;; Restore in all buffers
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf
+      (kill-local-variable 'mode-line-format)
+      (kill-local-variable 'header-line-format)))
+  ;; Clear saved header-line hash
+  (clrhash hyalo-module-header--buffer-header-lines)
+  (window-divider-mode -1))
+
+;;; Header Height
+
+(defun hyalo-module-header-height ()
+  "Return the header view height in pixels from the Swift module."
+  (if (and (hyalo-module-available-p) (fboundp 'hyalo-header-height))
+      (hyalo-header-height)
+    47))  ; Fallback: 12 + 24 + 1 + 22 - 12 = 47 (approx)
+
+;;; Setup/Teardown
+
+(defun hyalo-module-header--setup-frame (&optional frame)
+  "Setup Hyalo for FRAME (or current frame if nil)."
+  (let ((f (or frame (selected-frame))))
+    (when (and (display-graphic-p f) (eq (framep f) 'ns))
+      (with-selected-frame f
+        ;; Setup Swift module for this frame's window
+        (when (fboundp 'hyalo-setup)
+          (hyalo-setup))
+        ;; Set header position
+        (when (fboundp 'hyalo-set-header-position)
+          (hyalo-set-header-position
+           hyalo-module-header-top-padding
+           hyalo-module-header-left-padding
+           hyalo-module-header-right-padding))
+        ;; Sync appearance settings for this window (background color, vibrancy, echo area)
+        (when (fboundp 'hyalo-module-appearance--sync-to-window)
+          (hyalo-module-appearance--sync-to-window))))))
+
+(defun hyalo-module-header--teardown-frame (&optional frame)
+  "Teardown Hyalo for FRAME (or current frame if nil)."
+  (with-selected-frame (or frame (selected-frame))
+    (when (fboundp 'hyalo-teardown)
+      (hyalo-teardown))))
+
+(defun hyalo-module-header--enable ()
+  "Enable header view management."
+  (hyalo-module-ensure)
+  ;; Setup all existing frames
+  (dolist (frame (frame-list))
+    (hyalo-module-header--setup-frame frame))
+  ;; Setup hook for new frames
+  (add-hook 'after-make-frame-functions #'hyalo-module-header--setup-frame)
+  (add-hook 'delete-frame-functions #'hyalo-module-header--teardown-frame)
+  ;; Hide native mode-line
+  (hyalo-module-header--hide-native)
+  ;; Install hooks for updates
+  (add-hook 'post-command-hook #'hyalo-module-header--update)
+  (add-hook 'window-configuration-change-hook #'hyalo-module-header--update)
+  ;; Initial update
+  (hyalo-module-header--update)
+  (hyalo-module-log "Header: Enabled"))
+
+(defun hyalo-module-header--disable ()
+  "Disable header view management."
+  ;; Remove frame hooks
+  (remove-hook 'after-make-frame-functions #'hyalo-module-header--setup-frame)
+  (remove-hook 'delete-frame-functions #'hyalo-module-header--teardown-frame)
+  ;; Remove update hooks
+  (remove-hook 'post-command-hook #'hyalo-module-header--update)
+  (remove-hook 'window-configuration-change-hook #'hyalo-module-header--update)
+  ;; Teardown all frames
+  (dolist (frame (frame-list))
+    (hyalo-module-header--teardown-frame frame))
+  ;; Restore native mode-line
+  (hyalo-module-header--restore-native)
+  ;; Clear state
+  (setq hyalo-module-header--last-mode-line ""
+        hyalo-module-header--last-header-line ""
+        hyalo-module-header--last-window nil)
+  (hyalo-module-log "Header: Disabled"))
+
+;;;###autoload
+(define-minor-mode hyalo-module-header-mode
+  "Minor mode for Hyalo header view.
+When enabled, the native mode-line and header-line are hidden
+and their content is displayed in a floating SwiftUI header."
+  :global t
+  :lighter " ηHeader"
+  :group 'hyalo-module-header
+  (if hyalo-module-header-mode
+      (hyalo-module-header--enable)
+    (hyalo-module-header--disable)))
+
+(provide 'hyalo-module-header)
+;;; hyalo-module-header.el ends here

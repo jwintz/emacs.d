@@ -1,0 +1,15 @@
+{
+  "originHash" : "0cb9e3697541f0378e2f2f2be0efc07da0ec972bf991a39ce0482d3cbfaf6697",
+  "pins" : [
+    {
+      "identity" : "emacs-swift-module",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/SavchenkoValeriy/emacs-swift-module.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "00d8bd6c2d001aba8eed000e45385195e8d42d26"
+      }
+    }
+  ],
+  "version" : 3
+}
