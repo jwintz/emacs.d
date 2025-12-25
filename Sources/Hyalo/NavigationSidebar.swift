@@ -118,30 +118,25 @@ struct FileRow: View {
 }
 
 /// The sidebar content
+@available(macOS 15.0, *)
 struct SidebarContentView: View {
-    @Binding var buffers: [SidebarBuffer]
-    @Binding var files: [SidebarFile]
-    @Binding var projectName: String
-
-    /// Background color from Emacs default face (as binding for reactivity)
-    @Binding var backgroundColor: NSColor
-    /// Background alpha from Emacs frame parameter (as binding for reactivity)
-    @Binding var backgroundAlpha: CGFloat
+    var state: NavigationSidebarState
 
     var onBufferSelect: ((SidebarBuffer) -> Void)?
     var onBufferClose: ((SidebarBuffer) -> Void)?
     var onFileSelect: ((SidebarFile) -> Void)?
 
     var body: some View {
+        let _ = print("[Hyalo] SidebarContentView - backgroundColor: \(state.backgroundColor), alpha: \(state.backgroundAlpha)")
         List {
             // Open Editors section
             Section {
-                if buffers.isEmpty {
+                if state.buffers.isEmpty {
                     Text("No open files")
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                 } else {
-                    ForEach(buffers) { buffer in
+                    ForEach(state.buffers) { buffer in
                         BufferRow(
                             buffer: buffer,
                             onSelect: onBufferSelect,
@@ -158,12 +153,12 @@ struct SidebarContentView: View {
 
             // Explorer section (from treemacs data)
             Section {
-                if files.isEmpty {
+                if state.files.isEmpty {
                     Text("No project open")
                         .font(.system(size: 11))
                         .foregroundStyle(.tertiary)
                 } else {
-                    ForEach(files) { file in
+                    ForEach(state.files) { file in
                         FileRow(file: file, onSelect: onFileSelect)
                             .listRowInsets(EdgeInsets(top: 1, leading: 4, bottom: 1, trailing: 4))
                             .listRowBackground(Color.clear)
@@ -175,6 +170,17 @@ struct SidebarContentView: View {
             }
         }
         .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .background {
+            // Vibrancy material with Emacs background color tint
+            ZStack {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                Color(nsColor: state.backgroundColor)
+                    .opacity(Double(state.backgroundAlpha) * 0.5)
+            }
+            .ignoresSafeArea()
+        }
     }
 }
 
@@ -185,52 +191,45 @@ struct ModeLineToolbarView: View {
 
     /// Parse a string into LHS and RHS by splitting on 3+ consecutive spaces
     private func parseSegments(_ input: String) -> (lhs: String, rhs: String) {
-        let content = input.trimmingCharacters(in: .whitespaces)
-        if let range = content.range(of: "   +", options: .regularExpression) {
-            let lhs = String(content[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
-            let rhs = String(content[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+        let trimmed = input.trimmingCharacters(in: .whitespaces)
+        if let range = trimmed.range(of: "   +", options: .regularExpression) {
+            let lhs = String(trimmed[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
+            let rhs = String(trimmed[range.upperBound...]).trimmingCharacters(in: .whitespaces)
             return (lhs, rhs)
         }
-        return (content, "")
+        return (trimmed, "")
     }
 
     var body: some View {
         let segments = parseSegments(content)
-        let _ = print("[Hyalo] ModeLineToolbarView content: '\(content)' (length: \(content.count))")
-        let _ = print("[Hyalo] ModeLineToolbarView segments - LHS: '\(segments.lhs)' RHS: '\(segments.rhs)'")
+        let _ = print("[Hyalo] ModeLineToolbarView - content: '\(content)' (\(content.count) chars)")
+        let _ = print("[Hyalo] ModeLineToolbarView - LHS: '\(segments.lhs)' RHS: '\(segments.rhs)'")
 
-        GeometryReader { geometry in
-            let _ = print("[Hyalo] ModeLineToolbarView geometry: \(geometry.size)")
-            HStack(spacing: 0) {
-                Text(segments.lhs)
+        HStack(spacing: 8) {
+            Text(segments.lhs.isEmpty ? " " : segments.lhs)
+                .font(.system(size: 11, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer()
+
+            if !segments.rhs.isEmpty {
+                Text(segments.rhs)
                     .font(.system(size: 11, design: .monospaced))
                     .lineLimit(1)
-                    .truncationMode(.middle)
-                    .layoutPriority(1)
-
-                Spacer(minLength: 8)
-
-                if !segments.rhs.isEmpty {
-                    Text(segments.rhs)
-                        .font(.system(size: 11, design: .monospaced))
-                        .lineLimit(1)
-                        .truncationMode(.head)
-                        .layoutPriority(2)
-                }
+                    .truncationMode(.head)
             }
-            .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .frame(minWidth: 100, idealWidth: 600, maxWidth: .infinity, minHeight: 20, idealHeight: 24, maxHeight: 30)
+        .frame(minWidth: 200, maxWidth: .infinity, minHeight: 20)
     }
 }
 
 /// Wrapper to embed Emacs NSView in SwiftUI
 /// Includes gradient overlay at top and echo area overlay at bottom
+@available(macOS 15.0, *)
 struct EmacsContentView: View {
     let emacsView: NSView
-    @Binding var backgroundColor: NSColor
-    @Binding var backgroundAlpha: CGFloat
-    @Binding var echoAreaHeight: CGFloat
+    var state: NavigationSidebarState
 
     var body: some View {
         ZStack {
@@ -242,8 +241,8 @@ struct EmacsContentView: View {
                 // Gradient overlay at top (blends with toolbar)
                 LinearGradient(
                     colors: [
-                        Color(nsColor: backgroundColor.withAlphaComponent(backgroundAlpha * 0.8)),
-                        Color(nsColor: backgroundColor.withAlphaComponent(0))
+                        Color(nsColor: state.backgroundColor.withAlphaComponent(state.backgroundAlpha * 0.8)),
+                        Color(nsColor: state.backgroundColor.withAlphaComponent(0))
                     ],
                     startPoint: .top,
                     endPoint: .bottom
@@ -254,7 +253,7 @@ struct EmacsContentView: View {
                 Spacer()
 
                 // Echo area overlay at bottom (height matches minibuffer)
-                EchoAreaOverlay(backgroundColor: $backgroundColor, backgroundAlpha: $backgroundAlpha, height: echoAreaHeight)
+                EchoAreaOverlay(state: state)
             }
         }
         // Only extend under top edge (toolbar), not sidebar
@@ -263,15 +262,14 @@ struct EmacsContentView: View {
 }
 
 /// Echo area overlay at the bottom of the content
+@available(macOS 15.0, *)
 struct EchoAreaOverlay: View {
-    @Binding var backgroundColor: NSColor
-    @Binding var backgroundAlpha: CGFloat
-    var height: CGFloat = 22
+    var state: NavigationSidebarState
 
     var body: some View {
         Rectangle()
-            .fill(Color(nsColor: backgroundColor.withAlphaComponent(backgroundAlpha * 0.5)))
-            .frame(height: height)
+            .fill(Color(nsColor: state.backgroundColor.withAlphaComponent(state.backgroundAlpha * 0.5)))
+            .frame(height: state.echoAreaHeight)
             .allowsHitTesting(false)
     }
 }
@@ -295,18 +293,8 @@ struct EmacsNSViewRepresentable: NSViewRepresentable {
 /// The main NavigationSplitView layout
 @available(macOS 15.0, *)
 struct HyaloNavigationLayout: View {
-    @Binding var buffers: [SidebarBuffer]
-    @Binding var files: [SidebarFile]
-    @Binding var projectName: String
-    @Binding var modeLine: String
-    @Binding var sidebarVisible: Bool
-    @Binding var echoAreaHeight: CGFloat
+    var state: NavigationSidebarState
     let emacsView: NSView
-
-    /// Background color from Emacs default face (as binding for reactivity)
-    @Binding var backgroundColor: NSColor
-    /// Background alpha from Emacs frame parameter (as binding for reactivity)
-    @Binding var backgroundAlpha: CGFloat
 
     var onBufferSelect: ((SidebarBuffer) -> Void)?
     var onBufferClose: ((SidebarBuffer) -> Void)?
@@ -315,13 +303,11 @@ struct HyaloNavigationLayout: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
 
     var body: some View {
+        let _ = print("[Hyalo] HyaloNavigationLayout - modeLine: '\(state.modeLine)' (\(state.modeLine.count) chars)")
+        let _ = print("[Hyalo] HyaloNavigationLayout - backgroundColor: \(state.backgroundColor), alpha: \(state.backgroundAlpha)")
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarContentView(
-                buffers: $buffers,
-                files: $files,
-                projectName: $projectName,
-                backgroundColor: $backgroundColor,
-                backgroundAlpha: $backgroundAlpha,
+                state: state,
                 onBufferSelect: onBufferSelect,
                 onBufferClose: onBufferClose,
                 onFileSelect: onFileSelect
@@ -330,18 +316,18 @@ struct HyaloNavigationLayout: View {
         } detail: {
             EmacsContentView(
                 emacsView: emacsView,
-                backgroundColor: $backgroundColor,
-                backgroundAlpha: $backgroundAlpha,
-                echoAreaHeight: $echoAreaHeight
+                state: state
             )
         }
         .navigationSplitViewStyle(.balanced)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                ModeLineToolbarView(content: modeLine)
+        .toolbar(id: "hyalo-modeline") {
+            ToolbarItem(id: "modeline", placement: .principal, showsByDefault: true) {
+                ModeLineToolbarView(content: state.modeLine)
+                    .layoutPriority(1)
             }
         }
         .toolbarRole(.editor)
+        .toolbarTitleDisplayMode(.inline)
         .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
         .navigationTitle("")  // Prevent geometry from showing in title area
         .background {
@@ -349,20 +335,35 @@ struct HyaloNavigationLayout: View {
             ZStack {
                 Rectangle()
                     .fill(.ultraThinMaterial)
-                Color(nsColor: backgroundColor)
-                    .opacity(Double(backgroundAlpha) * 0.5)
+                Color(nsColor: state.backgroundColor)
+                    .opacity(Double(state.backgroundAlpha) * 0.5)
             }
             .ignoresSafeArea()
         }
-        .onChange(of: sidebarVisible) { _, newValue in
+        .onChange(of: state.sidebarVisible) { _, newValue in
             withAnimation {
                 columnVisibility = newValue ? .all : .detailOnly
             }
         }
         .onAppear {
-            columnVisibility = sidebarVisible ? .all : .detailOnly
+            columnVisibility = state.sidebarVisible ? .all : .detailOnly
         }
     }
+}
+
+// MARK: - Observable State for SwiftUI reactivity
+
+@available(macOS 15.0, *)
+@Observable
+final class NavigationSidebarState {
+    var buffers: [SidebarBuffer] = []
+    var files: [SidebarFile] = []
+    var projectName: String = ""
+    var modeLine: String = ""
+    var echoAreaHeight: CGFloat = 22
+    var sidebarVisible: Bool = false
+    var backgroundColor: NSColor = .windowBackgroundColor
+    var backgroundAlpha: CGFloat = 1.0
 }
 
 // MARK: - Controller
@@ -374,20 +375,10 @@ final class NavigationSidebarController: NSObject {
     private var originalCornerRadius: CGFloat = 0
     private var hostingView: NSHostingView<AnyView>?
     private var blurView: NSVisualEffectView?
+    private var titleObservation: NSKeyValueObservation?
 
-    /// Current background color (Emacs default face + alpha)
-    private var backgroundColor: NSColor = .windowBackgroundColor
-    private var backgroundAlpha: CGFloat = 1.0
-
-    // State
-    private var buffers: [SidebarBuffer] = []
-    private var files: [SidebarFile] = []
-    private var projectName: String = ""
-    private var modeLine: String = ""
-    private var echoAreaHeight: CGFloat = 22
-    
-    /// Whether the sidebar column is visible
-    private var sidebarVisible: Bool = false
+    /// Observable state for SwiftUI reactivity
+    let state = NavigationSidebarState()
 
     /// Callbacks
     var onBufferSelect: ((String) -> Void)?
@@ -408,7 +399,7 @@ final class NavigationSidebarController: NSObject {
         guard !isSetup, let window = window, let emacsView = window.contentView else { return }
 
         originalContentView = emacsView
-        sidebarVisible = false
+        state.sidebarVisible = false
 
         // Save and remove corner radius from Emacs view
         if let layer = emacsView.layer {
@@ -443,14 +434,20 @@ final class NavigationSidebarController: NSObject {
         window.isOpaque = false
         window.backgroundColor = .clear
 
-        // Configure toolbar - use unified style for Liquid Glass
-        if window.toolbar == nil {
-            let toolbar = NSToolbar(identifier: "HyaloNavigationToolbar")
-            toolbar.displayMode = .iconOnly
-            window.toolbar = toolbar
-        }
-        window.toolbar?.isVisible = true
+        // Configure toolbar style
         window.toolbarStyle = .unified
+
+        // CRITICAL: Clear and maintain empty window title to prevent Emacs geometry display
+        window.title = ""
+        window.subtitle = ""
+        window.representedURL = nil
+
+        // Add observer to prevent Emacs from changing the title
+        titleObservation = window.observe(\.title, options: [.new]) { window, _ in
+            if window.title != "" {
+                window.title = ""
+            }
+        }
 
         hostingView = hosting
         isSetup = true
@@ -469,6 +466,10 @@ final class NavigationSidebarController: NSObject {
     /// Teardown the NavigationSplitView
     func teardown() {
         guard isSetup, let window = window, let original = originalContentView else { return }
+
+        // Clean up title observation
+        titleObservation?.invalidate()
+        titleObservation = nil
 
         // Clean up blur view
         blurView?.removeFromSuperview()
@@ -498,7 +499,7 @@ final class NavigationSidebarController: NSObject {
         hostingView = nil
         originalContentView = nil
         isSetup = false
-        sidebarVisible = false
+        state.sidebarVisible = false
 
         print("[Hyalo] NavigationSplitView teardown complete")
     }
@@ -506,31 +507,29 @@ final class NavigationSidebarController: NSObject {
     /// Show the sidebar column
     func showSidebar() {
         guard isSetup else { return }
-        sidebarVisible = true
-        refreshView()
+        state.sidebarVisible = true
         print("[Hyalo] Sidebar shown")
     }
-    
+
     /// Hide the sidebar column
     func hideSidebar() {
         guard isSetup else { return }
-        sidebarVisible = false
-        refreshView()
+        state.sidebarVisible = false
         print("[Hyalo] Sidebar hidden")
     }
-    
+
     /// Toggle the sidebar column visibility
     func toggleSidebar() {
-        if sidebarVisible {
+        if state.sidebarVisible {
             hideSidebar()
         } else {
             showSidebar()
         }
     }
-    
+
     /// Check if sidebar is currently visible
     var isSidebarVisible: Bool {
-        sidebarVisible
+        state.sidebarVisible
     }
 
     // MARK: - Traffic Lights
@@ -560,38 +559,33 @@ final class NavigationSidebarController: NSObject {
     // MARK: - Data Updates
 
     func updateBuffers(_ newBuffers: [SidebarBuffer]) {
-        buffers = newBuffers
-        refreshView()
+        state.buffers = newBuffers
     }
 
     func updateFiles(_ newFiles: [SidebarFile]) {
-        files = newFiles
-        refreshView()
+        state.files = newFiles
     }
 
     func setProjectName(_ name: String) {
-        projectName = name
-        refreshView()
+        state.projectName = name
     }
 
     func updateModeLine(_ content: String) {
-        modeLine = content
-        refreshView()
+        print("[Hyalo] updateModeLine called - content: '\(content)' (\(content.count) chars)")
+        state.modeLine = content
     }
-    
+
     /// Set the echo area height (minibuffer height)
     func setEchoAreaHeight(_ height: CGFloat) {
-        echoAreaHeight = height
-        refreshView()
+        state.echoAreaHeight = height
     }
-    
+
     /// Set the background color from Emacs (color string + alpha)
     func setBackgroundColor(_ colorString: String, alpha: CGFloat) {
-        backgroundColor = parseEmacsColor(colorString) ?? .windowBackgroundColor
-        backgroundAlpha = alpha
-        
-        // Refresh SwiftUI views to update sidebar and gradient colors
-        refreshView()
+        print("[Hyalo] setBackgroundColor called - color: '\(colorString)', alpha: \(alpha)")
+        state.backgroundColor = parseEmacsColor(colorString) ?? .windowBackgroundColor
+        state.backgroundAlpha = alpha
+        print("[Hyalo] setBackgroundColor - parsed color: \(state.backgroundColor), stored alpha: \(state.backgroundAlpha)")
     }
     
     /// Parse Emacs color string (e.g., "#282c34" or "white")
@@ -624,58 +618,13 @@ final class NavigationSidebarController: NSObject {
 
 
     private func createLayout(emacsView: NSView) -> some View {
-        let buffersBinding = Binding<[SidebarBuffer]>(
-            get: { [weak self] in self?.buffers ?? [] },
-            set: { [weak self] in self?.buffers = $0 }
-        )
-        let filesBinding = Binding<[SidebarFile]>(
-            get: { [weak self] in self?.files ?? [] },
-            set: { [weak self] in self?.files = $0 }
-        )
-        let projectBinding = Binding<String>(
-            get: { [weak self] in self?.projectName ?? "" },
-            set: { [weak self] in self?.projectName = $0 }
-        )
-        let modeLineBinding = Binding<String>(
-            get: { [weak self] in self?.modeLine ?? "" },
-            set: { [weak self] in self?.modeLine = $0 }
-        )
-        let sidebarVisibleBinding = Binding<Bool>(
-            get: { [weak self] in self?.sidebarVisible ?? false },
-            set: { [weak self] in self?.sidebarVisible = $0 }
-        )
-        let echoAreaHeightBinding = Binding<CGFloat>(
-            get: { [weak self] in self?.echoAreaHeight ?? 22 },
-            set: { [weak self] in self?.echoAreaHeight = $0 }
-        )
-        let backgroundColorBinding = Binding<NSColor>(
-            get: { [weak self] in self?.backgroundColor ?? .windowBackgroundColor },
-            set: { [weak self] in self?.backgroundColor = $0 }
-        )
-        let backgroundAlphaBinding = Binding<CGFloat>(
-            get: { [weak self] in self?.backgroundAlpha ?? 1.0 },
-            set: { [weak self] in self?.backgroundAlpha = $0 }
-        )
-
         return HyaloNavigationLayout(
-            buffers: buffersBinding,
-            files: filesBinding,
-            projectName: projectBinding,
-            modeLine: modeLineBinding,
-            sidebarVisible: sidebarVisibleBinding,
-            echoAreaHeight: echoAreaHeightBinding,
+            state: state,
             emacsView: emacsView,
-            backgroundColor: backgroundColorBinding,
-            backgroundAlpha: backgroundAlphaBinding,
             onBufferSelect: { [weak self] buffer in self?.onBufferSelect?(buffer.name) },
             onBufferClose: { [weak self] buffer in self?.onBufferClose?(buffer.name) },
             onFileSelect: { [weak self] file in self?.onFileSelect?(file.path) }
         )
-    }
-
-    private func refreshView() {
-        guard isSetup, let emacsView = originalContentView else { return }
-        hostingView?.rootView = AnyView(createLayout(emacsView: emacsView))
     }
 }
 
