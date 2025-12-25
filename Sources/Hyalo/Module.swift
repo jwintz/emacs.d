@@ -210,6 +210,40 @@ final class HyaloModule: Module {
         }
 
         // MARK: - Native Navigation Sidebar
+        
+        try env.defun(
+            "hyalo-navigation-setup",
+            with: """
+            Setup the NavigationSplitView with toolbar.
+            This replaces the legacy HeaderView approach.
+            The sidebar starts collapsed, toolbar is immediately visible.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 15.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.setup(for: window)
+                }
+                return true
+            }
+            return false
+        }
+        
+        try env.defun(
+            "hyalo-navigation-teardown",
+            with: """
+            Teardown the NavigationSplitView.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 15.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.teardown(for: window)
+                }
+                return true
+            }
+            return false
+        }
 
         try env.defun(
             "hyalo-sidebar-show",

@@ -226,21 +226,33 @@ If CLOSED is non-nil, return closed folder icon."
       (when hex-color
         (hyalo-sidebar-set-background-color hex-color (float alpha))))))
 
+(defun hyalo-explorer--on-theme-change (_theme)
+  "Handle theme change - sync sidebar background color.
+Called via `enable-theme-functions'."
+  (when hyalo-explorer--visible
+    ;; Delay slightly to ensure theme colors are fully applied
+    (run-with-timer 0.1 nil #'hyalo-explorer--sync-background-color)))
+
 ;;; Treemacs Management
 
 (defun hyalo-explorer--setup-treemacs ()
   "Setup treemacs in hidden mode for data collection.
- This initializes treemacs silently without showing its window."
+This initializes treemacs silently without showing its window."
   ;; Remember if treemacs was visible
   (setq hyalo-explorer--treemacs-was-visible
         (and (treemacs-get-local-window)
              (window-live-p (treemacs-get-local-window))))
-  ;; Initialize treemacs if not already done (silently)
+  ;; Initialize treemacs if not already done
+  ;; This activates treemacs mode for proper file tree access
   (unless (treemacs-current-workspace)
     (let ((inhibit-message t))
       (treemacs--init)))
-  ;; Hide treemacs if it was visible
-  (when hyalo-explorer--treemacs-was-visible
+  ;; Activate treemacs to ensure mode is active and data is current
+  (unless (treemacs-get-local-window)
+    (let ((inhibit-message t))
+      (treemacs)))
+  ;; Always hide treemacs window - Swift sidebar displays the content
+  (when (treemacs-get-local-window)
     (treemacs-quit)))
 
 (defun hyalo-explorer--teardown-treemacs ()
@@ -271,7 +283,9 @@ If CLOSED is non-nil, return closed folder icon."
     ;; Setup auto-refresh
     (add-hook 'buffer-list-update-hook #'hyalo-explorer--auto-refresh)
     (add-hook 'window-configuration-change-hook #'hyalo-explorer--auto-refresh)
-    (add-hook 'post-command-hook #'hyalo-explorer--send-mode-line)))
+    (add-hook 'post-command-hook #'hyalo-explorer--send-mode-line)
+    ;; Sync background color when theme changes
+    (add-hook 'enable-theme-functions #'hyalo-explorer--on-theme-change)))
 
 ;;;###autoload
 (defun hyalo-explorer-hide ()
@@ -281,6 +295,7 @@ If CLOSED is non-nil, return closed folder icon."
   (remove-hook 'buffer-list-update-hook #'hyalo-explorer--auto-refresh)
   (remove-hook 'window-configuration-change-hook #'hyalo-explorer--auto-refresh)
   (remove-hook 'post-command-hook #'hyalo-explorer--send-mode-line)
+  (remove-hook 'enable-theme-functions #'hyalo-explorer--on-theme-change)
   (when hyalo-explorer--refresh-timer
     (cancel-timer hyalo-explorer--refresh-timer)
     (setq hyalo-explorer--refresh-timer nil))

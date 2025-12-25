@@ -480,6 +480,22 @@ final class HyaloController: NSObject {
             }
         }
     }
+    
+    /// Show or hide the floating header view
+    /// Used when NavigationSplitView is active (toolbar replaces floating header)
+    func setHeaderHidden(_ hidden: Bool) {
+        if #available(macOS 15.0, *) {
+            if let controller = headerController as? HeaderHostingController {
+                controller.setHidden(hidden)
+            }
+        }
+    }
+    
+    /// Show or hide the gradient overlay view
+    /// Hidden when NavigationSplitView handles its own gradient
+    func setGradientHidden(_ hidden: Bool) {
+        gradientView?.isHidden = hidden
+    }
 
     /// Set header position
     func setHeaderPosition(top: CGFloat, left: CGFloat, right: CGFloat) {

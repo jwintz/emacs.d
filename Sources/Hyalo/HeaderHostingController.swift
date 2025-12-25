@@ -125,6 +125,17 @@ final class HeaderHostingController {
         window = nil
     }
     
+    /// Show or hide the header view
+    /// Used when NavigationSplitView is active (toolbar replaces floating header)
+    func setHidden(_ hidden: Bool) {
+        hostingView?.isHidden = hidden
+    }
+    
+    /// Check if header view is hidden
+    var isHidden: Bool {
+        hostingView?.isHidden ?? true
+    }
+    
     // MARK: - Content Updates
     
     /// Update mode-line content (must be called on main thread)

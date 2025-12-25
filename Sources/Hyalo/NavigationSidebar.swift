@@ -122,6 +122,11 @@ struct SidebarContentView: View {
     @Binding var buffers: [SidebarBuffer]
     @Binding var files: [SidebarFile]
     @Binding var projectName: String
+    
+    /// Background color from Emacs default face
+    var backgroundColor: NSColor
+    /// Background alpha from Emacs frame parameter
+    var backgroundAlpha: CGFloat
 
     var onBufferSelect: ((SidebarBuffer) -> Void)?
     var onBufferClose: ((SidebarBuffer) -> Void)?
@@ -170,6 +175,9 @@ struct SidebarContentView: View {
             }
         }
         .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .background(Color(nsColor: backgroundColor.withAlphaComponent(backgroundAlpha)))
+        .ignoresSafeArea()
     }
 }
 
@@ -194,19 +202,47 @@ struct ModeLineToolbarView: View {
         HStack(spacing: 0) {
             ModeLineTextView(text: segments.lhs, fontSize: 11)
                 .lineLimit(1)
-            Spacer(minLength: 8)
+                .fixedSize(horizontal: true, vertical: false)
+            Spacer(minLength: 20)
             if !segments.rhs.isEmpty {
                 ModeLineTextView(text: segments.rhs, fontSize: 11)
                     .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
             }
         }
-        .frame(maxWidth: .infinity)
+        .frame(minWidth: 400, maxWidth: .infinity)
     }
 }
 
 /// Wrapper to embed Emacs NSView in SwiftUI
 /// The view should have no round corners and expand to fill available space
-struct EmacsContentView: NSViewRepresentable {
+/// Includes gradient overlay for header blend effect
+struct EmacsContentView: View {
+    let emacsView: NSView
+    var backgroundColor: NSColor
+    var backgroundAlpha: CGFloat
+    
+    var body: some View {
+        ZStack(alignment: .top) {
+            EmacsNSViewRepresentable(emacsView: emacsView)
+            
+            // Gradient overlay for header blend effect
+            LinearGradient(
+                colors: [
+                    Color(nsColor: backgroundColor.withAlphaComponent(backgroundAlpha)),
+                    Color(nsColor: backgroundColor.withAlphaComponent(0))
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 60)
+            .allowsHitTesting(false)
+        }
+    }
+}
+
+/// NSViewRepresentable wrapper for Emacs NSView
+struct EmacsNSViewRepresentable: NSViewRepresentable {
     let emacsView: NSView
 
     func makeNSView(context: Context) -> NSView {
@@ -230,35 +266,54 @@ struct HyaloNavigationLayout: View {
     @Binding var files: [SidebarFile]
     @Binding var projectName: String
     @Binding var modeLine: String
+    @Binding var sidebarVisible: Bool
     let emacsView: NSView
+    
+    /// Background color from Emacs default face
+    var backgroundColor: NSColor
+    /// Background alpha from Emacs frame parameter
+    var backgroundAlpha: CGFloat
 
     var onBufferSelect: ((SidebarBuffer) -> Void)?
     var onBufferClose: ((SidebarBuffer) -> Void)?
     var onFileSelect: ((SidebarFile) -> Void)?
 
-    @State private var columnVisibility: NavigationSplitViewVisibility = .all
-
+    @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+    
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarContentView(
                 buffers: $buffers,
                 files: $files,
                 projectName: $projectName,
+                backgroundColor: backgroundColor,
+                backgroundAlpha: backgroundAlpha,
                 onBufferSelect: onBufferSelect,
                 onBufferClose: onBufferClose,
                 onFileSelect: onFileSelect
             )
             .navigationSplitViewColumnWidth(min: 200, ideal: 280, max: 400)
-            .navigationTitle(projectName)
         } detail: {
-            EmacsContentView(emacsView: emacsView)
-                .ignoresSafeArea(.all, edges: .top)  // Expand under toolbar
+            EmacsContentView(
+                emacsView: emacsView,
+                backgroundColor: backgroundColor,
+                backgroundAlpha: backgroundAlpha
+            )
+            .ignoresSafeArea()
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar {
             ToolbarItem(placement: .principal) {
                 ModeLineToolbarView(content: modeLine)
             }
+        }
+        .onChange(of: sidebarVisible) { _, newValue in
+            withAnimation {
+                columnVisibility = newValue ? .all : .detailOnly
+            }
+        }
+        .onAppear {
+            columnVisibility = sidebarVisible ? .all : .detailOnly
         }
     }
 }
@@ -271,7 +326,6 @@ final class NavigationSidebarController: NSObject {
     private var originalContentView: NSView?
     private var originalCornerRadius: CGFloat = 0
     private var hostingView: NSHostingView<AnyView>?
-    private var vibrancyView: NSVisualEffectView?
     
     /// Current background color (Emacs default face + alpha)
     private var backgroundColor: NSColor = .windowBackgroundColor
@@ -282,32 +336,38 @@ final class NavigationSidebarController: NSObject {
     private var files: [SidebarFile] = []
     private var projectName: String = ""
     private var modeLine: String = ""
+    
+    /// Whether the sidebar column is visible
+    private var sidebarVisible: Bool = false
 
     /// Callbacks
     var onBufferSelect: ((String) -> Void)?
     var onBufferClose: ((String) -> Void)?
     var onFileSelect: ((String) -> Void)?
 
-    private(set) var isVisible: Bool = false
+    /// Whether the NavigationSplitView is installed
+    private(set) var isSetup: Bool = false
 
     init(window: NSWindow) {
         self.window = window
         super.init()
     }
-
-    func show() {
-        guard !isVisible, let window = window, let emacsView = window.contentView else { return }
+    
+    /// Setup the NavigationSplitView (called at Hyalo initialization)
+    /// Sidebar starts collapsed, toolbar is immediately visible
+    func setup() {
+        guard !isSetup, let window = window, let emacsView = window.contentView else { return }
 
         originalContentView = emacsView
+        sidebarVisible = false
         
-        // Save and remove corner radius from Emacs view (keep all overlays visible!)
+        // Save and remove corner radius from Emacs view
         if let layer = emacsView.layer {
             originalCornerRadius = layer.cornerRadius
             layer.cornerRadius = 0
             layer.masksToBounds = false
         }
         
-        // Only remove corner radius from blur subviews, do NOT hide any overlays
         for subview in emacsView.subviews {
             if let effectView = subview as? NSVisualEffectView {
                 effectView.layer?.cornerRadius = 0
@@ -317,62 +377,53 @@ final class NavigationSidebarController: NSObject {
         
         emacsView.removeFromSuperview()
 
-        // Create vibrancy base view
-        let vibrancy = NSVisualEffectView(frame: emacsView.frame)
-        vibrancy.blendingMode = .behindWindow
-        vibrancy.material = .hudWindow
-        vibrancy.state = .active
-        vibrancy.autoresizingMask = [.width, .height]
-        vibrancy.wantsLayer = true
-        
-        // Set background color on the vibrancy view itself (not layer)
-        // This colors the vibrancy effect to match Emacs theme
-        if backgroundAlpha < 1.0 {
-            vibrancy.layer?.backgroundColor = backgroundColor.withAlphaComponent(backgroundAlpha).cgColor
-        } else {
-            // For opaque backgrounds, set the view's fill color
-            vibrancy.layer?.backgroundColor = backgroundColor.cgColor
-        }
-        
-        self.vibrancyView = vibrancy
-
-        // Create layout
+        // Create layout with sidebar initially hidden
         let layout = createLayout(emacsView: emacsView)
         let hosting = NSHostingView(rootView: AnyView(layout))
-        hosting.frame = vibrancy.bounds
+        hosting.frame = emacsView.frame
         hosting.autoresizingMask = [.width, .height]
+        
+        // Make hosting view layer-backed for proper rendering
+        hosting.wantsLayer = true
 
-        // Layer: vibrancyView (base) -> hosting (on top)
-        vibrancy.addSubview(hosting)
-        window.contentView = vibrancy
+        window.contentView = hosting
+        
+        // Configure window for proper NavigationSplitView
+        window.styleMask.insert(.fullSizeContentView)
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        
+        // Configure toolbar - use automatic style for proper Liquid Glass behavior
+        if window.toolbar == nil {
+            let toolbar = NSToolbar(identifier: "HyaloNavigationToolbar")
+            toolbar.displayMode = .iconOnly
+            window.toolbar = toolbar
+        }
+        window.toolbar?.isVisible = true
+        window.toolbarStyle = .automatic
 
         hostingView = hosting
-        isVisible = true
+        isSetup = true
 
-        // Show native traffic lights AFTER setting content view
+        // Show native traffic lights
         showTrafficLights(window)
 
-        print("[Hyalo] NavigationSplitView shown with vibrancy base")
+        print("[Hyalo] NavigationSplitView setup complete (sidebar collapsed)")
     }
-
-
-
-
-
-    func hide() {
-        guard isVisible, let window = window, let original = originalContentView else { return }
+    
+    /// Teardown the NavigationSplitView
+    func teardown() {
+        guard isSetup, let window = window, let original = originalContentView else { return }
 
         original.removeFromSuperview()
         original.frame = hostingView?.superview?.frame ?? window.frame
         original.autoresizingMask = [.width, .height]
         
-        // Restore corner radius
         if let layer = original.layer {
             layer.cornerRadius = originalCornerRadius
             layer.masksToBounds = true
         }
         
-        // Restore corner radius on blur subviews
         for subview in original.subviews {
             if let effectView = subview as? NSVisualEffectView {
                 effectView.layer?.cornerRadius = originalCornerRadius
@@ -381,20 +432,45 @@ final class NavigationSidebarController: NSObject {
         }
         
         window.contentView = original
-
-        // Hide traffic lights again (Hyalo custom buttons take over)
+        window.toolbar?.isVisible = false
         hideTrafficLights(window)
 
         hostingView = nil
-        vibrancyView = nil
         originalContentView = nil
-        isVisible = false
+        isSetup = false
+        sidebarVisible = false
 
-        print("[Hyalo] NavigationSplitView hidden")
+        print("[Hyalo] NavigationSplitView teardown complete")
     }
 
-    func toggle() {
-        if isVisible { hide() } else { show() }
+    /// Show the sidebar column
+    func showSidebar() {
+        guard isSetup else { return }
+        sidebarVisible = true
+        refreshView()
+        print("[Hyalo] Sidebar shown")
+    }
+    
+    /// Hide the sidebar column
+    func hideSidebar() {
+        guard isSetup else { return }
+        sidebarVisible = false
+        refreshView()
+        print("[Hyalo] Sidebar hidden")
+    }
+    
+    /// Toggle the sidebar column visibility
+    func toggleSidebar() {
+        if sidebarVisible {
+            hideSidebar()
+        } else {
+            showSidebar()
+        }
+    }
+    
+    /// Check if sidebar is currently visible
+    var isSidebarVisible: Bool {
+        sidebarVisible
     }
 
     // MARK: - Traffic Lights
@@ -448,10 +524,8 @@ final class NavigationSidebarController: NSObject {
         backgroundColor = parseEmacsColor(colorString) ?? .windowBackgroundColor
         backgroundAlpha = alpha
         
-        // Apply to vibrancy view if visible
-        if let vibrancy = vibrancyView, isVisible {
-            vibrancy.layer?.backgroundColor = backgroundColor.withAlphaComponent(alpha).cgColor
-        }
+        // Refresh SwiftUI views to update sidebar and gradient colors
+        refreshView()
     }
     
     /// Parse Emacs color string (e.g., "#282c34" or "white")
@@ -500,13 +574,20 @@ final class NavigationSidebarController: NSObject {
             get: { [weak self] in self?.modeLine ?? "" },
             set: { [weak self] in self?.modeLine = $0 }
         )
+        let sidebarVisibleBinding = Binding<Bool>(
+            get: { [weak self] in self?.sidebarVisible ?? false },
+            set: { [weak self] in self?.sidebarVisible = $0 }
+        )
 
         return HyaloNavigationLayout(
             buffers: buffersBinding,
             files: filesBinding,
             projectName: projectBinding,
             modeLine: modeLineBinding,
+            sidebarVisible: sidebarVisibleBinding,
             emacsView: emacsView,
+            backgroundColor: backgroundColor,
+            backgroundAlpha: backgroundAlpha,
             onBufferSelect: { [weak self] buffer in self?.onBufferSelect?(buffer.name) },
             onBufferClose: { [weak self] buffer in self?.onBufferClose?(buffer.name) },
             onFileSelect: { [weak self] file in self?.onFileSelect?(file.path) }
@@ -514,7 +595,7 @@ final class NavigationSidebarController: NSObject {
     }
 
     private func refreshView() {
-        guard isVisible, let emacsView = originalContentView else { return }
+        guard isSetup, let emacsView = originalContentView else { return }
         hostingView?.rootView = AnyView(createLayout(emacsView: emacsView))
     }
 }
@@ -545,21 +626,36 @@ final class NavigationSidebarManager {
         controllers[key] = controller
         return controller
     }
+    
+    /// Setup the NavigationSplitView for a window (called at Hyalo initialization)
+    func setup(for window: NSWindow) {
+        getController(for: window).setup()
+    }
+    
+    /// Teardown the NavigationSplitView for a window
+    func teardown(for window: NSWindow) {
+        controllers[window.windowNumber]?.teardown()
+    }
+    
+    /// Check if NavigationSplitView is set up for a window
+    func isSetup(for window: NSWindow) -> Bool {
+        controllers[window.windowNumber]?.isSetup ?? false
+    }
 
     func showSidebar(for window: NSWindow) {
-        getController(for: window).show()
+        getController(for: window).showSidebar()
     }
 
     func hideSidebar(for window: NSWindow) {
-        getController(for: window).hide()
+        getController(for: window).hideSidebar()
     }
 
     func toggleSidebar(for window: NSWindow) {
-        getController(for: window).toggle()
+        getController(for: window).toggleSidebar()
     }
 
     func isSidebarVisible(for window: NSWindow) -> Bool {
-        controllers[window.windowNumber]?.isVisible ?? false
+        controllers[window.windowNumber]?.isSidebarVisible ?? false
     }
 
     func updateBuffers(for window: NSWindow, buffers: [SidebarBuffer]) {

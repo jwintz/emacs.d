@@ -112,11 +112,17 @@ If mode is `auto', queries the system appearance."
       ;; Window appearance (vibrancy)
       (when (fboundp 'hyalo-set-window-appearance-all)
         (hyalo-set-window-appearance-all (symbol-name appearance)))
-      ;; Background color for gradient (now correct after theme applied)
-      (when (fboundp 'hyalo-set-background-color-all)
-        (let ((bg (face-background 'default nil 'default)))
-          (when bg
-            (hyalo-set-background-color-all bg))))
+      ;; Background color for sidebar and gradient
+      (let ((bg (face-background 'default nil 'default)))
+        (when bg
+          (let ((hex-color (if (string-prefix-p "#" bg)
+                               bg
+                             (apply #'format "#%02x%02x%02x"
+                                    (mapcar (lambda (c) (/ c 256))
+                                            (color-values bg))))))
+            ;; Sync to NavigationSplitView sidebar
+            (when (fboundp 'hyalo-sidebar-set-background-color)
+              (hyalo-sidebar-set-background-color hex-color (float alpha))))))
       ;; Echo area dark theme (affects tint color)
       (when (fboundp 'hyalo-set-echo-area-dark-theme-all)
         (hyalo-set-echo-area-dark-theme-all is-dark))
@@ -156,11 +162,21 @@ Switches to the configured theme if set."
       (load-theme theme t))))
 
 (defun hyalo-module-appearance--sync-background-color ()
-  "Send the current frame background color to Swift for gradient overlay."
-  (when (and (hyalo-module-available-p) (fboundp 'hyalo-set-background-color))
-    (let ((bg (face-background 'default nil 'default)))
-      (when bg
-        (hyalo-set-background-color bg)))))
+  "Send the current frame background color to Swift for gradient overlay and sidebar."
+  (when (hyalo-module-available-p)
+    (let* ((bg (face-background 'default nil 'default))
+           (alpha (or (frame-parameter nil 'alpha-background) 1.0))
+           ;; Convert color to hex if it's a name
+           (hex-color (if (and bg (string-prefix-p "#" bg))
+                          bg
+                        (when bg
+                          (apply #'format "#%02x%02x%02x"
+                                 (mapcar (lambda (c) (/ c 256))
+                                         (color-values bg)))))))
+      (when hex-color
+        ;; Sync to NavigationSplitView sidebar
+        (when (fboundp 'hyalo-sidebar-set-background-color)
+          (hyalo-sidebar-set-background-color hex-color (float alpha)))))))
 
 (defun hyalo-module-appearance--sync-to-window ()
   "Sync all appearance settings to the current frame's Swift window.

@@ -74,6 +74,17 @@ final class HyaloManager {
     func setHeaderPosition(for window: NSWindow, top: CGFloat, left: CGFloat, right: CGFloat) {
         controllers[window.windowNumber]?.setHeaderPosition(top: top, left: left, right: right)
     }
+    
+    /// Show or hide the floating header view
+    /// Used when NavigationSplitView is active (toolbar replaces floating header)
+    func setHeaderHidden(_ hidden: Bool, for window: NSWindow) {
+        controllers[window.windowNumber]?.setHeaderHidden(hidden)
+    }
+    
+    /// Show or hide the gradient overlay view
+    func setGradientHidden(_ hidden: Bool, for window: NSWindow) {
+        controllers[window.windowNumber]?.setGradientHidden(hidden)
+    }
 
     // MARK: - Sidebar
 

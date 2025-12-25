@@ -91,10 +91,9 @@
 ;;; Header Update (Hook Function)
 
 (defun hyalo-module-header--update ()
-  "Send current buffer info to Swift header view.
+  "Send current buffer info to Swift header view and toolbar.
 Called from post-command-hook and window-configuration-change-hook."
   (when (and (hyalo-module-available-p)
-             (fboundp 'hyalo-update-header)
              (display-graphic-p))
     (let* ((current-window (selected-window))
            (mode-line-str (or (hyalo-module-header--format-mode-line) ""))
@@ -106,11 +105,12 @@ Called from post-command-hook and window-configuration-change-hook."
       ;; Update mode-line if changed
       (when (or mode-line-changed window-changed)
         (setq hyalo-module-header--last-mode-line mode-line-str)
-        (hyalo-update-header mode-line-str))
-      ;; Update header-line if changed
+        ;; Update NavigationSplitView toolbar mode-line
+        (when (fboundp 'hyalo-sidebar-update-mode-line)
+          (hyalo-sidebar-update-mode-line mode-line-str)))
+      ;; Update header-line if changed (currently not used in toolbar)
       (when (or header-line-changed window-changed)
-        (setq hyalo-module-header--last-header-line header-line-str)
-        (hyalo-update-header-line header-line-str))
+        (setq hyalo-module-header--last-header-line header-line-str))
       ;; Track window
       (setq hyalo-module-header--last-window current-window))))
 
@@ -180,15 +180,12 @@ Called by hooks to override modes that set mode-line-format buffer-locally."
   (let ((f (or frame (selected-frame))))
     (when (and (display-graphic-p f) (eq (framep f) 'ns))
       (with-selected-frame f
-        ;; Setup Swift module for this frame's window
-        (when (fboundp 'hyalo-setup)
-          (hyalo-setup))
-        ;; Set header position
-        (when (fboundp 'hyalo-set-header-position)
-          (hyalo-set-header-position
-           hyalo-module-header-top-padding
-           hyalo-module-header-left-padding
-           hyalo-module-header-right-padding))
+        ;; Tell Emacs the titlebar is hidden (prevents dimension display in titlebar area)
+        (set-frame-parameter f 'ns-transparent-titlebar t)
+        (set-frame-parameter f 'ns-appearance nil)
+        ;; Setup NavigationSplitView with toolbar (replaces legacy HeaderView)
+        (when (fboundp 'hyalo-navigation-setup)
+          (hyalo-navigation-setup))
         ;; Sync appearance settings for this window (background color, vibrancy, echo area)
         (when (fboundp 'hyalo-module-appearance--sync-to-window)
           (hyalo-module-appearance--sync-to-window))))))
@@ -196,8 +193,8 @@ Called by hooks to override modes that set mode-line-format buffer-locally."
 (defun hyalo-module-header--teardown-frame (&optional frame)
   "Teardown Hyalo for FRAME (or current frame if nil)."
   (with-selected-frame (or frame (selected-frame))
-    (when (fboundp 'hyalo-teardown)
-      (hyalo-teardown))))
+    (when (fboundp 'hyalo-navigation-teardown)
+      (hyalo-navigation-teardown))))
 
 (defun hyalo-module-header--enable ()
   "Enable header view management."
