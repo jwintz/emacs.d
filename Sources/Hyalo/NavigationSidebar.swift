@@ -199,51 +199,28 @@ struct ModeLineToolbarView: View {
 
     var body: some View {
         let segments = parseSegments(content)
-        HStack(spacing: 0) {
-            ModeLineTextView(text: segments.lhs, fontSize: 11)
+        HStack(spacing: 4) {
+            Text(segments.lhs)
+                .font(.system(size: 11, design: .monospaced))
                 .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-            Spacer(minLength: 20)
+                .truncationMode(.middle)
             if !segments.rhs.isEmpty {
-                ModeLineTextView(text: segments.rhs, fontSize: 11)
+                Spacer()
+                Text(segments.rhs)
+                    .font(.system(size: 11, design: .monospaced))
                     .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                    .truncationMode(.middle)
             }
         }
-        .frame(minWidth: 400, maxWidth: .infinity)
     }
 }
 
 /// Wrapper to embed Emacs NSView in SwiftUI
 /// The view should have no round corners and expand to fill available space
-/// Includes gradient overlay for header blend effect
-struct EmacsContentView: View {
+struct EmacsContentView: NSViewRepresentable {
     let emacsView: NSView
     var backgroundColor: NSColor
     var backgroundAlpha: CGFloat
-    
-    var body: some View {
-        ZStack(alignment: .top) {
-            EmacsNSViewRepresentable(emacsView: emacsView)
-            
-            // Gradient overlay for header blend effect
-            LinearGradient(
-                colors: [
-                    Color(nsColor: backgroundColor.withAlphaComponent(backgroundAlpha)),
-                    Color(nsColor: backgroundColor.withAlphaComponent(0))
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: 60)
-            .allowsHitTesting(false)
-        }
-    }
-}
-
-/// NSViewRepresentable wrapper for Emacs NSView
-struct EmacsNSViewRepresentable: NSViewRepresentable {
-    let emacsView: NSView
 
     func makeNSView(context: Context) -> NSView {
         // Ensure the Emacs view has no corner radius
@@ -299,7 +276,6 @@ struct HyaloNavigationLayout: View {
                 backgroundColor: backgroundColor,
                 backgroundAlpha: backgroundAlpha
             )
-            .ignoresSafeArea()
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar {
@@ -405,8 +381,13 @@ final class NavigationSidebarController: NSObject {
         hostingView = hosting
         isSetup = true
 
-        // Show native traffic lights
+        // Show native traffic lights immediately and after a short delay
+        // (Emacs or other code may hide them during initialization)
         showTrafficLights(window)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self, weak window] in
+            guard let window = window else { return }
+            self?.showTrafficLights(window)
+        }
 
         print("[Hyalo] NavigationSplitView setup complete (sidebar collapsed)")
     }

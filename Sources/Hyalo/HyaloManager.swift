@@ -49,6 +49,13 @@ final class HyaloManager {
     // MARK: - Traffic Lights
 
     func setTrafficLightsAutoHide(_ enabled: Bool, for window: NSWindow) {
+        // When NavigationSplitView is active, ignore auto-hide requests
+        // Traffic lights must always be visible with the new layout
+        if #available(macOS 15.0, *) {
+            if NavigationSidebarManager.shared.isSetup(for: window) {
+                return
+            }
+        }
         let controller = getOrCreateController(for: window)
         controller.setTrafficLightsAutoHide(enabled)
     }
@@ -58,6 +65,12 @@ final class HyaloManager {
     }
 
     func hideTrafficLights(for window: NSWindow) {
+        // When NavigationSplitView is active, don't hide traffic lights
+        if #available(macOS 15.0, *) {
+            if NavigationSidebarManager.shared.isSetup(for: window) {
+                return
+            }
+        }
         controllers[window.windowNumber]?.hideTrafficLights()
     }
 
