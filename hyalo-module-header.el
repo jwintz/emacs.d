@@ -67,6 +67,9 @@
 (defvar hyalo-module-header--last-window nil
   "Last window that was updated, for change detection.")
 
+(defvar hyalo-module-header--saved-frame-title-format nil
+  "Saved frame-title-format to restore when disabling.")
+
 ;;; Mode-line Formatting
 
 (defun hyalo-module-header--save-buffer-header-line ()
@@ -184,7 +187,7 @@ Called by hooks to override modes that set mode-line-format buffer-locally."
         (modify-frame-parameters f '((ns-transparent-titlebar . t)
                                       (ns-appearance . nil)))
         ;; Clear the frame title so Emacs doesn't try to display dimensions
-        (modify-frame-parameters f '((title . "")))
+        (modify-frame-parameters f '((title . " ")))
         ;; Disable internal border (reduces title bar height)
         (modify-frame-parameters f '((internal-border-width . 0)))
         ;; Setup NavigationSplitView with toolbar (replaces legacy HeaderView)
@@ -203,12 +206,16 @@ Called by hooks to override modes that set mode-line-format buffer-locally."
 (defun hyalo-module-header--keep-title-empty ()
   "Keep frame title empty to prevent Emacs from rendering in titlebar."
   (when (and (display-graphic-p) (eq (framep (selected-frame)) 'ns))
-    (unless (string= (frame-parameter nil 'title) "")
-      (set-frame-parameter nil 'title ""))))
+    (let ((current-title (frame-parameter nil 'title)))
+      (unless (and current-title (string= current-title " "))
+        (set-frame-parameter nil 'title " ")))))
 
 (defun hyalo-module-header--enable ()
   "Enable header view management."
   (hyalo-module-ensure)
+  ;; Save and clear frame-title-format to prevent dimension display in titlebar
+  (setq hyalo-module-header--saved-frame-title-format frame-title-format)
+  (setq frame-title-format " ")
   ;; Setup all existing frames
   (dolist (frame (frame-list))
     (hyalo-module-header--setup-frame frame))
@@ -240,10 +247,14 @@ Called by hooks to override modes that set mode-line-format buffer-locally."
     (hyalo-module-header--teardown-frame frame))
   ;; Restore native mode-line
   (hyalo-module-header--restore-native)
+  ;; Restore frame-title-format
+  (when hyalo-module-header--saved-frame-title-format
+    (setq frame-title-format hyalo-module-header--saved-frame-title-format))
   ;; Clear state
   (setq hyalo-module-header--last-mode-line ""
         hyalo-module-header--last-header-line ""
-        hyalo-module-header--last-window nil)
+        hyalo-module-header--last-window nil
+        hyalo-module-header--saved-frame-title-format nil)
   (hyalo-module-log "Header: Disabled"))
 
 ;;;###autoload

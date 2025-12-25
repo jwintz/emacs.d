@@ -122,11 +122,11 @@ struct SidebarContentView: View {
     @Binding var buffers: [SidebarBuffer]
     @Binding var files: [SidebarFile]
     @Binding var projectName: String
-    
-    /// Background color from Emacs default face
-    var backgroundColor: NSColor
-    /// Background alpha from Emacs frame parameter
-    var backgroundAlpha: CGFloat
+
+    /// Background color from Emacs default face (as binding for reactivity)
+    @Binding var backgroundColor: NSColor
+    /// Background alpha from Emacs frame parameter (as binding for reactivity)
+    @Binding var backgroundAlpha: CGFloat
 
     var onBufferSelect: ((SidebarBuffer) -> Void)?
     var onBufferClose: ((SidebarBuffer) -> Void)?
@@ -175,9 +175,6 @@ struct SidebarContentView: View {
             }
         }
         .listStyle(.sidebar)
-        .scrollContentBackground(.hidden)
-        .background(Color(nsColor: backgroundColor.withAlphaComponent(backgroundAlpha)))
-        .ignoresSafeArea()
     }
 }
 
@@ -185,7 +182,7 @@ struct SidebarContentView: View {
 @available(macOS 15.0, *)
 struct ModeLineToolbarView: View {
     let content: String
-    
+
     /// Parse a string into LHS and RHS by splitting on 3+ consecutive spaces
     private func parseSegments(_ input: String) -> (lhs: String, rhs: String) {
         let content = input.trimmingCharacters(in: .whitespaces)
@@ -199,21 +196,31 @@ struct ModeLineToolbarView: View {
 
     var body: some View {
         let segments = parseSegments(content)
+        let _ = print("[Hyalo] ModeLineToolbarView content: '\(content)' (length: \(content.count))")
+        let _ = print("[Hyalo] ModeLineToolbarView segments - LHS: '\(segments.lhs)' RHS: '\(segments.rhs)'")
+
         GeometryReader { geometry in
+            let _ = print("[Hyalo] ModeLineToolbarView geometry: \(geometry.size)")
             HStack(spacing: 0) {
                 Text(segments.lhs)
                     .font(.system(size: 11, design: .monospaced))
                     .lineLimit(1)
-                Spacer()
+                    .truncationMode(.middle)
+                    .layoutPriority(1)
+
+                Spacer(minLength: 8)
+
                 if !segments.rhs.isEmpty {
                     Text(segments.rhs)
                         .font(.system(size: 11, design: .monospaced))
                         .lineLimit(1)
+                        .truncationMode(.head)
+                        .layoutPriority(2)
                 }
             }
-            .frame(width: geometry.size.width)
+            .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .frame(maxWidth: .infinity)
+        .frame(minWidth: 100, idealWidth: 600, maxWidth: .infinity, minHeight: 20, idealHeight: 24, maxHeight: 30)
     }
 }
 
@@ -221,15 +228,15 @@ struct ModeLineToolbarView: View {
 /// Includes gradient overlay at top and echo area overlay at bottom
 struct EmacsContentView: View {
     let emacsView: NSView
-    var backgroundColor: NSColor
-    var backgroundAlpha: CGFloat
-    var echoAreaHeight: CGFloat = 22
-    
+    @Binding var backgroundColor: NSColor
+    @Binding var backgroundAlpha: CGFloat
+    @Binding var echoAreaHeight: CGFloat
+
     var body: some View {
         ZStack {
             // Emacs content
             EmacsNSViewRepresentable(emacsView: emacsView)
-            
+
             // Overlays anchored to top and bottom
             VStack(spacing: 0) {
                 // Gradient overlay at top (blends with toolbar)
@@ -243,11 +250,11 @@ struct EmacsContentView: View {
                 )
                 .frame(height: 40)
                 .allowsHitTesting(false)
-                
+
                 Spacer()
-                
+
                 // Echo area overlay at bottom (height matches minibuffer)
-                EchoAreaOverlay(backgroundColor: backgroundColor, backgroundAlpha: backgroundAlpha, height: echoAreaHeight)
+                EchoAreaOverlay(backgroundColor: $backgroundColor, backgroundAlpha: $backgroundAlpha, height: echoAreaHeight)
             }
         }
         // Only extend under top edge (toolbar), not sidebar
@@ -257,10 +264,10 @@ struct EmacsContentView: View {
 
 /// Echo area overlay at the bottom of the content
 struct EchoAreaOverlay: View {
-    var backgroundColor: NSColor
-    var backgroundAlpha: CGFloat
+    @Binding var backgroundColor: NSColor
+    @Binding var backgroundAlpha: CGFloat
     var height: CGFloat = 22
-    
+
     var body: some View {
         Rectangle()
             .fill(Color(nsColor: backgroundColor.withAlphaComponent(backgroundAlpha * 0.5)))
@@ -295,26 +302,26 @@ struct HyaloNavigationLayout: View {
     @Binding var sidebarVisible: Bool
     @Binding var echoAreaHeight: CGFloat
     let emacsView: NSView
-    
-    /// Background color from Emacs default face
-    var backgroundColor: NSColor
-    /// Background alpha from Emacs frame parameter
-    var backgroundAlpha: CGFloat
+
+    /// Background color from Emacs default face (as binding for reactivity)
+    @Binding var backgroundColor: NSColor
+    /// Background alpha from Emacs frame parameter (as binding for reactivity)
+    @Binding var backgroundAlpha: CGFloat
 
     var onBufferSelect: ((SidebarBuffer) -> Void)?
     var onBufferClose: ((SidebarBuffer) -> Void)?
     var onFileSelect: ((SidebarFile) -> Void)?
 
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
-    
+
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarContentView(
                 buffers: $buffers,
                 files: $files,
                 projectName: $projectName,
-                backgroundColor: backgroundColor,
-                backgroundAlpha: backgroundAlpha,
+                backgroundColor: $backgroundColor,
+                backgroundAlpha: $backgroundAlpha,
                 onBufferSelect: onBufferSelect,
                 onBufferClose: onBufferClose,
                 onFileSelect: onFileSelect
@@ -323,18 +330,24 @@ struct HyaloNavigationLayout: View {
         } detail: {
             EmacsContentView(
                 emacsView: emacsView,
-                backgroundColor: backgroundColor,
-                backgroundAlpha: backgroundAlpha,
-                echoAreaHeight: echoAreaHeight
+                backgroundColor: $backgroundColor,
+                backgroundAlpha: $backgroundAlpha,
+                echoAreaHeight: $echoAreaHeight
             )
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar {
-            // Use a custom toolbar layout that expands to fill available space
             ToolbarItem(placement: .principal) {
                 ModeLineToolbarView(content: modeLine)
-                    .frame(minWidth: 300, idealWidth: 800, maxWidth: .infinity)
             }
+        }
+        .toolbarRole(.editor)
+        .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
+        .background {
+            // Use SwiftUI's material for vibrancy (works with NSHostingView as content view)
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .ignoresSafeArea()
         }
         .onChange(of: sidebarVisible) { _, newValue in
             withAnimation {
@@ -355,7 +368,8 @@ final class NavigationSidebarController: NSObject {
     private var originalContentView: NSView?
     private var originalCornerRadius: CGFloat = 0
     private var hostingView: NSHostingView<AnyView>?
-    
+    private var blurView: NSVisualEffectView?
+
     /// Current background color (Emacs default face + alpha)
     private var backgroundColor: NSColor = .windowBackgroundColor
     private var backgroundAlpha: CGFloat = 1.0
@@ -390,21 +404,21 @@ final class NavigationSidebarController: NSObject {
 
         originalContentView = emacsView
         sidebarVisible = false
-        
+
         // Save and remove corner radius from Emacs view
         if let layer = emacsView.layer {
             originalCornerRadius = layer.cornerRadius
             layer.cornerRadius = 0
             layer.masksToBounds = false
         }
-        
+
         for subview in emacsView.subviews {
             if let effectView = subview as? NSVisualEffectView {
                 effectView.layer?.cornerRadius = 0
                 effectView.layer?.masksToBounds = false
             }
         }
-        
+
         emacsView.removeFromSuperview()
 
         // Create layout with sidebar initially hidden
@@ -412,25 +426,26 @@ final class NavigationSidebarController: NSObject {
         let hosting = NSHostingView(rootView: AnyView(layout))
         hosting.frame = emacsView.frame
         hosting.autoresizingMask = [.width, .height]
-        
-        // Make hosting view layer-backed for proper rendering
         hosting.wantsLayer = true
 
+        // Set hosting view directly as content view (required for SwiftUI toolbar)
         window.contentView = hosting
-        
-        // Configure window for proper NavigationSplitView
+
+        // Configure window for proper NavigationSplitView with vibrancy
         window.styleMask.insert(.fullSizeContentView)
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        
-        // Configure toolbar - use automatic style for proper Liquid Glass behavior
+        window.isOpaque = false
+        window.backgroundColor = .clear
+
+        // Configure toolbar - use unified style for Liquid Glass
         if window.toolbar == nil {
             let toolbar = NSToolbar(identifier: "HyaloNavigationToolbar")
             toolbar.displayMode = .iconOnly
             window.toolbar = toolbar
         }
         window.toolbar?.isVisible = true
-        window.toolbarStyle = .automatic
+        window.toolbarStyle = .unified
 
         hostingView = hosting
         isSetup = true
@@ -450,24 +465,29 @@ final class NavigationSidebarController: NSObject {
     func teardown() {
         guard isSetup, let window = window, let original = originalContentView else { return }
 
+        // Clean up blur view
+        blurView?.removeFromSuperview()
+        blurView = nil
+
         original.removeFromSuperview()
         original.frame = hostingView?.superview?.frame ?? window.frame
         original.autoresizingMask = [.width, .height]
-        
+
         if let layer = original.layer {
             layer.cornerRadius = originalCornerRadius
             layer.masksToBounds = true
         }
-        
+
         for subview in original.subviews {
             if let effectView = subview as? NSVisualEffectView {
                 effectView.layer?.cornerRadius = originalCornerRadius
                 effectView.layer?.masksToBounds = true
             }
         }
-        
+
         window.contentView = original
         window.toolbar?.isVisible = false
+        window.isOpaque = true
         hideTrafficLights(window)
 
         hostingView = nil
@@ -623,6 +643,14 @@ final class NavigationSidebarController: NSObject {
             get: { [weak self] in self?.echoAreaHeight ?? 22 },
             set: { [weak self] in self?.echoAreaHeight = $0 }
         )
+        let backgroundColorBinding = Binding<NSColor>(
+            get: { [weak self] in self?.backgroundColor ?? .windowBackgroundColor },
+            set: { [weak self] in self?.backgroundColor = $0 }
+        )
+        let backgroundAlphaBinding = Binding<CGFloat>(
+            get: { [weak self] in self?.backgroundAlpha ?? 1.0 },
+            set: { [weak self] in self?.backgroundAlpha = $0 }
+        )
 
         return HyaloNavigationLayout(
             buffers: buffersBinding,
@@ -632,8 +660,8 @@ final class NavigationSidebarController: NSObject {
             sidebarVisible: sidebarVisibleBinding,
             echoAreaHeight: echoAreaHeightBinding,
             emacsView: emacsView,
-            backgroundColor: backgroundColor,
-            backgroundAlpha: backgroundAlpha,
+            backgroundColor: backgroundColorBinding,
+            backgroundAlpha: backgroundAlphaBinding,
             onBufferSelect: { [weak self] buffer in self?.onBufferSelect?(buffer.name) },
             onBufferClose: { [weak self] buffer in self?.onBufferClose?(buffer.name) },
             onFileSelect: { [weak self] file in self?.onFileSelect?(file.path) }
