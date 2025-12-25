@@ -222,10 +222,13 @@ Only reacts if `hyalo-module-appearance-mode-setting' is `auto'."
 (defun hyalo-module-appearance--update-echo-area ()
   "Send echo area height and tint opacity to Swift module."
   (when (hyalo-module-available-p)
-    ;; Update height
-    (when (fboundp 'hyalo-set-echo-area-height)
-      (let ((height (window-pixel-height (minibuffer-window))))
-        (hyalo-set-echo-area-height height)))
+    (let ((height (window-pixel-height (minibuffer-window))))
+      ;; Update height for legacy system
+      (when (fboundp 'hyalo-set-echo-area-height)
+        (hyalo-set-echo-area-height height))
+      ;; Update height for NavigationSplitView overlay
+      (when (fboundp 'hyalo-sidebar-set-echo-area-height)
+        (hyalo-sidebar-set-echo-area-height height)))
     ;; Update tint opacity
     (when (fboundp 'hyalo-set-echo-area-tint-opacity)
       (hyalo-set-echo-area-tint-opacity hyalo-module-appearance-echo-tint-opacity))))

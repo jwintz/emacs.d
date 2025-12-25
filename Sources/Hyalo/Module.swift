@@ -406,6 +406,26 @@ final class HyaloModule: Module {
             }
             return false
         }
+        
+        try env.defun(
+            "hyalo-sidebar-set-echo-area-height",
+            with: """
+            Set the echo area overlay height.
+            HEIGHT is the minibuffer height in pixels.
+            """
+        ) { (env: Environment, height: Int) throws -> Bool in
+            if #available(macOS 15.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.setEchoAreaHeight(
+                        for: window,
+                        height: CGFloat(height)
+                    )
+                }
+                return true
+            }
+            return false
+        }
 
         // Note: Treemacs runs inside Emacs (detail area), not managed by Swift sidebar
 

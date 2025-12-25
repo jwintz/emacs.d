@@ -416,6 +416,9 @@
   :config
   (setq frame-resize-pixelwise t)
   (set-frame-parameter nil 'internal-border-width 0)
+  ;; Enable transparent titlebar for NavigationSplitView integration
+  (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t))
+  (set-frame-parameter nil 'ns-transparent-titlebar t)
   (general-unbind "C-z" "C-x C-z"))
 
 ;;;; Hyalo Module

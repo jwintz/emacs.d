@@ -199,31 +199,81 @@ struct ModeLineToolbarView: View {
 
     var body: some View {
         let segments = parseSegments(content)
-        HStack(spacing: 4) {
-            Text(segments.lhs)
-                .font(.system(size: 11, design: .monospaced))
-                .lineLimit(1)
-                .truncationMode(.middle)
-            if !segments.rhs.isEmpty {
-                Spacer()
-                Text(segments.rhs)
+        GeometryReader { geometry in
+            HStack(spacing: 0) {
+                Text(segments.lhs)
                     .font(.system(size: 11, design: .monospaced))
                     .lineLimit(1)
-                    .truncationMode(.middle)
+                Spacer()
+                if !segments.rhs.isEmpty {
+                    Text(segments.rhs)
+                        .font(.system(size: 11, design: .monospaced))
+                        .lineLimit(1)
+                }
             }
+            .frame(width: geometry.size.width)
         }
+        .frame(maxWidth: .infinity)
     }
 }
 
 /// Wrapper to embed Emacs NSView in SwiftUI
-/// The view should have no round corners and expand to fill available space
-struct EmacsContentView: NSViewRepresentable {
+/// Includes gradient overlay at top and echo area overlay at bottom
+struct EmacsContentView: View {
     let emacsView: NSView
     var backgroundColor: NSColor
     var backgroundAlpha: CGFloat
+    var echoAreaHeight: CGFloat = 22
+    
+    var body: some View {
+        ZStack {
+            // Emacs content
+            EmacsNSViewRepresentable(emacsView: emacsView)
+            
+            // Overlays anchored to top and bottom
+            VStack(spacing: 0) {
+                // Gradient overlay at top (blends with toolbar)
+                LinearGradient(
+                    colors: [
+                        Color(nsColor: backgroundColor.withAlphaComponent(backgroundAlpha * 0.8)),
+                        Color(nsColor: backgroundColor.withAlphaComponent(0))
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .frame(height: 40)
+                .allowsHitTesting(false)
+                
+                Spacer()
+                
+                // Echo area overlay at bottom (height matches minibuffer)
+                EchoAreaOverlay(backgroundColor: backgroundColor, backgroundAlpha: backgroundAlpha, height: echoAreaHeight)
+            }
+        }
+        // Only extend under top edge (toolbar), not sidebar
+        .ignoresSafeArea(.all, edges: .top)
+    }
+}
+
+/// Echo area overlay at the bottom of the content
+struct EchoAreaOverlay: View {
+    var backgroundColor: NSColor
+    var backgroundAlpha: CGFloat
+    var height: CGFloat = 22
+    
+    var body: some View {
+        Rectangle()
+            .fill(Color(nsColor: backgroundColor.withAlphaComponent(backgroundAlpha * 0.5)))
+            .frame(height: height)
+            .allowsHitTesting(false)
+    }
+}
+
+/// NSViewRepresentable wrapper for Emacs NSView
+struct EmacsNSViewRepresentable: NSViewRepresentable {
+    let emacsView: NSView
 
     func makeNSView(context: Context) -> NSView {
-        // Ensure the Emacs view has no corner radius
         emacsView.wantsLayer = true
         emacsView.layer?.cornerRadius = 0
         emacsView.layer?.masksToBounds = false
@@ -231,7 +281,6 @@ struct EmacsContentView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: NSView, context: Context) {
-        // Ensure corner radius stays at 0
         nsView.layer?.cornerRadius = 0
     }
 }
@@ -244,6 +293,7 @@ struct HyaloNavigationLayout: View {
     @Binding var projectName: String
     @Binding var modeLine: String
     @Binding var sidebarVisible: Bool
+    @Binding var echoAreaHeight: CGFloat
     let emacsView: NSView
     
     /// Background color from Emacs default face
@@ -274,13 +324,16 @@ struct HyaloNavigationLayout: View {
             EmacsContentView(
                 emacsView: emacsView,
                 backgroundColor: backgroundColor,
-                backgroundAlpha: backgroundAlpha
+                backgroundAlpha: backgroundAlpha,
+                echoAreaHeight: echoAreaHeight
             )
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar {
+            // Use a custom toolbar layout that expands to fill available space
             ToolbarItem(placement: .principal) {
                 ModeLineToolbarView(content: modeLine)
+                    .frame(minWidth: 300, idealWidth: 800, maxWidth: .infinity)
             }
         }
         .onChange(of: sidebarVisible) { _, newValue in
@@ -312,6 +365,7 @@ final class NavigationSidebarController: NSObject {
     private var files: [SidebarFile] = []
     private var projectName: String = ""
     private var modeLine: String = ""
+    private var echoAreaHeight: CGFloat = 22
     
     /// Whether the sidebar column is visible
     private var sidebarVisible: Bool = false
@@ -500,6 +554,12 @@ final class NavigationSidebarController: NSObject {
         refreshView()
     }
     
+    /// Set the echo area height (minibuffer height)
+    func setEchoAreaHeight(_ height: CGFloat) {
+        echoAreaHeight = height
+        refreshView()
+    }
+    
     /// Set the background color from Emacs (color string + alpha)
     func setBackgroundColor(_ colorString: String, alpha: CGFloat) {
         backgroundColor = parseEmacsColor(colorString) ?? .windowBackgroundColor
@@ -559,6 +619,10 @@ final class NavigationSidebarController: NSObject {
             get: { [weak self] in self?.sidebarVisible ?? false },
             set: { [weak self] in self?.sidebarVisible = $0 }
         )
+        let echoAreaHeightBinding = Binding<CGFloat>(
+            get: { [weak self] in self?.echoAreaHeight ?? 22 },
+            set: { [weak self] in self?.echoAreaHeight = $0 }
+        )
 
         return HyaloNavigationLayout(
             buffers: buffersBinding,
@@ -566,6 +630,7 @@ final class NavigationSidebarController: NSObject {
             projectName: projectBinding,
             modeLine: modeLineBinding,
             sidebarVisible: sidebarVisibleBinding,
+            echoAreaHeight: echoAreaHeightBinding,
             emacsView: emacsView,
             backgroundColor: backgroundColor,
             backgroundAlpha: backgroundAlpha,
@@ -653,6 +718,10 @@ final class NavigationSidebarManager {
 
     func updateModeLine(for window: NSWindow, content: String) {
         controllers[window.windowNumber]?.updateModeLine(content)
+    }
+    
+    func setEchoAreaHeight(for window: NSWindow, height: CGFloat) {
+        controllers[window.windowNumber]?.setEchoAreaHeight(height)
     }
     
     func setBackgroundColor(for window: NSWindow, color: String, alpha: CGFloat) {
