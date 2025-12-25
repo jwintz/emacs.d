@@ -113,6 +113,9 @@ final class HyaloController: NSObject {
     /// Header view controller (macOS 15+)
     private var headerController: Any?  // Type-erased for version compatibility
 
+    /// Current sidebar offset (width in pixels, for header position adjustment)
+    private var sidebarOffset: CGFloat = 0
+
     /// Corner radius configuration
     static var cornerConfig = CornerRadiusConfig.tahoe
 
@@ -166,6 +169,9 @@ final class HyaloController: NSObject {
         // Add header view (macOS 15+)
         setupHeaderView()
 
+        // NOTE: Sidebar glass is now handled by SidebarFrameManager for child frames
+        // The child frame approach creates a separate NSWindow with its own glass effect
+
         // Hide native traffic lights - we use custom SwiftUI buttons
         hideNativeTrafficLightsPermanently()
 
@@ -184,6 +190,8 @@ final class HyaloController: NSObject {
     /// Remove Hyalo styling
     func teardown() {
         guard let window = window else { return }
+
+        // NOTE: Sidebar child frame is managed by SidebarFrameManager
 
         // Remove header view
         teardownHeaderView()
@@ -415,6 +423,46 @@ final class HyaloController: NSObject {
         headerController = nil
     }
 
+    // MARK: - Sidebar Offset (for header position adjustment)
+    // NOTE: Sidebar glass effect is now handled by SidebarFrameManager for child frames
+    // This method only adjusts the header position when sidebar is visible
+
+    /// Set the sidebar offset (width in pixels)
+    /// This adjusts the header to not extend over the sidebar area
+    func setSidebarOffset(_ offset: CGFloat) {
+        sidebarOffset = offset
+
+        // Update header position to account for sidebar
+        if #available(macOS 15.0, *) {
+            if let controller = headerController as? HeaderHostingController {
+                // Adjust left padding to start after sidebar
+                let leftPadding = offset > 0 ? offset + 12 : 78
+                controller.setPosition(
+                    top: headerTopPadding,
+                    left: leftPadding,
+                    right: 12
+                )
+            }
+        }
+
+        // Update gradient view position (offset from sidebar)
+        updateGradientForSidebar()
+
+        // NOTE: Echo area spans full width - no sidebar offset
+    }
+
+    private func updateGradientForSidebar() {
+        guard let gradient = gradientView, let contentView = window?.contentView else { return }
+
+        let gradientHeight: CGFloat = 60
+        gradient.frame = NSRect(
+            x: sidebarOffset,
+            y: contentView.bounds.height - gradientHeight,
+            width: contentView.bounds.width - sidebarOffset,
+            height: gradientHeight
+        )
+    }
+
     /// Update header content from Emacs with formatted mode-line string
     func updateHeader(modeLineString: String) {
         if #available(macOS 15.0, *) {
@@ -505,6 +553,7 @@ final class HyaloController: NSObject {
 
     /// Set the echo area height from Emacs
     /// Height should be (window-pixel-height (minibuffer-window)) + window-divider width
+    /// Echo area spans full width (no sidebar offset)
     func setEchoAreaHeight(_ height: CGFloat) {
         echoAreaHeight = height
 
@@ -514,7 +563,7 @@ final class HyaloController: NSObject {
         // Add 1 pixel for the window divider line at the top of echo area
         let totalHeight = height + 1
 
-        // Position at bottom of window (y=0 in macOS coords)
+        // Position at bottom of window, FULL WIDTH (no sidebar offset)
         echoView.frame = NSRect(
             x: 0,
             y: 0,

@@ -75,6 +75,20 @@ final class HyaloManager {
         controllers[window.windowNumber]?.setHeaderPosition(top: top, left: left, right: right)
     }
 
+    // MARK: - Sidebar
+
+    func setSidebarOffset(_ offset: CGFloat, for window: NSWindow) {
+        controllers[window.windowNumber]?.setSidebarOffset(offset)
+    }
+
+    func setSidebarOffsetForAll(_ offset: CGFloat) {
+        for (_, controller) in controllers {
+            controller.setSidebarOffset(offset)
+        }
+    }
+
+    // NOTE: Sidebar margin is now handled by child frame approach (SidebarFrameManager)
+
     // MARK: - Background Color and Echo Area
 
     func setBackgroundColor(_ colorString: String, for window: NSWindow) {

@@ -244,7 +244,11 @@
   (set-face-attribute 'variable-pitch nil
                       :font "Monaspace Radon Frozen"
                       :height 110
-                      :weight 'thin))
+                      :weight 'thin)
+  ;; Nerd Font symbols support
+  (set-fontset-font t '(#xe000 . #xffdd)
+                    (font-spec :name "Symbols Nerd Font Mono"
+                               :size 11) nil))
 
 ;;;; Icons
 
@@ -542,6 +546,42 @@
 
 (use-package swift-mode
   :mode "\\.swift\\'")
+
+;;;; Treemacs & Explorer
+
+(use-package treemacs
+  :defer t
+  :custom
+  (treemacs-position 'left)
+  (treemacs-width 35)
+  (treemacs-display-in-side-window t)
+  (treemacs-is-never-other-window t)
+  (treemacs-show-hidden-files t)
+  (treemacs-follow-after-init t)
+  (treemacs-expand-after-init t)
+  (treemacs-space-between-root-nodes nil)
+  (treemacs-no-png-images t)
+  (treemacs-indentation 1)
+  (treemacs-indentation-string " ")
+  :config
+  (treemacs-follow-mode t)
+  (treemacs-filewatch-mode t)
+  (treemacs-fringe-indicator-mode 'always))
+
+(use-package hyalo-explorer-icons
+  :load-path emacs-config-dir
+  :after treemacs
+  :config
+  (hyalo-explorer-icons-config))
+
+(use-package hyalo-explorer
+  :load-path emacs-config-dir
+  :after (hyalo-module nerd-icons)
+  :commands (hyalo-explorer-toggle hyalo-explorer-show hyalo-explorer-hide hyalo-explorer-refresh)
+  :general
+  (leader-def
+    "t e" '(hyalo-explorer-toggle :wk "explorer")
+    "t E" '(hyalo-explorer-refresh :wk "refresh explorer")))
 
 (emacs-section-end)
 

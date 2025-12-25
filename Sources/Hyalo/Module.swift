@@ -25,6 +25,46 @@ final class HyaloModule: Module {
     let isGPLCompatible = true
     private let version = "1.0.0"
 
+    // MARK: - JSON Parsing Helpers
+
+    @available(macOS 15.0, *)
+    static func parseBuffersJSON(_ json: String) -> [SidebarBuffer]? {
+        guard let data = json.data(using: .utf8) else { return nil }
+        guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
+
+        return array.compactMap { dict -> SidebarBuffer? in
+            guard let name = dict["name"] as? String else { return nil }
+            return SidebarBuffer(
+                id: dict["id"] as? String ?? name,
+                name: name,
+                path: dict["path"] as? String,
+                isModified: dict["modified"] as? Bool ?? false,
+                isCurrent: dict["current"] as? Bool ?? false,
+                icon: dict["icon"] as? String ?? ""
+            )
+        }
+    }
+
+    @available(macOS 15.0, *)
+    static func parseFilesJSON(_ json: String) -> [SidebarFile]? {
+        guard let data = json.data(using: .utf8) else { return nil }
+        guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
+
+        return array.compactMap { dict -> SidebarFile? in
+            guard let name = dict["name"] as? String,
+                  let path = dict["path"] as? String else { return nil }
+            return SidebarFile(
+                id: dict["id"] as? String ?? path,
+                name: name,
+                path: path,
+                isDirectory: dict["directory"] as? Bool ?? false,
+                isExpanded: dict["expanded"] as? Bool ?? false,
+                depth: dict["depth"] as? Int ?? 0,
+                icon: dict["icon"] as? String ?? ""
+            )
+        }
+    }
+
     func Init(_ env: Environment) throws {
 
         // MARK: - Info
@@ -168,6 +208,172 @@ final class HyaloModule: Module {
             }
             return 44
         }
+
+        // MARK: - Native Navigation Sidebar
+
+        try env.defun(
+            "hyalo-sidebar-show",
+            with: """
+            Show the native SwiftUI navigation sidebar.
+            This embeds Emacs content in a NavigationSplitView with a glass sidebar.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 15.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.showSidebar(for: window)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-sidebar-hide",
+            with: """
+            Hide the native SwiftUI navigation sidebar.
+            Restores Emacs to its original layout.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 15.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.hideSidebar(for: window)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-sidebar-toggle",
+            with: """
+            Toggle the native SwiftUI navigation sidebar.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 15.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.toggleSidebar(for: window)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-sidebar-visible-p",
+            with: """
+            Return t if the native sidebar is visible, nil otherwise.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 15.0, *) {
+                guard let window = findEmacsWindow() else { return false }
+                return NavigationSidebarManager.shared.isSidebarVisible(for: window)
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-sidebar-set-project",
+            with: """
+            Set the project name displayed in the sidebar header.
+            NAME is the project name string.
+            """
+        ) { (env: Environment, name: String) throws -> Bool in
+            if #available(macOS 15.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.setProjectName(for: window, name: name)
+                }
+                return true
+            }
+            return false
+        }
+
+        // Note: Buffer and file updates use JSON strings for complex data
+        // Emacs will encode the data as JSON, Swift will decode it
+
+        try env.defun(
+            "hyalo-sidebar-update-buffers-json",
+            with: """
+            Update the Open Editors section with buffer list.
+            JSON-DATA is a JSON string encoding a list of buffer objects with keys:
+            id, name, path, modified, current, icon
+            """
+        ) { (env: Environment, jsonData: String) throws -> Bool in
+            if #available(macOS 15.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    if let buffers = Self.parseBuffersJSON(jsonData) {
+                        NavigationSidebarManager.shared.updateBuffers(for: window, buffers: buffers)
+                    }
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-sidebar-update-files-json",
+            with: """
+            Update the Explorer section with file tree from treemacs.
+            JSON-DATA is a JSON string encoding a list of file objects with keys:
+            id, name, path, directory, expanded, depth, icon
+            """
+        ) { (env: Environment, jsonData: String) throws -> Bool in
+            if #available(macOS 15.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    if let files = Self.parseFilesJSON(jsonData) {
+                        NavigationSidebarManager.shared.updateFiles(for: window, files: files)
+                    }
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-sidebar-update-mode-line",
+            with: """
+            Update the mode-line content in the toolbar.
+            CONTENT is the mode-line string to display.
+            """
+        ) { (env: Environment, content: String) throws -> Bool in
+            if #available(macOS 15.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.updateModeLine(for: window, content: content)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-sidebar-set-background-color",
+            with: """
+            Set the sidebar vibrancy background color.
+            COLOR is a color string (e.g., "#282c34" or "white").
+            ALPHA is the alpha/transparency value (0.0 to 1.0).
+            """
+        ) { (env: Environment, color: String, alpha: Double) throws -> Bool in
+            if #available(macOS 15.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.setBackgroundColor(
+                        for: window,
+                        color: color,
+                        alpha: CGFloat(alpha)
+                    )
+                }
+                return true
+            }
+            return false
+        }
+
+        // Note: Treemacs runs inside Emacs (detail area), not managed by Swift sidebar
 
         // MARK: - Background Color and Echo Area
 

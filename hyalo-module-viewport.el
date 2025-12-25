@@ -77,12 +77,19 @@ Queries the Swift module for the authoritative value."
           (header-height (hyalo-module-viewport--header-height)))
       (< window-top (+ header-height 5)))))
 
+(defun hyalo-module-viewport--window-sidebar-p (window)
+  "Return non-nil if WINDOW is a sidebar window (treemacs, hyalo-explorer, etc.)."
+  (or (window-parameter window 'window-side)
+      (and (fboundp 'hyalo-explorer-sidebar-window-p)
+           (hyalo-explorer-sidebar-window-p window))))
+
 (defun hyalo-module-viewport--window-eligible-p (window)
   "Return non-nil if WINDOW should have viewport offset applied."
   (and (display-graphic-p)
        (window-live-p window)
        (not (window-minibuffer-p window))
        (not (eq window (minibuffer-window)))
+       (not (hyalo-module-viewport--window-sidebar-p window))
        (hyalo-module-viewport--window-intersects-header-p window)))
 
 (defun hyalo-module-viewport--calculate-offset (window)
