@@ -172,22 +172,36 @@ struct SidebarContentView: View {
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
         .background {
-            // Vibrancy material with Emacs background color tint
-            ZStack {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
+            // When fully opaque, use solid color. When transparent, use vibrancy material with color tint.
+            if state.backgroundAlpha >= 1.0 {
                 Color(nsColor: state.backgroundColor)
-                    .opacity(Double(state.backgroundAlpha) * 0.5)
+                    .ignoresSafeArea()
+            } else {
+                ZStack {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                    Color(nsColor: state.backgroundColor)
+                        .opacity(Double(state.backgroundAlpha))
+                }
+                .ignoresSafeArea()
             }
-            .ignoresSafeArea()
         }
+        // Force re-render when color changes
+        .id("sidebar-\(state.backgroundColor.description)-\(state.backgroundAlpha)")
     }
 }
 
 /// Mode-line toolbar view - fills available width with proper LHS/RHS parsing
+/// Uses ToolbarContentWidthPreference to get actual toolbar width from parent
 @available(macOS 15.0, *)
 struct ModeLineToolbarView: View {
     let content: String
+    let availableWidth: CGFloat
+
+    init(content: String, availableWidth: CGFloat = 500) {
+        self.content = content
+        self.availableWidth = availableWidth
+    }
 
     /// Parse a string into LHS and RHS by splitting on 3+ consecutive spaces
     private func parseSegments(_ input: String) -> (lhs: String, rhs: String) {
@@ -203,24 +217,27 @@ struct ModeLineToolbarView: View {
     var body: some View {
         let segments = parseSegments(content)
         let _ = print("[Hyalo] ModeLineToolbarView - content: '\(content)' (\(content.count) chars)")
-        let _ = print("[Hyalo] ModeLineToolbarView - LHS: '\(segments.lhs)' RHS: '\(segments.rhs)'")
+        let _ = print("[Hyalo] ModeLineToolbarView - LHS: '\(segments.lhs)' RHS: '\(segments.rhs)' width: \(availableWidth)")
 
         HStack(spacing: 8) {
             Text(segments.lhs.isEmpty ? " " : segments.lhs)
                 .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.tail)
 
-            Spacer()
+            Spacer(minLength: 20)
 
             if !segments.rhs.isEmpty {
                 Text(segments.rhs)
                     .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.head)
             }
         }
-        .frame(minWidth: 200, maxWidth: .infinity, minHeight: 20)
+        // Use fixed width based on available space, accounting for sidebar toggle button
+        .frame(width: max(200, availableWidth - 100), height: 22)
     }
 }
 
@@ -238,17 +255,19 @@ struct EmacsContentView: View {
 
             // Overlays anchored to top and bottom
             VStack(spacing: 0) {
-                // Gradient overlay at top (blends with toolbar)
-                LinearGradient(
-                    colors: [
-                        Color(nsColor: state.backgroundColor.withAlphaComponent(state.backgroundAlpha * 0.8)),
-                        Color(nsColor: state.backgroundColor.withAlphaComponent(0))
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 40)
-                .allowsHitTesting(false)
+                // Gradient overlay at top (blends with toolbar) - only when transparent
+                if state.backgroundAlpha < 1.0 {
+                    LinearGradient(
+                        colors: [
+                            Color(nsColor: state.backgroundColor.withAlphaComponent(state.backgroundAlpha * 0.8)),
+                            Color(nsColor: state.backgroundColor.withAlphaComponent(0))
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 40)
+                    .allowsHitTesting(false)
+                }
 
                 Spacer()
 
@@ -268,7 +287,7 @@ struct EchoAreaOverlay: View {
 
     var body: some View {
         Rectangle()
-            .fill(Color(nsColor: state.backgroundColor.withAlphaComponent(state.backgroundAlpha * 0.5)))
+            .fill(Color(nsColor: state.backgroundColor.withAlphaComponent(state.backgroundAlpha)))
             .frame(height: state.echoAreaHeight)
             .allowsHitTesting(false)
     }
@@ -301,29 +320,38 @@ struct HyaloNavigationLayout: View {
     var onFileSelect: ((SidebarFile) -> Void)?
 
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+    @State private var windowWidth: CGFloat = 800
 
     var body: some View {
         let _ = print("[Hyalo] HyaloNavigationLayout - modeLine: '\(state.modeLine)' (\(state.modeLine.count) chars)")
         let _ = print("[Hyalo] HyaloNavigationLayout - backgroundColor: \(state.backgroundColor), alpha: \(state.backgroundAlpha)")
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            SidebarContentView(
-                state: state,
-                onBufferSelect: onBufferSelect,
-                onBufferClose: onBufferClose,
-                onFileSelect: onFileSelect
-            )
-            .navigationSplitViewColumnWidth(min: 200, ideal: 280, max: 400)
-        } detail: {
-            EmacsContentView(
-                emacsView: emacsView,
-                state: state
-            )
-        }
-        .navigationSplitViewStyle(.balanced)
-        .toolbar(id: "hyalo-modeline") {
-            ToolbarItem(id: "modeline", placement: .principal, showsByDefault: true) {
-                ModeLineToolbarView(content: state.modeLine)
-                    .layoutPriority(1)
+        GeometryReader { geometry in
+            NavigationSplitView(columnVisibility: $columnVisibility) {
+                SidebarContentView(
+                    state: state,
+                    onBufferSelect: onBufferSelect,
+                    onBufferClose: onBufferClose,
+                    onFileSelect: onFileSelect
+                )
+                .navigationSplitViewColumnWidth(min: 200, ideal: 280, max: 400)
+            } detail: {
+                EmacsContentView(
+                    emacsView: emacsView,
+                    state: state
+                )
+            }
+            .navigationSplitViewStyle(.balanced)
+            .toolbar(id: "hyalo-modeline") {
+                ToolbarItem(id: "modeline", placement: .principal, showsByDefault: true) {
+                    ModeLineToolbarView(content: state.modeLine, availableWidth: windowWidth)
+                        .layoutPriority(1)
+                }
+            }
+            .onChange(of: geometry.size.width) { _, newWidth in
+                windowWidth = newWidth
+            }
+            .onAppear {
+                windowWidth = geometry.size.width
             }
         }
         .toolbarRole(.editor)
@@ -331,22 +359,26 @@ struct HyaloNavigationLayout: View {
         .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
         .navigationTitle("")  // Prevent geometry from showing in title area
         .background {
-            // Use SwiftUI's material for vibrancy, tinted with Emacs background color
-            ZStack {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
+            // When fully opaque, use solid color. When transparent, use vibrancy material with color tint.
+            if state.backgroundAlpha >= 1.0 {
                 Color(nsColor: state.backgroundColor)
-                    .opacity(Double(state.backgroundAlpha) * 0.5)
+                    .ignoresSafeArea()
+            } else {
+                ZStack {
+                    Rectangle()
+                        .fill(.ultraThinMaterial)
+                    Color(nsColor: state.backgroundColor)
+                        .opacity(Double(state.backgroundAlpha))
+                }
+                .ignoresSafeArea()
             }
-            .ignoresSafeArea()
         }
+        // Force re-render when color changes
+        .id("layout-\(state.backgroundColor.description)-\(state.backgroundAlpha)")
         .onChange(of: state.sidebarVisible) { _, newValue in
             withAnimation {
                 columnVisibility = newValue ? .all : .detailOnly
             }
-        }
-        .onAppear {
-            columnVisibility = state.sidebarVisible ? .all : .detailOnly
         }
     }
 }
@@ -364,6 +396,8 @@ final class NavigationSidebarState {
     var sidebarVisible: Bool = false
     var backgroundColor: NSColor = .windowBackgroundColor
     var backgroundAlpha: CGFloat = 1.0
+    /// Window appearance mode: "light", "dark", or "auto"
+    var windowAppearance: String = "auto"
 }
 
 // MARK: - Controller
@@ -379,6 +413,9 @@ final class NavigationSidebarController: NSObject {
 
     /// Observable state for SwiftUI reactivity
     let state = NavigationSidebarState()
+
+    /// Appearance change observer
+    private var appearanceObserver: NSObjectProtocol?
 
     /// Callbacks
     var onBufferSelect: ((String) -> Void)?
@@ -460,12 +497,57 @@ final class NavigationSidebarController: NSObject {
             self?.showTrafficLights(window)
         }
 
+        // Setup appearance change observer
+        setupAppearanceObserver()
+
         print("[Hyalo] NavigationSplitView setup complete (sidebar collapsed)")
     }
+
+    /// Setup observer for system appearance changes
+    private func setupAppearanceObserver() {
+        appearanceObserver = DistributedNotificationCenter.default.addObserver(
+            forName: NSNotification.Name("AppleInterfaceThemeChangedNotification"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.handleAppearanceChange()
+        }
+    }
+
+    /// Handle system appearance change
+    private func handleAppearanceChange() {
+        guard let window = window else { return }
+        let appearance = NSApp.effectiveAppearance
+        let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        let appearanceStr = isDark ? "dark" : "light"
+
+        print("[Hyalo] NavigationSidebar - appearance changed to: \(appearanceStr)")
+
+        // Update window appearance
+        if state.windowAppearance == "auto" {
+            window.appearance = nil  // Follow system
+        }
+
+        // Force SwiftUI to re-render by updating state
+        // The actual color update will come from Emacs via setBackgroundColor
+        state.windowAppearance = appearanceStr
+    }
     
+    deinit {
+        if let observer = appearanceObserver {
+            DistributedNotificationCenter.default.removeObserver(observer)
+        }
+    }
+
     /// Teardown the NavigationSplitView
     func teardown() {
         guard isSetup, let window = window, let original = originalContentView else { return }
+
+        // Clean up appearance observer
+        if let observer = appearanceObserver {
+            DistributedNotificationCenter.default.removeObserver(observer)
+            appearanceObserver = nil
+        }
 
         // Clean up title observation
         titleObservation?.invalidate()
@@ -582,10 +664,33 @@ final class NavigationSidebarController: NSObject {
 
     /// Set the background color from Emacs (color string + alpha)
     func setBackgroundColor(_ colorString: String, alpha: CGFloat) {
-        print("[Hyalo] setBackgroundColor called - color: '\(colorString)', alpha: \(alpha)")
-        state.backgroundColor = parseEmacsColor(colorString) ?? .windowBackgroundColor
+        let oldColor = state.backgroundColor
+        let oldAlpha = state.backgroundAlpha
+        let newColor = parseEmacsColor(colorString) ?? .windowBackgroundColor
+
+        print("[Hyalo] setBackgroundColor - OLD: \(oldColor), alpha: \(oldAlpha)")
+        print("[Hyalo] setBackgroundColor - NEW: \(newColor), alpha: \(alpha)")
+        print("[Hyalo] setBackgroundColor - CHANGED: color=\(oldColor != newColor), alpha=\(oldAlpha != alpha)")
+
+        state.backgroundColor = newColor
         state.backgroundAlpha = alpha
-        print("[Hyalo] setBackgroundColor - parsed color: \(state.backgroundColor), stored alpha: \(state.backgroundAlpha)")
+    }
+
+    /// Set the window appearance mode
+    func setWindowAppearance(_ appearance: String) {
+        guard let window = window else { return }
+        state.windowAppearance = appearance
+
+        switch appearance {
+        case "light":
+            window.appearance = NSAppearance(named: .aqua)
+        case "dark":
+            window.appearance = NSAppearance(named: .darkAqua)
+        default:
+            window.appearance = nil  // Follow system
+        }
+
+        print("[Hyalo] NavigationSidebar - window appearance set to: \(appearance)")
     }
     
     /// Parse Emacs color string (e.g., "#282c34" or "white")
@@ -708,5 +813,9 @@ final class NavigationSidebarManager {
     
     func setBackgroundColor(for window: NSWindow, color: String, alpha: CGFloat) {
         controllers[window.windowNumber]?.setBackgroundColor(color, alpha: alpha)
+    }
+
+    func setWindowAppearance(for window: NSWindow, appearance: String) {
+        controllers[window.windowNumber]?.setWindowAppearance(appearance)
     }
 }

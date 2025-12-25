@@ -104,6 +104,8 @@ If mode is `auto', queries the system appearance."
     ;; Apply theme FIRST (so background color is correct)
     (hyalo-module-appearance--apply-theme appearance)
     ;; Apply alpha to all Emacs frames
+    ;; NOTE: SwiftUI materials handle vibrancy, but Emacs alpha-background
+    ;; allows the desktop to show through the text area
     (dolist (f (frame-list))
       (when (and (display-graphic-p f) (eq (framep f) 'ns))
         (set-frame-parameter f 'alpha-background alpha)))
@@ -112,7 +114,10 @@ If mode is `auto', queries the system appearance."
       ;; Window appearance (vibrancy)
       (when (fboundp 'hyalo-set-window-appearance-all)
         (hyalo-set-window-appearance-all (symbol-name appearance)))
-      ;; Background color for sidebar and gradient
+      ;; NavigationSplitView appearance (for sidebar vibrancy update)
+      (when (fboundp 'hyalo-sidebar-set-window-appearance)
+        (hyalo-sidebar-set-window-appearance (symbol-name appearance)))
+      ;; Background color for sidebar (use full alpha since SwiftUI handles transparency)
       (let ((bg (face-background 'default nil 'default)))
         (when bg
           (let ((hex-color (if (string-prefix-p "#" bg)
@@ -121,6 +126,7 @@ If mode is `auto', queries the system appearance."
                                     (mapcar (lambda (c) (/ c 256))
                                             (color-values bg))))))
             ;; Sync to NavigationSplitView sidebar
+            ;; Pass alpha so sidebar can match Emacs content area transparency
             (when (fboundp 'hyalo-sidebar-set-background-color)
               (hyalo-sidebar-set-background-color hex-color (float alpha))))))
       ;; Echo area dark theme (affects tint color)

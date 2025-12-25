@@ -406,6 +406,26 @@ final class HyaloModule: Module {
             }
             return false
         }
+
+        try env.defun(
+            "hyalo-sidebar-set-window-appearance",
+            with: """
+            Set the window appearance for NavigationSplitView.
+            APPEARANCE is "light", "dark", or "auto".
+            """
+        ) { (env: Environment, appearance: String) throws -> Bool in
+            if #available(macOS 15.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.setWindowAppearance(
+                        for: window,
+                        appearance: appearance
+                    )
+                }
+                return true
+            }
+            return false
+        }
         
         try env.defun(
             "hyalo-sidebar-set-echo-area-height",
