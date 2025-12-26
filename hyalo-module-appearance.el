@@ -262,7 +262,7 @@ Applies to all frames and switches theme if configured."
 (defun hyalo-module-appearance-set-opacity (opacity)
   "Set current appearance's tint OPACITY (0.0-1.0).
 0.0 = full vibrancy (no tint), 1.0 = solid theme color.
-Applies to all frames."
+Applies to all frames without changing the theme."
   (interactive
    (let ((current (if (hyalo-module-appearance-dark-p)
                       hyalo-module-appearance-opacity-dark
@@ -273,8 +273,11 @@ Applies to all frames."
     (if (hyalo-module-appearance-dark-p)
         (setq hyalo-module-appearance-opacity-dark clamped)
       (setq hyalo-module-appearance-opacity-light clamped))
-    ;; Apply via the --apply function which handles Swift
-    (hyalo-module-appearance--apply)
+    ;; Apply vibrancy settings only (no theme change)
+    (hyalo-module-appearance--apply-vibrancy)
+    ;; Refresh appearance panel if open
+    (when (and (hyalo-module-available-p) (fboundp 'hyalo-refresh-appearance-panel))
+      (hyalo-refresh-appearance-panel))
     (hyalo-module-log "Opacity set to %.2f" clamped)))
 
 (defun hyalo-module-appearance-set-vibrancy (material)
@@ -289,6 +292,9 @@ Use ultraThin for maximum see-through effect."
   (when (and (hyalo-module-available-p)
              (fboundp 'hyalo-sidebar-set-vibrancy-material))
     (hyalo-sidebar-set-vibrancy-material material))
+  ;; Refresh appearance panel if open
+  (when (and (hyalo-module-available-p) (fboundp 'hyalo-refresh-appearance-panel))
+    (hyalo-refresh-appearance-panel))
   (customize-save-variable 'hyalo-module-appearance-vibrancy-material material)
   (hyalo-module-log "Vibrancy material set to %s" material))
 

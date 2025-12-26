@@ -502,16 +502,17 @@ final class HyaloModule: Module {
         }
 
         try env.defun(
-            "hyalo-set-transparency-from-panel",
+            "hyalo-set-opacity-from-panel",
             with: """
-            Set transparency from the appearance panel.
-            TRANSPARENCY is a value from 0.0 (opaque) to 1.0 (fully see-through).
+            Set opacity from the appearance panel.
+            OPACITY is a value from 0.0 (full vibrancy) to 1.0 (solid theme color).
             """
-        ) { (env: Environment, transparency: Double) throws -> Bool in
+        ) { (env: Environment, opacity: Double) throws -> Bool in
             if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
-                    AppearanceSettings.shared.transparency = transparency
+                    AppearanceSettings.shared.opacity = opacity
                     AppearancePanelController.shared.onSettingsChanged?(AppearanceSettings.shared)
+                    AppearancePanelController.shared.refreshPanel()
                 }
                 return true
             }
@@ -528,8 +529,10 @@ final class HyaloModule: Module {
             if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     if let mat = VibrancyMaterial(rawValue: material) {
-                        AppearanceSettings.shared.vibrancyMaterial = mat
+                        AppearanceSettings.shared.setVibrancyFromMaterial(mat)
                         AppearancePanelController.shared.onSettingsChanged?(AppearanceSettings.shared)
+                        // Refresh panel if visible
+                        AppearancePanelController.shared.refreshPanel()
                     }
                 }
                 return true
@@ -541,23 +544,36 @@ final class HyaloModule: Module {
             "hyalo-sync-appearance-to-panel",
             with: """
             Sync Emacs appearance settings to the Swift panel.
-            MATERIAL is vibrancy material, TRANSPARENCY is 0.0-1.0.
+            MATERIAL is vibrancy material, OPACITY is 0.0-1.0.
             """
-        ) { (env: Environment, material: String, transparency: Double) throws -> Bool in
+        ) { (env: Environment, material: String, opacity: Double) throws -> Bool in
             if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     if let mat = VibrancyMaterial(rawValue: material) {
-                        AppearanceSettings.shared.vibrancyMaterial = mat
+                        AppearanceSettings.shared.setVibrancyFromMaterial(mat)
                     }
-                    AppearanceSettings.shared.transparency = transparency
+                    AppearanceSettings.shared.opacity = opacity
                     AppearancePanelController.shared.onSettingsChanged?(AppearanceSettings.shared)
+                    // Refresh panel if visible
+                    AppearancePanelController.shared.refreshPanel()
                 }
                 return true
             }
             return false
         }
 
-        // MARK: - Background Color and Echo Area
+        try env.defun(
+            "hyalo-refresh-appearance-panel",
+            with: "Refresh the appearance panel to show current settings."
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    AppearancePanelController.shared.refreshPanel()
+                }
+                return true
+            }
+            return false
+        }
 
         // MARK: - System Integration
 

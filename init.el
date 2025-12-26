@@ -156,21 +156,21 @@
 (hyalo-module-appearance-show-panel)
 
 ;; Settings are persisted in custom.el
-;; Blur: 0 = clear, 1 = frosted
-;; Transparency: 0 = solid, 1 = see-through
+;; Vibrancy: 0 = no blur, 1 = maximum blur
+;; Opacity: 0 = full vibrancy, 1 = solid theme color
 
 ;; Presets (eval with C-x C-e):
 ;; Clear:
-(progn (hyalo-module-appearance-set-blur 0.2)
-       (hyalo-module-appearance-set-transparency 0.8))
+(progn (hyalo-module-appearance-set-vibrancy "ultraThin")
+       (hyalo-module-appearance-set-opacity 0.1))
 
 ;; Balanced:
-;; (progn (hyalo-module-appearance-set-blur 0.5)
-;;        (hyalo-module-appearance-set-transparency 0.5))
+;; (progn (hyalo-module-appearance-set-vibrancy "regular")
+;;        (hyalo-module-appearance-set-opacity 0.5))
 
 ;; Solid:
-;; (progn (hyalo-module-appearance-set-blur 0.8)
-;;        (hyalo-module-appearance-set-transparency 0.2))
+;; (progn (hyalo-module-appearance-set-vibrancy "none")
+;;        (hyalo-module-appearance-set-opacity 0.9))
 
 ")
   (initial-buffer-choice t)
@@ -207,7 +207,9 @@
     "C-M-n" 'scroll-up-line
     "C-M-p" 'scroll-down-line
     "<home>" 'scroll-up-line
-    "<end>" 'scroll-down-line))
+    "<end>" 'scroll-down-line
+    "s-<down>" 'scroll-up-line
+    "s-<up>" 'scroll-down-line))
 
 ;;;; Built-in Packages
 
@@ -462,7 +464,7 @@
   :if (eq window-system 'ns)
   :after hyalo-module
   :load-path emacs-config-dir
-;;:diminish " n"
+;;:diminish " ηHeader"
   :config
   (hyalo-module-header-mode 1))
 
@@ -471,14 +473,14 @@
   :after hyalo-module
   :load-path emacs-config-dir
   :demand t
-;;:diminish " n"
+;;:diminish " ηAppearance"
   :custom
   (hyalo-module-appearance-theme-light 'modus-operandi)
   (hyalo-module-appearance-theme-dark 'modus-vivendi)
   :general
   (leader-def
-    "l b" '(hyalo-module-appearance-set-blur :wk "blur")
-    "l t" '(hyalo-module-appearance-set-transparency :wk "transparency")
+    "l v" '(hyalo-module-appearance-set-vibrancy :wk "vibrancy")
+    "l o" '(hyalo-module-appearance-set-opacity :wk "opacity")
     "l p" '(hyalo-module-appearance-set :wk "appearance mode")
     "l P" '(hyalo-module-appearance-show-panel :wk "panel"))
   :config
@@ -491,23 +493,23 @@
       ["Appearance Panel..." hyalo-module-appearance-show-panel
        :help "Open appearance settings panel"]
       "---"
-      ["Set Blur..." hyalo-module-appearance-set-blur
-       :help "Change blur amount"]
-      ["Set Transparency..." hyalo-module-appearance-set-transparency
-       :help "Change transparency level"]
+      ["Set Vibrancy..." hyalo-module-appearance-set-vibrancy
+       :help "Change vibrancy/blur material"]
+      ["Set Opacity..." hyalo-module-appearance-set-opacity
+       :help "Change tint opacity level"]
       "---"
       ("Presets"
        ["Clear" (progn
-                  (hyalo-module-appearance-set-blur 0.2)
-                  (hyalo-module-appearance-set-transparency 0.8))
+                  (hyalo-module-appearance-set-vibrancy "ultraThin")
+                  (hyalo-module-appearance-set-opacity 0.1))
         :help "Maximum see-through effect"]
        ["Balanced" (progn
-                     (hyalo-module-appearance-set-blur 0.5)
-                     (hyalo-module-appearance-set-transparency 0.5))
-        :help "Balanced blur and transparency"]
+                     (hyalo-module-appearance-set-vibrancy "thick")
+                     (hyalo-module-appearance-set-opacity 0.5))
+        :help "Balanced blur and opacity"]
        ["Solid" (progn
-                  (hyalo-module-appearance-set-blur 0.8)
-                  (hyalo-module-appearance-set-transparency 0.2))
+                  (hyalo-module-appearance-set-vibrancy "none")
+                  (hyalo-module-appearance-set-opacity 0.9))
         :help "Minimal transparency"])
       "---"
       ("Appearance Mode"
@@ -532,6 +534,7 @@
   :if (eq window-system 'ns)
   :after hyalo-module
   :load-path emacs-config-dir
+;;:diminish " ηTL"
   :custom
   (hyalo-module-traffic-lights-auto-hide t)
   :config
@@ -541,7 +544,7 @@
   :if (eq window-system 'ns)
   :after hyalo-module-header
   :load-path emacs-config-dir
-;;:diminish " n"
+;;:diminish " ηViewport"
   :custom
   (hyalo-module-viewport-debug nil)
   :config
