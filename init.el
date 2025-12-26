@@ -44,6 +44,10 @@
 (setq custom-file (locate-user-emacs-file "etc/custom.el"))
 (setq package-user-dir (locate-user-emacs-file "elpa/"))
 
+;; Load custom file if it exists
+(when (file-exists-p custom-file)
+  (load custom-file 'noerror 'nomessage))
+
 ;;;; Package System
 
 (require 'package)
@@ -146,7 +150,29 @@
   (inhibit-startup-screen t)
   (inhibit-startup-message t)
   (inhibit-startup-echo-area-message t)
-  (initial-scratch-message ";;\n\n;; ...\n;; ...\n")
+  (initial-scratch-message ";;; Hyalo Liquid Glass
+
+;; Open Appearance Panel: C-c l P or Menu: Hyalo > Appearance Panel
+(hyalo-module-appearance-show-panel)
+
+;; Settings are persisted in custom.el
+;; Blur: 0 = clear, 1 = frosted
+;; Transparency: 0 = solid, 1 = see-through
+
+;; Presets (eval with C-x C-e):
+;; Clear:
+(progn (hyalo-module-appearance-set-blur 0.2)
+       (hyalo-module-appearance-set-transparency 0.8))
+
+;; Balanced:
+;; (progn (hyalo-module-appearance-set-blur 0.5)
+;;        (hyalo-module-appearance-set-transparency 0.5))
+
+;; Solid:
+;; (progn (hyalo-module-appearance-set-blur 0.8)
+;;        (hyalo-module-appearance-set-transparency 0.2))
+
+")
   (initial-buffer-choice t)
   ;; Cursor
   (cursor-in-non-selected-windows nil)
@@ -451,10 +477,56 @@
   (hyalo-module-appearance-theme-dark 'modus-vivendi)
   :general
   (leader-def
-    "l a" '(hyalo-module-appearance-set-alpha :wk "alpha")
-    "l p" '(hyalo-module-appearance-set :wk "appearance"))
+    "l b" '(hyalo-module-appearance-set-blur :wk "blur")
+    "l t" '(hyalo-module-appearance-set-transparency :wk "transparency")
+    "l p" '(hyalo-module-appearance-set :wk "appearance mode")
+    "l P" '(hyalo-module-appearance-show-panel :wk "panel"))
   :config
-  (hyalo-module-appearance-mode 1))
+  (hyalo-module-appearance-mode 1)
+
+  ;; Add Hyalo Appearance menu
+  (easy-menu-define hyalo-appearance-menu global-map
+    "Hyalo Appearance Menu"
+    '("Hyalo"
+      ["Appearance Panel..." hyalo-module-appearance-show-panel
+       :help "Open appearance settings panel"]
+      "---"
+      ["Set Blur..." hyalo-module-appearance-set-blur
+       :help "Change blur amount"]
+      ["Set Transparency..." hyalo-module-appearance-set-transparency
+       :help "Change transparency level"]
+      "---"
+      ("Presets"
+       ["Clear" (progn
+                  (hyalo-module-appearance-set-blur 0.2)
+                  (hyalo-module-appearance-set-transparency 0.8))
+        :help "Maximum see-through effect"]
+       ["Balanced" (progn
+                     (hyalo-module-appearance-set-blur 0.5)
+                     (hyalo-module-appearance-set-transparency 0.5))
+        :help "Balanced blur and transparency"]
+       ["Solid" (progn
+                  (hyalo-module-appearance-set-blur 0.8)
+                  (hyalo-module-appearance-set-transparency 0.2))
+        :help "Minimal transparency"])
+      "---"
+      ("Appearance Mode"
+       ["Auto (Follow System)" (hyalo-module-appearance-set 'auto)
+        :style radio
+        :selected (eq hyalo-module-appearance-mode-setting 'auto)]
+       ["Light" (hyalo-module-appearance-set 'light)
+        :style radio
+        :selected (eq hyalo-module-appearance-mode-setting 'light)]
+       ["Dark" (hyalo-module-appearance-set 'dark)
+        :style radio
+        :selected (eq hyalo-module-appearance-mode-setting 'dark)])))
+
+  ;; Add menu to menu bar after Tools
+  (easy-menu-add-item global-map '(menu-bar) hyalo-appearance-menu "tools")
+
+  ;; Apply vibrancy settings on startup
+  (add-hook 'hyalo-module-appearance-mode-hook
+            #'hyalo-module-appearance--apply-vibrancy))
 
 (use-package hyalo-module-traffic-lights
   :if (eq window-system 'ns)

@@ -27,7 +27,7 @@ final class HyaloModule: Module {
 
     // MARK: - JSON Parsing Helpers
 
-    @available(macOS 15.0, *)
+    @available(macOS 26.0, *)
     static func parseBuffersJSON(_ json: String) -> [SidebarBuffer]? {
         guard let data = json.data(using: .utf8) else { return nil }
         guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
@@ -45,7 +45,7 @@ final class HyaloModule: Module {
         }
     }
 
-    @available(macOS 15.0, *)
+    @available(macOS 26.0, *)
     static func parseFilesJSON(_ json: String) -> [SidebarFile]? {
         guard let data = json.data(using: .utf8) else { return nil }
         guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
@@ -203,7 +203,7 @@ final class HyaloModule: Module {
             "hyalo-header-height",
             with: "Get the header view height in pixels."
         ) { () -> Int in
-            if #available(macOS 15.0, *) {
+            if #available(macOS 26.0, *) {
                 return Int(HeaderHostingController.headerHeight)
             }
             return 44
@@ -219,7 +219,7 @@ final class HyaloModule: Module {
             The sidebar starts collapsed, toolbar is immediately visible.
             """
         ) { (env: Environment) throws -> Bool in
-            if #available(macOS 15.0, *) {
+            if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
                     NavigationSidebarManager.shared.setup(for: window)
@@ -235,7 +235,7 @@ final class HyaloModule: Module {
             Teardown the NavigationSplitView.
             """
         ) { (env: Environment) throws -> Bool in
-            if #available(macOS 15.0, *) {
+            if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
                     NavigationSidebarManager.shared.teardown(for: window)
@@ -252,7 +252,7 @@ final class HyaloModule: Module {
             This embeds Emacs content in a NavigationSplitView with a glass sidebar.
             """
         ) { (env: Environment) throws -> Bool in
-            if #available(macOS 15.0, *) {
+            if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
                     NavigationSidebarManager.shared.showSidebar(for: window)
@@ -269,7 +269,7 @@ final class HyaloModule: Module {
             Restores Emacs to its original layout.
             """
         ) { (env: Environment) throws -> Bool in
-            if #available(macOS 15.0, *) {
+            if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
                     NavigationSidebarManager.shared.hideSidebar(for: window)
@@ -285,7 +285,7 @@ final class HyaloModule: Module {
             Toggle the native SwiftUI navigation sidebar.
             """
         ) { (env: Environment) throws -> Bool in
-            if #available(macOS 15.0, *) {
+            if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
                     NavigationSidebarManager.shared.toggleSidebar(for: window)
@@ -301,7 +301,7 @@ final class HyaloModule: Module {
             Return t if the native sidebar is visible, nil otherwise.
             """
         ) { (env: Environment) throws -> Bool in
-            if #available(macOS 15.0, *) {
+            if #available(macOS 26.0, *) {
                 guard let window = findEmacsWindow() else { return false }
                 return NavigationSidebarManager.shared.isSidebarVisible(for: window)
             }
@@ -315,7 +315,7 @@ final class HyaloModule: Module {
             NAME is the project name string.
             """
         ) { (env: Environment, name: String) throws -> Bool in
-            if #available(macOS 15.0, *) {
+            if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
                     NavigationSidebarManager.shared.setProjectName(for: window, name: name)
@@ -336,7 +336,7 @@ final class HyaloModule: Module {
             id, name, path, modified, current, icon
             """
         ) { (env: Environment, jsonData: String) throws -> Bool in
-            if #available(macOS 15.0, *) {
+            if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
                     if let buffers = Self.parseBuffersJSON(jsonData) {
@@ -356,7 +356,7 @@ final class HyaloModule: Module {
             id, name, path, directory, expanded, depth, icon
             """
         ) { (env: Environment, jsonData: String) throws -> Bool in
-            if #available(macOS 15.0, *) {
+            if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
                     if let files = Self.parseFilesJSON(jsonData) {
@@ -375,7 +375,7 @@ final class HyaloModule: Module {
             CONTENT is the mode-line string to display.
             """
         ) { (env: Environment, content: String) throws -> Bool in
-            if #available(macOS 15.0, *) {
+            if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
                     NavigationSidebarManager.shared.updateModeLine(for: window, content: content)
@@ -393,7 +393,7 @@ final class HyaloModule: Module {
             ALPHA is the alpha/transparency value (0.0 to 1.0).
             """
         ) { (env: Environment, color: String, alpha: Double) throws -> Bool in
-            if #available(macOS 15.0, *) {
+            if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
                     NavigationSidebarManager.shared.setBackgroundColor(
@@ -414,7 +414,7 @@ final class HyaloModule: Module {
             APPEARANCE is "light", "dark", or "auto".
             """
         ) { (env: Environment, appearance: String) throws -> Bool in
-            if #available(macOS 15.0, *) {
+            if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
                     NavigationSidebarManager.shared.setWindowAppearance(
@@ -428,18 +428,20 @@ final class HyaloModule: Module {
         }
         
         try env.defun(
-            "hyalo-sidebar-set-echo-area-height",
+            "hyalo-sidebar-set-vibrancy-material",
             with: """
-            Set the echo area overlay height.
-            HEIGHT is the minibuffer height in pixels.
+            Set the vibrancy material style for the content area.
+            MATERIAL is one of: "ultraThin", "thin", "regular", "thick", "ultraThick", "none".
+            Use "ultraThin" for maximum see-through effect, "ultraThick" for minimal.
+            Use "none" to disable vibrancy entirely.
             """
-        ) { (env: Environment, height: Int) throws -> Bool in
-            if #available(macOS 15.0, *) {
+        ) { (env: Environment, material: String) throws -> Bool in
+            if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
-                    NavigationSidebarManager.shared.setEchoAreaHeight(
+                    NavigationSidebarManager.shared.setVibrancyMaterial(
                         for: window,
-                        height: CGFloat(height)
+                        material: material
                     )
                 }
                 return true
@@ -449,106 +451,113 @@ final class HyaloModule: Module {
 
         // Note: Treemacs runs inside Emacs (detail area), not managed by Swift sidebar
 
+        // MARK: - Appearance Panel
+
+        try env.defun(
+            "hyalo-show-appearance-panel",
+            with: """
+            Show the Hyalo appearance panel.
+            Opens a Liquid Glass popup with sliders for vibrancy, blur, and tint control.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    AppearancePanelController.shared.show(relativeTo: window)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-toggle-appearance-panel",
+            with: """
+            Toggle the Hyalo appearance panel visibility.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    AppearancePanelController.shared.toggle(relativeTo: window)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-hide-appearance-panel",
+            with: """
+            Hide the Hyalo appearance panel if visible.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    AppearancePanelController.shared.dismiss()
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-set-transparency-from-panel",
+            with: """
+            Set transparency from the appearance panel.
+            TRANSPARENCY is a value from 0.0 (opaque) to 1.0 (fully see-through).
+            """
+        ) { (env: Environment, transparency: Double) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    AppearanceSettings.shared.transparency = transparency
+                    AppearancePanelController.shared.onSettingsChanged?(AppearanceSettings.shared)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-set-vibrancy-material-from-panel",
+            with: """
+            Set vibrancy material from the appearance panel.
+            MATERIAL is one of: "ultraThin", "thin", "regular", "thick", "ultraThick", "none".
+            """
+        ) { (env: Environment, material: String) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    if let mat = VibrancyMaterial(rawValue: material) {
+                        AppearanceSettings.shared.vibrancyMaterial = mat
+                        AppearancePanelController.shared.onSettingsChanged?(AppearanceSettings.shared)
+                    }
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-sync-appearance-to-panel",
+            with: """
+            Sync Emacs appearance settings to the Swift panel.
+            MATERIAL is vibrancy material, TRANSPARENCY is 0.0-1.0.
+            """
+        ) { (env: Environment, material: String, transparency: Double) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    if let mat = VibrancyMaterial(rawValue: material) {
+                        AppearanceSettings.shared.vibrancyMaterial = mat
+                    }
+                    AppearanceSettings.shared.transparency = transparency
+                    AppearancePanelController.shared.onSettingsChanged?(AppearanceSettings.shared)
+                }
+                return true
+            }
+            return false
+        }
+
         // MARK: - Background Color and Echo Area
-
-        try env.defun(
-            "hyalo-set-background-color",
-            with: """
-            Set the background color for gradient overlays.
-            COLOR is a color string (e.g., "#282c34" or "white").
-            This is used to create the Safari-like header blend effect.
-            """
-        ) { (env: Environment, color: String) throws -> Bool in
-            DispatchQueue.main.async {
-                guard let window = findEmacsWindow() else { return }
-                HyaloManager.shared.setBackgroundColor(color, for: window)
-            }
-            return true
-        }
-
-        try env.defun(
-            "hyalo-set-echo-area-height",
-            with: """
-            Set the echo area overlay height.
-            HEIGHT is the height in pixels of the echo area/minibuffer.
-            The overlay will include +1 pixel for the window divider.
-            """
-        ) { (env: Environment, height: Int) throws -> Bool in
-            DispatchQueue.main.async {
-                guard let window = findEmacsWindow() else { return }
-                HyaloManager.shared.setEchoAreaHeight(CGFloat(height), for: window)
-            }
-            return true
-        }
-
-        try env.defun(
-            "hyalo-set-echo-area-tint-opacity",
-            with: """
-            Set the echo area tint opacity.
-            OPACITY is a float from 0.0 (invisible) to 1.0 (fully opaque).
-            For light themes, this applies a white tint. For dark themes, a black tint.
-            Recommended values: 0.1 to 0.3.
-            Note: This is independent of frame alpha-background.
-            """
-        ) { (env: Environment, opacity: Double) throws -> Bool in
-            DispatchQueue.main.async {
-                guard let window = findEmacsWindow() else { return }
-                HyaloManager.shared.setEchoAreaTintOpacity(CGFloat(opacity), for: window)
-            }
-            return true
-        }
-
-        // MARK: - Apply to ALL windows
-
-        try env.defun(
-            "hyalo-set-window-appearance-all",
-            with: "Set window appearance for ALL managed windows: \"light\", \"dark\", or \"auto\"."
-        ) { (env: Environment, appearance: String) throws -> Bool in
-            DispatchQueue.main.async {
-                HyaloManager.shared.setWindowAppearanceForAll(appearance)
-            }
-            return true
-        }
-
-        try env.defun(
-            "hyalo-set-background-color-all",
-            with: "Set the background color for ALL managed windows."
-        ) { (env: Environment, color: String) throws -> Bool in
-            DispatchQueue.main.async {
-                HyaloManager.shared.setBackgroundColorForAll(color)
-            }
-            return true
-        }
-
-        try env.defun(
-            "hyalo-set-echo-area-height-all",
-            with: "Set the echo area overlay height for ALL managed windows."
-        ) { (env: Environment, height: Int) throws -> Bool in
-            DispatchQueue.main.async {
-                HyaloManager.shared.setEchoAreaHeightForAll(CGFloat(height))
-            }
-            return true
-        }
-
-        try env.defun(
-            "hyalo-set-echo-area-tint-opacity-all",
-            with: "Set the echo area tint opacity for ALL managed windows."
-        ) { (env: Environment, opacity: Double) throws -> Bool in
-            DispatchQueue.main.async {
-                HyaloManager.shared.setEchoAreaTintOpacityForAll(CGFloat(opacity))
-            }
-            return true
-        }
-
-        try env.defun(
-            "hyalo-set-echo-area-dark-theme-all",
-            with: "Set echo area dark theme mode for ALL managed windows. IS-DARK is t or nil."
-        ) { (env: Environment, isDark: Bool) throws -> Bool in
-            DispatchQueue.main.async {
-                HyaloManager.shared.setEchoAreaDarkThemeForAll(isDark)
-            }
-            return true
-        }
 
         // MARK: - System Integration
 

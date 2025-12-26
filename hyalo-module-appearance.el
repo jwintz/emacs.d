@@ -13,7 +13,11 @@
 ;; - System appearance detection (light/dark)
 ;; - Theme switching based on appearance
 ;; - Frame transparency (alpha-background)
-;; - Window vibrancy appearance synchronization
+;; - Window vibrancy and opacity synchronization
+;;
+;; Terminology:
+;; - Vibrancy: The blur material (ultraThin, thin, regular, thick, ultraThick, none)
+;; - Opacity: How much the theme color shows (0.0 = full vibrancy, 1.0 = solid color)
 ;;
 ;; Uses deterministic hooks (no timers):
 ;; - ns-system-appearance-change-functions for macOS appearance changes
@@ -52,25 +56,49 @@ If nil, no theme change is made."
   :type 'symbol
   :group 'hyalo-module-appearance)
 
-(defcustom hyalo-module-appearance-alpha-light 0.75
-  "Background transparency for light appearance.
-Range: 0.0 (fully transparent) to 1.0 (fully opaque)."
-  :type 'number
-  :group 'hyalo-module-appearance)
+(defcustom hyalo-module-appearance-vibrancy-material "ultraThin"
+  "Vibrancy material style for the blur effect.
+Available options:
+- \"ultraThin\": Maximum see-through effect (recommended)
+- \"thin\": Slight blur with good transparency
+- \"regular\": Balanced blur and transparency
+- \"thick\": More blur, less transparency
+- \"ultraThick\": Maximum blur, minimal transparency
+- \"none\": No vibrancy (solid background)"
+  :type '(choice (const :tag "Ultra Thin (most transparent)" "ultraThin")
+                 (const :tag "Thin" "thin")
+                 (const :tag "Regular" "regular")
+                 (const :tag "Thick" "thick")
+                 (const :tag "Ultra Thick (least transparent)" "ultraThick")
+                 (const :tag "None (no vibrancy)" "none"))
+  :group 'hyalo-module-appearance
+  :set (lambda (sym val)
+         (set-default sym val)
+         (when (and (boundp 'hyalo-module-appearance-mode)
+                    hyalo-module-appearance-mode)
+           (hyalo-module-appearance--apply-vibrancy))))
 
-(defcustom hyalo-module-appearance-alpha-dark 0.75
-  "Background transparency for dark appearance.
-Range: 0.0 (fully transparent) to 1.0 (fully opaque)."
+(defcustom hyalo-module-appearance-opacity-light 0.5
+  "Tint opacity for light appearance (0.0-1.0).
+0.0 = full vibrancy (no tint), 1.0 = solid theme color."
   :type 'number
-  :group 'hyalo-module-appearance)
+  :group 'hyalo-module-appearance
+  :set (lambda (sym val)
+         (set-default sym val)
+         (when (and (boundp 'hyalo-module-appearance-mode)
+                    hyalo-module-appearance-mode)
+           (hyalo-module-appearance--apply-vibrancy))))
 
-(defcustom hyalo-module-appearance-echo-tint-opacity 0.25
-  "Echo area tint overlay opacity.
-Range: 0.0 (invisible) to 1.0 (fully opaque).
-Light themes get a white tint, dark themes get a black tint.
-This is independent of alpha-background."
+(defcustom hyalo-module-appearance-opacity-dark 0.5
+  "Tint opacity for dark appearance (0.0-1.0).
+0.0 = full vibrancy (no tint), 1.0 = solid theme color."
   :type 'number
-  :group 'hyalo-module-appearance)
+  :group 'hyalo-module-appearance
+  :set (lambda (sym val)
+         (set-default sym val)
+         (when (and (boundp 'hyalo-module-appearance-mode)
+                    hyalo-module-appearance-mode)
+           (hyalo-module-appearance--apply-vibrancy))))
 
 ;;; Appearance Detection
 
@@ -79,9 +107,9 @@ This is independent of alpha-background."
 Based on `hyalo-module-appearance-mode-setting'.
 If mode is `auto', queries the system appearance."
   (pcase hyalo-module-appearance-mode-setting
-    (`light 'light)
-    (`dark 'dark)
-    (`auto
+    ('light 'light)
+    ('dark 'dark)
+    ('auto
      (if (and (hyalo-module-available-p) (fboundp 'hyalo-get-system-appearance))
          (let ((sys (hyalo-get-system-appearance)))
            (if (string= sys "dark") 'dark 'light))
@@ -98,17 +126,16 @@ If mode is `auto', queries the system appearance."
   "Apply current appearance settings to all frames and windows."
   (let* ((appearance (hyalo-module-appearance-current))
          (is-dark (eq appearance 'dark))
-         (alpha (if is-dark
-                    hyalo-module-appearance-alpha-dark
-                  hyalo-module-appearance-alpha-light)))
+         (opacity (if is-dark
+                      hyalo-module-appearance-opacity-dark
+                    hyalo-module-appearance-opacity-light)))
     ;; Apply theme FIRST (so background color is correct)
     (hyalo-module-appearance--apply-theme appearance)
-    ;; Apply alpha to all Emacs frames
-    ;; NOTE: SwiftUI materials handle vibrancy, but Emacs alpha-background
-    ;; allows the desktop to show through the text area
+    ;; CRITICAL: Emacs alpha-background is ALWAYS 0 (fully transparent)
+    ;; The Swift side handles the actual vibrancy and color tinting
     (dolist (f (frame-list))
       (when (and (display-graphic-p f) (eq (framep f) 'ns))
-        (set-frame-parameter f 'alpha-background alpha)))
+        (set-frame-parameter f 'alpha-background 0.0)))
     ;; Apply to ALL Swift windows at once
     (when (hyalo-module-available-p)
       ;; Window appearance (vibrancy)
@@ -117,44 +144,38 @@ If mode is `auto', queries the system appearance."
       ;; NavigationSplitView appearance (for sidebar vibrancy update)
       (when (fboundp 'hyalo-sidebar-set-window-appearance)
         (hyalo-sidebar-set-window-appearance (symbol-name appearance)))
-      ;; Background color for sidebar (use full alpha since SwiftUI handles transparency)
-      (let ((bg (face-background 'default nil 'default)))
-        (when bg
-          (let ((hex-color (if (string-prefix-p "#" bg)
-                               bg
-                             (apply #'format "#%02x%02x%02x"
-                                    (mapcar (lambda (c) (/ c 256))
-                                            (color-values bg))))))
-            ;; Sync to NavigationSplitView sidebar
-            ;; Pass alpha so sidebar can match Emacs content area transparency
-            (when (fboundp 'hyalo-sidebar-set-background-color)
-              (hyalo-sidebar-set-background-color hex-color (float alpha))))))
-      ;; Echo area dark theme (affects tint color)
-      (when (fboundp 'hyalo-set-echo-area-dark-theme-all)
-        (hyalo-set-echo-area-dark-theme-all is-dark))
-      ;; Echo area height
-      (when (fboundp 'hyalo-set-echo-area-height-all)
-        (let ((height (window-pixel-height (minibuffer-window))))
-          (hyalo-set-echo-area-height-all height)))
-      ;; Echo area tint opacity
-      (when (fboundp 'hyalo-set-echo-area-tint-opacity-all)
-        (hyalo-set-echo-area-tint-opacity-all hyalo-module-appearance-echo-tint-opacity)))))
+      ;; Vibrancy material style
+      (when (fboundp 'hyalo-sidebar-set-vibrancy-material)
+        (hyalo-sidebar-set-vibrancy-material hyalo-module-appearance-vibrancy-material))
+      ;; Background color for NavigationSplitView
+      ;; Pass opacity to Swift for tint layer control
+      (let* ((bg (or (face-background 'default nil 'default)
+                     (if is-dark "#282c34" "#fafafa")))
+             (hex-color (if (string-prefix-p "#" bg)
+                            bg
+                          (apply #'format "#%02x%02x%02x"
+                                 (mapcar (lambda (c) (/ c 256))
+                                         (color-values bg))))))
+        ;; Pass opacity to Swift (Swift uses this as backgroundAlpha for tint layer)
+        (when (fboundp 'hyalo-sidebar-set-background-color)
+          (hyalo-sidebar-set-background-color hex-color (float opacity)))))))
 
 (defun hyalo-module-appearance--apply-to-frame (&optional frame)
   "Apply current appearance settings to FRAME only."
   (let* ((f (or frame (selected-frame)))
          (appearance (hyalo-module-appearance-current))
          (is-dark (eq appearance 'dark))
-         (alpha (if is-dark
-                    hyalo-module-appearance-alpha-dark
-                  hyalo-module-appearance-alpha-light)))
+         (opacity (if is-dark
+                      hyalo-module-appearance-opacity-dark
+                    hyalo-module-appearance-opacity-light)))
     (when (and (display-graphic-p f) (eq (framep f) 'ns))
-      (set-frame-parameter f 'alpha-background alpha)
+      ;; Emacs always renders fully transparent
+      (set-frame-parameter f 'alpha-background 0.0)
       ;; Sync window appearance for vibrancy
       (when (and (hyalo-module-available-p) (fboundp 'hyalo-set-window-appearance))
         (hyalo-set-window-appearance (symbol-name appearance)))
-      ;; Update background color for gradient overlay
-      (hyalo-module-appearance--sync-background-color))))
+      ;; Update background color for tint overlay
+      (hyalo-module-appearance--sync-background-color opacity))))
 
 (defun hyalo-module-appearance--apply-theme (appearance)
   "Apply theme for APPEARANCE.
@@ -167,22 +188,27 @@ Switches to the configured theme if set."
       (mapc #'disable-theme custom-enabled-themes)
       (load-theme theme t))))
 
-(defun hyalo-module-appearance--sync-background-color ()
-  "Send the current frame background color to Swift for gradient overlay and sidebar."
+(defun hyalo-module-appearance--sync-background-color (&optional opacity)
+  "Send the current frame background color to Swift for tint overlay and sidebar.
+OPACITY is the tint opacity to pass to Swift (Emacs uses 0)."
   (when (hyalo-module-available-p)
-    (let* ((bg (face-background 'default nil 'default))
-           (alpha (or (frame-parameter nil 'alpha-background) 1.0))
-           ;; Convert color to hex if it's a name
-           (hex-color (if (and bg (string-prefix-p "#" bg))
+    (let* ((is-dark (hyalo-module-appearance-dark-p))
+           (bg (or (face-background 'default nil 'default)
+                   (if is-dark "#282c34" "#fafafa")))
+           ;; Use passed opacity or calculate from settings
+           (swift-opacity (or opacity
+                              (if is-dark
+                                  hyalo-module-appearance-opacity-dark
+                                hyalo-module-appearance-opacity-light)))
+           ;; Convert color to hex if it is a name
+           (hex-color (if (string-prefix-p "#" bg)
                           bg
-                        (when bg
-                          (apply #'format "#%02x%02x%02x"
-                                 (mapcar (lambda (c) (/ c 256))
-                                         (color-values bg)))))))
-      (when hex-color
-        ;; Sync to NavigationSplitView sidebar
-        (when (fboundp 'hyalo-sidebar-set-background-color)
-          (hyalo-sidebar-set-background-color hex-color (float alpha)))))))
+                        (apply #'format "#%02x%02x%02x"
+                               (mapcar (lambda (c) (/ c 256))
+                                       (color-values bg))))))
+      ;; Pass opacity to Swift for tint layer control
+      (when (fboundp 'hyalo-sidebar-set-background-color)
+        (hyalo-sidebar-set-background-color hex-color (float swift-opacity))))))
 
 (defun hyalo-module-appearance--sync-to-window ()
   "Sync all appearance settings to the current frame's Swift window.
@@ -192,10 +218,8 @@ Called when a new frame is created to ensure overlays match appearance."
       ;; Sync window appearance for vibrancy
       (when (fboundp 'hyalo-set-window-appearance)
         (hyalo-set-window-appearance (symbol-name appearance)))
-      ;; Sync background color for gradient overlay
-      (hyalo-module-appearance--sync-background-color)
-      ;; Sync echo area
-      (hyalo-module-appearance--update-echo-area))))
+      ;; Sync background color for tint overlay
+      (hyalo-module-appearance--sync-background-color))))
 
 ;;; Face Background Cleanup
 
@@ -223,26 +247,6 @@ Only reacts if `hyalo-module-appearance-mode-setting' is `auto'."
   (hyalo-module-appearance--clear-backgrounds)
   (hyalo-module-appearance--sync-background-color))
 
-;;; Echo Area Tracking
-
-(defun hyalo-module-appearance--update-echo-area ()
-  "Send echo area height and tint opacity to Swift module."
-  (when (hyalo-module-available-p)
-    (let ((height (window-pixel-height (minibuffer-window))))
-      ;; Update height for legacy system
-      (when (fboundp 'hyalo-set-echo-area-height)
-        (hyalo-set-echo-area-height height))
-      ;; Update height for NavigationSplitView overlay
-      (when (fboundp 'hyalo-sidebar-set-echo-area-height)
-        (hyalo-sidebar-set-echo-area-height height)))
-    ;; Update tint opacity
-    (when (fboundp 'hyalo-set-echo-area-tint-opacity)
-      (hyalo-set-echo-area-tint-opacity hyalo-module-appearance-echo-tint-opacity))))
-
-;; Backwards compat alias
-(defalias 'hyalo-module-appearance--update-echo-area-height
-  #'hyalo-module-appearance--update-echo-area)
-
 ;;; Public API
 
 (defun hyalo-module-appearance-set (appearance)
@@ -255,24 +259,77 @@ Applies to all frames and switches theme if configured."
   (hyalo-module-appearance--apply)
   (hyalo-module-log "Appearance set to %s" appearance))
 
-(defun hyalo-module-appearance-set-alpha (alpha)
-  "Set current appearance's transparency to ALPHA (0.0-1.0).
+(defun hyalo-module-appearance-set-opacity (opacity)
+  "Set current appearance's tint OPACITY (0.0-1.0).
+0.0 = full vibrancy (no tint), 1.0 = solid theme color.
 Applies to all frames."
   (interactive
    (let ((current (if (hyalo-module-appearance-dark-p)
-                      hyalo-module-appearance-alpha-dark
-                    hyalo-module-appearance-alpha-light)))
-     (list (read-number (format "Alpha (0.0-1.0) [current: %.2f]: " current) current))))
-  (let ((clamped (max 0.0 (min 1.0 alpha))))
+                      hyalo-module-appearance-opacity-dark
+                    hyalo-module-appearance-opacity-light)))
+     (list (read-number (format "Opacity (0.0-1.0) [current: %.2f]: " current) current))))
+  (let ((clamped (max 0.0 (min 1.0 opacity))))
     ;; Update the stored value
     (if (hyalo-module-appearance-dark-p)
-        (setq hyalo-module-appearance-alpha-dark clamped)
-      (setq hyalo-module-appearance-alpha-light clamped))
-    ;; Apply to all frames
-    (dolist (f (frame-list))
-      (when (and (display-graphic-p f) (eq (framep f) 'ns))
-        (set-frame-parameter f 'alpha-background clamped)))
-    (hyalo-module-log "Alpha set to %.2f" clamped)))
+        (setq hyalo-module-appearance-opacity-dark clamped)
+      (setq hyalo-module-appearance-opacity-light clamped))
+    ;; Apply via the --apply function which handles Swift
+    (hyalo-module-appearance--apply)
+    (hyalo-module-log "Opacity set to %.2f" clamped)))
+
+(defun hyalo-module-appearance-set-vibrancy (material)
+  "Set vibrancy MATERIAL style.
+MATERIAL is one of: ultraThin, thin, regular, thick, ultraThick, none.
+Use ultraThin for maximum see-through effect."
+  (interactive
+   (list (completing-read "Vibrancy material: "
+                          '("ultraThin" "thin" "regular" "thick" "ultraThick" "none")
+                          nil t nil nil hyalo-module-appearance-vibrancy-material)))
+  (setq hyalo-module-appearance-vibrancy-material material)
+  (when (and (hyalo-module-available-p)
+             (fboundp 'hyalo-sidebar-set-vibrancy-material))
+    (hyalo-sidebar-set-vibrancy-material material))
+  (customize-save-variable 'hyalo-module-appearance-vibrancy-material material)
+  (hyalo-module-log "Vibrancy material set to %s" material))
+
+(defun hyalo-module-appearance-show-panel ()
+  "Show the Hyalo appearance panel with sliders for vibrancy control."
+  (interactive)
+  (when (hyalo-module-available-p)
+    (hyalo-show-appearance-panel)))
+
+(defun hyalo-module-appearance-toggle-panel ()
+  "Toggle the Hyalo appearance panel visibility."
+  (interactive)
+  (when (hyalo-module-available-p)
+    (hyalo-toggle-appearance-panel)))
+
+(defun hyalo-module-appearance-hide-panel ()
+  "Hide the Hyalo appearance panel."
+  (interactive)
+  (when (hyalo-module-available-p)
+    (hyalo-hide-appearance-panel)))
+
+(defun hyalo-module-appearance--apply-vibrancy ()
+  "Apply vibrancy and opacity settings to Swift."
+  (when (hyalo-module-available-p)
+    ;; Apply vibrancy material (blur)
+    (when (fboundp 'hyalo-sidebar-set-vibrancy-material)
+      (hyalo-sidebar-set-vibrancy-material hyalo-module-appearance-vibrancy-material))
+    ;; Apply opacity (tint layer)
+    (let* ((is-dark (hyalo-module-appearance-dark-p))
+           (opacity (if is-dark
+                        hyalo-module-appearance-opacity-dark
+                      hyalo-module-appearance-opacity-light))
+           (bg (or (face-background 'default nil 'default)
+                   (if is-dark "#282c34" "#fafafa")))
+           (hex-color (if (string-prefix-p "#" bg)
+                          bg
+                        (apply #'format "#%02x%02x%02x"
+                               (mapcar (lambda (c) (/ c 256))
+                                       (color-values bg))))))
+      (when (fboundp 'hyalo-sidebar-set-background-color)
+        (hyalo-sidebar-set-background-color hex-color (float opacity))))))
 
 ;;; Mode Definition
 
@@ -281,8 +338,7 @@ Applies to all frames."
 Uses the global `hyalo-module-appearance-mode-setting'."
   (let ((f (or frame (selected-frame))))
     (when (and (display-graphic-p f) (eq (framep f) 'ns))
-      (hyalo-module-appearance--apply-to-frame f)
-      (hyalo-module-appearance--update-echo-area))))
+      (hyalo-module-appearance--apply-to-frame f))))
 
 (defun hyalo-module-appearance--enable ()
   "Enable appearance management."
@@ -301,16 +357,11 @@ Uses the global `hyalo-module-appearance-mode-setting'."
           (add-hook 'enable-theme-functions #'hyalo-module-appearance--on-theme-load))
         ;; Multi-frame support - new frames get current settings
         (add-hook 'after-make-frame-functions #'hyalo-module-appearance--setup-frame)
-        ;; Echo area tracking
-        (add-hook 'minibuffer-setup-hook #'hyalo-module-appearance--update-echo-area)
-        (add-hook 'minibuffer-exit-hook #'hyalo-module-appearance--update-echo-area)
-        (add-hook 'window-configuration-change-hook #'hyalo-module-appearance--update-echo-area)
-        (hyalo-module-appearance--update-echo-area)
-        (hyalo-module-log "Appearance: Enabled (appearance: %s, alpha: %.2f)"
+        (hyalo-module-log "Appearance: Enabled (appearance: %s, opacity: %.2f)"
                  (hyalo-module-appearance-current)
                  (if (hyalo-module-appearance-dark-p)
-                     hyalo-module-appearance-alpha-dark
-                   hyalo-module-appearance-alpha-light)))
+                     hyalo-module-appearance-opacity-dark
+                   hyalo-module-appearance-opacity-light)))
     (error (hyalo-module-log "Appearance: Failed to enable: %s" err))))
 
 (defun hyalo-module-appearance--disable ()
@@ -323,10 +374,6 @@ Uses the global `hyalo-module-appearance-mode-setting'."
     (remove-hook 'enable-theme-functions #'hyalo-module-appearance--on-theme-load))
   ;; Remove frame hook
   (remove-hook 'after-make-frame-functions #'hyalo-module-appearance--setup-frame)
-  ;; Remove echo area hooks
-  (remove-hook 'minibuffer-setup-hook #'hyalo-module-appearance--update-echo-area)
-  (remove-hook 'minibuffer-exit-hook #'hyalo-module-appearance--update-echo-area)
-  (remove-hook 'window-configuration-change-hook #'hyalo-module-appearance--update-echo-area)
   ;; Restore full opacity on all frames
   (dolist (frame (frame-list))
     (set-frame-parameter frame 'alpha-background 1.0))

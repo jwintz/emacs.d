@@ -26,7 +26,7 @@ private func findModeLineFont(size: CGFloat) -> NSFont {
 
 /// A SwiftUI view that renders an NSAttributedString
 /// This allows proper rendering of nerd fonts and other special characters
-@available(macOS 15.0, *)
+@available(macOS 26.0, *)
 struct AttributedTextView: NSViewRepresentable {
     let text: String
     let fontSize: CGFloat
@@ -57,7 +57,7 @@ struct AttributedTextView: NSViewRepresentable {
 
 /// A view that renders mode-line text with proper font handling
 /// Uses SwiftUI Text with a nerd font for correct icon rendering
-@available(macOS 15.0, *)
+@available(macOS 26.0, *)
 struct ModeLineTextView: View {
     let text: String
     let fontSize: CGFloat

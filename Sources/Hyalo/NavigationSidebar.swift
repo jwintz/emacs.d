@@ -1,5 +1,6 @@
-// NavigationSidebar.swift - NavigationSplitView layout for Hyalo
+// NavigationSidebar.swift - NavigationSplitView layout for Hyalo with Liquid Glass
 // Copyright (C) 2025
+// Target: macOS 26 Tahoe with Liquid Glass design
 
 import AppKit
 import SwiftUI
@@ -117,8 +118,8 @@ struct FileRow: View {
     }
 }
 
-/// The sidebar content
-@available(macOS 15.0, *)
+/// The sidebar content with Liquid Glass styling
+@available(macOS 26.0, *)
 struct SidebarContentView: View {
     var state: NavigationSidebarState
 
@@ -127,7 +128,6 @@ struct SidebarContentView: View {
     var onFileSelect: ((SidebarFile) -> Void)?
 
     var body: some View {
-        let _ = print("[Hyalo] SidebarContentView - backgroundColor: \(state.backgroundColor), alpha: \(state.backgroundAlpha)")
         List {
             // Open Editors section
             Section {
@@ -171,36 +171,25 @@ struct SidebarContentView: View {
         }
         .listStyle(.sidebar)
         .scrollContentBackground(.hidden)
+        // Liquid Glass: NavigationSplitView sidebar automatically gets glass effect
+        // We only need to tint if Emacs specifies a background color
         .background {
-            // When fully opaque, use solid color. When transparent, use vibrancy material with color tint.
-            if state.backgroundAlpha >= 1.0 {
-                Color(nsColor: state.backgroundColor)
-                    .ignoresSafeArea()
-            } else {
-                ZStack {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                    Color(nsColor: state.backgroundColor)
-                        .opacity(Double(state.backgroundAlpha))
-                }
+            Color(nsColor: state.backgroundColor)
+                .opacity(Double(state.backgroundAlpha))
                 .ignoresSafeArea()
-            }
         }
-        // Force re-render when color changes
-        .id("sidebar-\(state.backgroundColor.description)-\(state.backgroundAlpha)")
     }
 }
 
-/// Mode-line toolbar view - fills available width with proper LHS/RHS parsing
-/// Uses ToolbarContentWidthPreference to get actual toolbar width from parent
-@available(macOS 15.0, *)
+/// Mode-line toolbar view with Liquid Glass styling
+/// Uses flexible layout to fill entire toolbar width
+/// NOTE: For macOS Tahoe, this is placed in the title/subtitle area for full width
+@available(macOS 26.0, *)
 struct ModeLineToolbarView: View {
     let content: String
-    let availableWidth: CGFloat
 
-    init(content: String, availableWidth: CGFloat = 500) {
+    init(content: String) {
         self.content = content
-        self.availableWidth = availableWidth
     }
 
     /// Parse a string into LHS and RHS by splitting on 3+ consecutive spaces
@@ -216,9 +205,6 @@ struct ModeLineToolbarView: View {
 
     var body: some View {
         let segments = parseSegments(content)
-        let _ = print("[Hyalo] ModeLineToolbarView - content: '\(content)' (\(content.count) chars)")
-        let _ = print("[Hyalo] ModeLineToolbarView - LHS: '\(segments.lhs)' RHS: '\(segments.rhs)' width: \(availableWidth)")
-
         HStack(spacing: 8) {
             Text(segments.lhs.isEmpty ? " " : segments.lhs)
                 .font(.system(size: 11, design: .monospaced))
@@ -226,7 +212,7 @@ struct ModeLineToolbarView: View {
                 .lineLimit(1)
                 .truncationMode(.tail)
 
-            Spacer(minLength: 20)
+            Spacer(minLength: 0)
 
             if !segments.rhs.isEmpty {
                 Text(segments.rhs)
@@ -236,62 +222,85 @@ struct ModeLineToolbarView: View {
                     .truncationMode(.head)
             }
         }
-        // Use fixed width based on available space, accounting for sidebar toggle button
-        .frame(width: max(200, availableWidth - 100), height: 22)
+        .frame(height: 22)
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 8)
+    }
+}
+
+/// NSVisualEffectView wrapper for fine-grained blur control
+@available(macOS 26.0, *)
+struct VibrancyBackgroundView: NSViewRepresentable {
+    var material: NSVisualEffectView.Material
+    var blendingMode: NSVisualEffectView.BlendingMode
+    var isActive: Bool
+
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let view = NSVisualEffectView()
+        view.material = material
+        view.blendingMode = blendingMode
+        view.state = isActive ? .active : .inactive
+        view.isEmphasized = true
+        view.wantsLayer = true
+        return view
+    }
+
+    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
+        nsView.material = material
+        nsView.blendingMode = blendingMode
+        nsView.state = isActive ? .active : .inactive
     }
 }
 
 /// Wrapper to embed Emacs NSView in SwiftUI
-/// Includes gradient overlay at top and echo area overlay at bottom
-@available(macOS 15.0, *)
+/// Uses NSVisualEffectView for fine-grained vibrancy/blur control
+/// NOTE: With comprehensive alpha-background patch, Emacs renders fully transparent
+/// backgrounds. Vibrancy shows through naturally.
+@available(macOS 26.0, *)
 struct EmacsContentView: View {
     let emacsView: NSView
     var state: NavigationSidebarState
 
+    /// Map vibrancy material to NSVisualEffectView.Material
+    /// These materials affect blur amount, tint is controlled separately
+    private var effectMaterial: NSVisualEffectView.Material {
+        switch state.vibrancyMaterial {
+        case .ultraThin: return .hudWindow
+        case .thin: return .popover
+        case .regular: return .sheet
+        case .thick: return .sidebar
+        case .ultraThick: return .titlebar
+        case .none: return .windowBackground
+        }
+    }
+
     var body: some View {
         ZStack {
-            // Emacs content
-            EmacsNSViewRepresentable(emacsView: emacsView)
-
-            // Overlays anchored to top and bottom
-            VStack(spacing: 0) {
-                // Gradient overlay at top (blends with toolbar) - only when transparent
-                if state.backgroundAlpha < 1.0 {
-                    LinearGradient(
-                        colors: [
-                            Color(nsColor: state.backgroundColor.withAlphaComponent(state.backgroundAlpha * 0.8)),
-                            Color(nsColor: state.backgroundColor.withAlphaComponent(0))
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: 40)
-                    .allowsHitTesting(false)
-                }
-
-                Spacer()
-
-                // Echo area overlay at bottom (height matches minibuffer)
-                EchoAreaOverlay(state: state)
+            // Vibrancy background using NSVisualEffectView for better control
+            // This shows through where Emacs renders transparent (default face)
+            if state.vibrancyMaterial != .none {
+                VibrancyBackgroundView(
+                    material: effectMaterial,
+                    blendingMode: .behindWindow,
+                    isActive: true
+                )
             }
+
+            // Tint layer on top of vibrancy to match Emacs theme
+            // Alpha controls how much of the theme color shows vs vibrancy
+            Color(nsColor: state.backgroundColor)
+                .opacity(Double(state.backgroundAlpha))
+
+            // Emacs content on top (renders with fully transparent default background)
+            EmacsNSViewRepresentable(emacsView: emacsView)
         }
-        // Only extend under top edge (toolbar), not sidebar
-        .ignoresSafeArea(.all, edges: .top)
+        // Only extend under top edge (toolbar), NOT the sidebar (leading edge)
+        .ignoresSafeArea(.container, edges: .top)
     }
 }
 
-/// Echo area overlay at the bottom of the content
-@available(macOS 15.0, *)
-struct EchoAreaOverlay: View {
-    var state: NavigationSidebarState
-
-    var body: some View {
-        Rectangle()
-            .fill(Color(nsColor: state.backgroundColor.withAlphaComponent(state.backgroundAlpha)))
-            .frame(height: state.echoAreaHeight)
-            .allowsHitTesting(false)
-    }
-}
+// NOTE: EchoAreaOverlay removed per AGENTS.md
+// The NavigationSplitView handles all vibrancy uniformly - no bottom overlay needed
 
 /// NSViewRepresentable wrapper for Emacs NSView
 struct EmacsNSViewRepresentable: NSViewRepresentable {
@@ -309,8 +318,8 @@ struct EmacsNSViewRepresentable: NSViewRepresentable {
     }
 }
 
-/// The main NavigationSplitView layout
-@available(macOS 15.0, *)
+/// The main NavigationSplitView layout with Liquid Glass styling
+@available(macOS 26.0, *)
 struct HyaloNavigationLayout: View {
     var state: NavigationSidebarState
     let emacsView: NSView
@@ -320,61 +329,62 @@ struct HyaloNavigationLayout: View {
     var onFileSelect: ((SidebarFile) -> Void)?
 
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
-    @State private var windowWidth: CGFloat = 800
+
+    /// Map vibrancy material to NSVisualEffectView.Material
+    private var effectMaterialForState: NSVisualEffectView.Material {
+        switch state.vibrancyMaterial {
+        case .ultraThin: return .hudWindow
+        case .thin: return .popover
+        case .regular: return .sheet
+        case .thick: return .sidebar
+        case .ultraThick: return .titlebar
+        case .none: return .windowBackground
+        }
+    }
 
     var body: some View {
-        let _ = print("[Hyalo] HyaloNavigationLayout - modeLine: '\(state.modeLine)' (\(state.modeLine.count) chars)")
-        let _ = print("[Hyalo] HyaloNavigationLayout - backgroundColor: \(state.backgroundColor), alpha: \(state.backgroundAlpha)")
-        GeometryReader { geometry in
-            NavigationSplitView(columnVisibility: $columnVisibility) {
-                SidebarContentView(
-                    state: state,
-                    onBufferSelect: onBufferSelect,
-                    onBufferClose: onBufferClose,
-                    onFileSelect: onFileSelect
-                )
-                .navigationSplitViewColumnWidth(min: 200, ideal: 280, max: 400)
-            } detail: {
-                EmacsContentView(
-                    emacsView: emacsView,
-                    state: state
-                )
-            }
-            .navigationSplitViewStyle(.balanced)
-            .toolbar(id: "hyalo-modeline") {
-                ToolbarItem(id: "modeline", placement: .principal, showsByDefault: true) {
-                    ModeLineToolbarView(content: state.modeLine, availableWidth: windowWidth)
-                        .layoutPriority(1)
-                }
-            }
-            .onChange(of: geometry.size.width) { _, newWidth in
-                windowWidth = newWidth
-            }
-            .onAppear {
-                windowWidth = geometry.size.width
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            SidebarContentView(
+                state: state,
+                onBufferSelect: onBufferSelect,
+                onBufferClose: onBufferClose,
+                onFileSelect: onFileSelect
+            )
+            .navigationSplitViewColumnWidth(min: 200, ideal: 280, max: 400)
+        } detail: {
+            EmacsContentView(
+                emacsView: emacsView,
+                state: state
+            )
+        }
+        .navigationSplitViewStyle(.balanced)
+        .toolbar {
+            // Use .principal with flexible spacer for centered content that expands
+            ToolbarItem(placement: .principal) {
+                ModeLineToolbarView(content: state.modeLine)
+                    .frame(minWidth: 200, maxWidth: .infinity)
             }
         }
         .toolbarRole(.editor)
+        // Use .large title display mode for more space in toolbar area
         .toolbarTitleDisplayMode(.inline)
         .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
         .navigationTitle("")  // Prevent geometry from showing in title area
+        // Liquid Glass: Apply matching vibrancy material to entire NavigationSplitView
         .background {
-            // When fully opaque, use solid color. When transparent, use vibrancy material with color tint.
-            if state.backgroundAlpha >= 1.0 {
+            ZStack {
+                // Base vibrancy using NSVisualEffectView to match EmacsContentView
+                VibrancyBackgroundView(
+                    material: effectMaterialForState,
+                    blendingMode: .behindWindow,
+                    isActive: state.vibrancyMaterial != .none
+                )
+                // Emacs theme color tint
                 Color(nsColor: state.backgroundColor)
-                    .ignoresSafeArea()
-            } else {
-                ZStack {
-                    Rectangle()
-                        .fill(.ultraThinMaterial)
-                    Color(nsColor: state.backgroundColor)
-                        .opacity(Double(state.backgroundAlpha))
-                }
-                .ignoresSafeArea()
+                    .opacity(Double(state.backgroundAlpha))
             }
+            .ignoresSafeArea()
         }
-        // Force re-render when color changes
-        .id("layout-\(state.backgroundColor.description)-\(state.backgroundAlpha)")
         .onChange(of: state.sidebarVisible) { _, newValue in
             withAnimation {
                 columnVisibility = newValue ? .all : .detailOnly
@@ -383,26 +393,39 @@ struct HyaloNavigationLayout: View {
     }
 }
 
+// MARK: - Vibrancy Material Types
+
+/// Available vibrancy material styles matching SwiftUI's Material enum
+enum VibrancyMaterial: String, CaseIterable {
+    case ultraThin = "ultraThin"
+    case thin = "thin"
+    case regular = "regular"
+    case thick = "thick"
+    case ultraThick = "ultraThick"
+    case none = "none"
+}
+
 // MARK: - Observable State for SwiftUI reactivity
 
-@available(macOS 15.0, *)
+@available(macOS 26.0, *)
 @Observable
 final class NavigationSidebarState {
     var buffers: [SidebarBuffer] = []
     var files: [SidebarFile] = []
     var projectName: String = ""
     var modeLine: String = ""
-    var echoAreaHeight: CGFloat = 22
     var sidebarVisible: Bool = false
     var backgroundColor: NSColor = .windowBackgroundColor
-    var backgroundAlpha: CGFloat = 1.0
+    var backgroundAlpha: CGFloat = 0.5  // Reduced default for more vibrancy
     /// Window appearance mode: "light", "dark", or "auto"
     var windowAppearance: String = "auto"
+    /// Vibrancy material style
+    var vibrancyMaterial: VibrancyMaterial = .ultraThin
 }
 
 // MARK: - Controller
 
-@available(macOS 15.0, *)
+@available(macOS 26.0, *)
 final class NavigationSidebarController: NSObject {
     private weak var window: NSWindow?
     private var originalContentView: NSView?
@@ -499,8 +522,6 @@ final class NavigationSidebarController: NSObject {
 
         // Setup appearance change observer
         setupAppearanceObserver()
-
-        print("[Hyalo] NavigationSplitView setup complete (sidebar collapsed)")
     }
 
     /// Setup observer for system appearance changes
@@ -520,8 +541,6 @@ final class NavigationSidebarController: NSObject {
         let appearance = NSApp.effectiveAppearance
         let isDark = appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
         let appearanceStr = isDark ? "dark" : "light"
-
-        print("[Hyalo] NavigationSidebar - appearance changed to: \(appearanceStr)")
 
         // Update window appearance
         if state.windowAppearance == "auto" {
@@ -582,22 +601,18 @@ final class NavigationSidebarController: NSObject {
         originalContentView = nil
         isSetup = false
         state.sidebarVisible = false
-
-        print("[Hyalo] NavigationSplitView teardown complete")
     }
 
     /// Show the sidebar column
     func showSidebar() {
         guard isSetup else { return }
         state.sidebarVisible = true
-        print("[Hyalo] Sidebar shown")
     }
 
     /// Hide the sidebar column
     func hideSidebar() {
         guard isSetup else { return }
         state.sidebarVisible = false
-        print("[Hyalo] Sidebar hidden")
     }
 
     /// Toggle the sidebar column visibility
@@ -653,25 +668,12 @@ final class NavigationSidebarController: NSObject {
     }
 
     func updateModeLine(_ content: String) {
-        print("[Hyalo] updateModeLine called - content: '\(content)' (\(content.count) chars)")
         state.modeLine = content
-    }
-
-    /// Set the echo area height (minibuffer height)
-    func setEchoAreaHeight(_ height: CGFloat) {
-        state.echoAreaHeight = height
     }
 
     /// Set the background color from Emacs (color string + alpha)
     func setBackgroundColor(_ colorString: String, alpha: CGFloat) {
-        let oldColor = state.backgroundColor
-        let oldAlpha = state.backgroundAlpha
         let newColor = parseEmacsColor(colorString) ?? .windowBackgroundColor
-
-        print("[Hyalo] setBackgroundColor - OLD: \(oldColor), alpha: \(oldAlpha)")
-        print("[Hyalo] setBackgroundColor - NEW: \(newColor), alpha: \(alpha)")
-        print("[Hyalo] setBackgroundColor - CHANGED: color=\(oldColor != newColor), alpha=\(oldAlpha != alpha)")
-
         state.backgroundColor = newColor
         state.backgroundAlpha = alpha
     }
@@ -689,8 +691,13 @@ final class NavigationSidebarController: NSObject {
         default:
             window.appearance = nil  // Follow system
         }
+    }
 
-        print("[Hyalo] NavigationSidebar - window appearance set to: \(appearance)")
+    /// Set the vibrancy material style
+    func setVibrancyMaterial(_ materialName: String) {
+        if let material = VibrancyMaterial(rawValue: materialName) {
+            state.vibrancyMaterial = material
+        }
     }
     
     /// Parse Emacs color string (e.g., "#282c34" or "white")
@@ -735,7 +742,7 @@ final class NavigationSidebarController: NSObject {
 
 // MARK: - Manager
 
-@available(macOS 15.0, *)
+@available(macOS 26.0, *)
 final class NavigationSidebarManager {
     static let shared = NavigationSidebarManager()
 
@@ -807,15 +814,15 @@ final class NavigationSidebarManager {
         controllers[window.windowNumber]?.updateModeLine(content)
     }
     
-    func setEchoAreaHeight(for window: NSWindow, height: CGFloat) {
-        controllers[window.windowNumber]?.setEchoAreaHeight(height)
-    }
-    
     func setBackgroundColor(for window: NSWindow, color: String, alpha: CGFloat) {
         controllers[window.windowNumber]?.setBackgroundColor(color, alpha: alpha)
     }
 
     func setWindowAppearance(for window: NSWindow, appearance: String) {
         controllers[window.windowNumber]?.setWindowAppearance(appearance)
+    }
+
+    func setVibrancyMaterial(for window: NSWindow, material: String) {
+        controllers[window.windowNumber]?.setVibrancyMaterial(material)
     }
 }

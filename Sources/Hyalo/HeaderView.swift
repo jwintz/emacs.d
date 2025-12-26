@@ -4,7 +4,7 @@ import SwiftUI
 /// Displays the formatted mode-line and header-line from Emacs in a unified capsule
 /// Mode-line is fixed at top, header-line expands BELOW it
 /// Traffic lights appear when hovering the left edge area
-@available(macOS 15.0, *)
+@available(macOS 26.0, *)
 struct HeaderView: View {
     @ObservedObject var viewModel: HeaderViewModel
     @State private var showTrafficLights: Bool = false
@@ -206,7 +206,7 @@ enum TrafficLightType {
     case zoom
 }
 
-@available(macOS 15.0, *)
+@available(macOS 26.0, *)
 struct TrafficLightButton: View {
     let type: TrafficLightType
     let color: Color
@@ -245,7 +245,7 @@ struct TrafficLightButton: View {
 
 // MARK: - Preview
 
-@available(macOS 15.0, *)
+@available(macOS 26.0, *)
 #Preview {
     let viewModel = HeaderViewModel()
     

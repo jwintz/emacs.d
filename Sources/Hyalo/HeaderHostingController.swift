@@ -9,7 +9,7 @@ struct HeaderPosition {
 }
 
 /// Controller that hosts the SwiftUI HeaderView in an AppKit window
-@available(macOS 15.0, *)
+@available(macOS 26.0, *)
 final class HeaderHostingController {
     
     // MARK: - Properties

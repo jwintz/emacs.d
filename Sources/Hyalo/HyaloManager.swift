@@ -51,7 +51,7 @@ final class HyaloManager {
     func setTrafficLightsAutoHide(_ enabled: Bool, for window: NSWindow) {
         // When NavigationSplitView is active, ignore auto-hide requests
         // Traffic lights must always be visible with the new layout
-        if #available(macOS 15.0, *) {
+        if #available(macOS 26.0, *) {
             if NavigationSidebarManager.shared.isSetup(for: window) {
                 return
             }
@@ -66,7 +66,7 @@ final class HyaloManager {
 
     func hideTrafficLights(for window: NSWindow) {
         // When NavigationSplitView is active, don't hide traffic lights
-        if #available(macOS 15.0, *) {
+        if #available(macOS 26.0, *) {
             if NavigationSidebarManager.shared.isSetup(for: window) {
                 return
             }
@@ -112,64 +112,6 @@ final class HyaloManager {
     }
 
     // NOTE: Sidebar margin is now handled by child frame approach (SidebarFrameManager)
-
-    // MARK: - Background Color and Echo Area
-
-    func setBackgroundColor(_ colorString: String, for window: NSWindow) {
-        controllers[window.windowNumber]?.setBackgroundColor(colorString)
-    }
-
-    func setEchoAreaHeight(_ height: CGFloat, for window: NSWindow) {
-        controllers[window.windowNumber]?.setEchoAreaHeight(height)
-    }
-
-    func setEchoAreaTintOpacity(_ opacity: CGFloat, for window: NSWindow) {
-        controllers[window.windowNumber]?.setEchoAreaTintOpacity(opacity)
-    }
-
-    // MARK: - Apply to ALL Windows
-
-    /// Apply appearance to all managed windows
-    func setWindowAppearanceForAll(_ appearance: String) {
-        for (_, controller) in controllers {
-            if let window = controller.window {
-                setWindowAppearance(appearance, for: window)
-            }
-        }
-    }
-
-    /// Apply background color to all managed windows
-    func setBackgroundColorForAll(_ colorString: String) {
-        for (_, controller) in controllers {
-            controller.setBackgroundColor(colorString)
-        }
-    }
-
-    /// Apply echo area height to all managed windows
-    func setEchoAreaHeightForAll(_ height: CGFloat) {
-        for (_, controller) in controllers {
-            controller.setEchoAreaHeight(height)
-        }
-    }
-
-    /// Apply echo area tint opacity to all managed windows
-    func setEchoAreaTintOpacityForAll(_ opacity: CGFloat) {
-        for (_, controller) in controllers {
-            controller.setEchoAreaTintOpacity(opacity)
-        }
-    }
-
-    /// Set echo area dark theme for a single window
-    func setEchoAreaDarkTheme(_ isDark: Bool, for window: NSWindow) {
-        controllers[window.windowNumber]?.setEchoAreaDarkTheme(isDark)
-    }
-
-    /// Apply echo area dark theme to all managed windows
-    func setEchoAreaDarkThemeForAll(_ isDark: Bool) {
-        for (_, controller) in controllers {
-            controller.setEchoAreaDarkTheme(isDark)
-        }
-    }
 
     // MARK: - System Appearance
 

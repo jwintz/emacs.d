@@ -65,32 +65,6 @@ final class GradientOverlayView: NSView {
     }
 }
 
-/// Custom view for echo area tint overlay
-final class EchoAreaOverlayView: NSView {
-    var isDarkTheme: Bool = false {
-        didSet { needsDisplay = true }
-    }
-
-    var tintOpacity: CGFloat = 1.0 {
-        didSet { needsDisplay = true }
-    }
-
-    override func draw(_ dirtyRect: NSRect) {
-        // Light themes get lighter tint (white overlay), dark themes get darker tint (black overlay)
-        let tintColor: NSColor
-        if isDarkTheme {
-            tintColor = NSColor.black.withAlphaComponent(tintOpacity)
-        } else {
-            tintColor = NSColor.white.withAlphaComponent(tintOpacity)
-        }
-
-        tintColor.setFill()
-        bounds.fill()  // Fill entire bounds, not just dirtyRect
-    }
-
-    override var isOpaque: Bool { false }
-}
-
 /// Controls Hyalo window appearance:
 /// - Transparent titlebar with rounded corners
 /// - NSVisualEffectView for blur
@@ -105,12 +79,11 @@ final class HyaloController: NSObject {
 
     private var blurView: NSVisualEffectView?
     private var gradientView: GradientOverlayView?
-    private var echoAreaView: EchoAreaOverlayView?
     private var trafficLightTrackingArea: NSTrackingArea?
     private var trafficLightsVisible: Bool = true
     private var trafficLightsEnabled: Bool = true
 
-    /// Header view controller (macOS 15+)
+    /// Header view controller (macOS 26+)
     private var headerController: Any?  // Type-erased for version compatibility
 
     /// Current sidebar offset (width in pixels, for header position adjustment)
@@ -130,9 +103,6 @@ final class HyaloController: NSObject {
 
     /// Current background color from Emacs
     private var currentBackgroundColor: NSColor = .windowBackgroundColor
-
-    /// Current echo area height (from Emacs)
-    private var echoAreaHeight: CGFloat = 0
 
     /// Current header top padding (from Emacs config)
     private var headerTopPadding: CGFloat = 12
@@ -163,10 +133,7 @@ final class HyaloController: NSObject {
         // Add gradient overlay for header blend effect
         setupGradientView()
 
-        // Add echo area overlay
-        setupEchoAreaView()
-
-        // Add header view (macOS 15+)
+        // Add header view (macOS 26+)
         setupHeaderView()
 
         // NOTE: Sidebar glass is now handled by SidebarFrameManager for child frames
@@ -199,10 +166,6 @@ final class HyaloController: NSObject {
         // Remove gradient view
         gradientView?.removeFromSuperview()
         gradientView = nil
-
-        // Remove echo area view
-        echoAreaView?.removeFromSuperview()
-        echoAreaView = nil
 
         // Remove blur view
         blurView?.removeFromSuperview()
@@ -300,33 +263,10 @@ final class HyaloController: NSObject {
     }
 
     private func getHeaderHeight() -> CGFloat {
-        if #available(macOS 15.0, *) {
+        if #available(macOS 26.0, *) {
             return HeaderHostingController.headerHeight + headerTopPadding
         }
         return 56  // Fallback
-    }
-
-    // MARK: - Echo Area Overlay
-
-    private func setupEchoAreaView() {
-        guard let window = window,
-              let contentView = window.contentView else { return }
-
-        let echoView = EchoAreaOverlayView(frame: .zero)
-        echoView.wantsLayer = true
-        echoView.layer?.backgroundColor = NSColor.clear.cgColor
-        echoView.layer?.zPosition = 1000  // On top of everything
-        echoView.isDarkTheme = false
-        echoView.tintOpacity = 0.2  // More visible
-
-        // Start with 0 height - will be set from Emacs
-        echoView.frame = NSRect(x: 0, y: 0, width: contentView.bounds.width, height: 0)
-        echoView.autoresizingMask = [.width]
-
-        // Add on top of all other views
-        contentView.addSubview(echoView, positioned: .above, relativeTo: nil)
-
-        echoAreaView = echoView
     }
 
     // MARK: - Traffic Lights (using NSTrackingArea, no timers)
@@ -407,7 +347,7 @@ final class HyaloController: NSObject {
     private func setupHeaderView() {
         guard let window = window else { return }
 
-        if #available(macOS 15.0, *) {
+        if #available(macOS 26.0, *) {
             let controller = HeaderHostingController()
             controller.attach(to: window)
             headerController = controller
@@ -415,7 +355,7 @@ final class HyaloController: NSObject {
     }
 
     private func teardownHeaderView() {
-        if #available(macOS 15.0, *) {
+        if #available(macOS 26.0, *) {
             if let controller = headerController as? HeaderHostingController {
                 controller.detach()
             }
@@ -433,7 +373,7 @@ final class HyaloController: NSObject {
         sidebarOffset = offset
 
         // Update header position to account for sidebar
-        if #available(macOS 15.0, *) {
+        if #available(macOS 26.0, *) {
             if let controller = headerController as? HeaderHostingController {
                 // Adjust left padding to start after sidebar
                 let leftPadding = offset > 0 ? offset + 12 : 78
@@ -465,7 +405,7 @@ final class HyaloController: NSObject {
 
     /// Update header content from Emacs with formatted mode-line string
     func updateHeader(modeLineString: String) {
-        if #available(macOS 15.0, *) {
+        if #available(macOS 26.0, *) {
             if let controller = headerController as? HeaderHostingController {
                 controller.updateModeLine(modeLineString)
             }
@@ -474,7 +414,7 @@ final class HyaloController: NSObject {
 
     /// Update header-line content
     func updateHeaderLine(_ content: String) {
-        if #available(macOS 15.0, *) {
+        if #available(macOS 26.0, *) {
             if let controller = headerController as? HeaderHostingController {
                 controller.updateHeaderLine(content)
             }
@@ -484,7 +424,7 @@ final class HyaloController: NSObject {
     /// Show or hide the floating header view
     /// Used when NavigationSplitView is active (toolbar replaces floating header)
     func setHeaderHidden(_ hidden: Bool) {
-        if #available(macOS 15.0, *) {
+        if #available(macOS 26.0, *) {
             if let controller = headerController as? HeaderHostingController {
                 controller.setHidden(hidden)
             }
@@ -500,7 +440,7 @@ final class HyaloController: NSObject {
     /// Set header position
     func setHeaderPosition(top: CGFloat, left: CGFloat, right: CGFloat) {
         headerTopPadding = top
-        if #available(macOS 15.0, *) {
+        if #available(macOS 26.0, *) {
             if let controller = headerController as? HeaderHostingController {
                 controller.setPosition(top: top, left: left, right: right)
             }
@@ -522,11 +462,6 @@ final class HyaloController: NSObject {
         // Update gradient view
         gradientView?.backgroundColor = color
         gradientView?.needsDisplay = true
-
-        // Determine if dark theme based on luminance
-        let isDark = isColorDark(color)
-        echoAreaView?.isDarkTheme = isDark
-        echoAreaView?.needsDisplay = true
     }
 
     /// Parse Emacs color string (e.g., "#282c34" or "white")
@@ -565,40 +500,4 @@ final class HyaloController: NSObject {
         return luminance < 0.5
     }
 
-    // MARK: - Echo Area Height
-
-    /// Set the echo area height from Emacs
-    /// Height should be (window-pixel-height (minibuffer-window)) + window-divider width
-    /// Echo area spans full width (no sidebar offset)
-    func setEchoAreaHeight(_ height: CGFloat) {
-        echoAreaHeight = height
-
-        guard let echoView = echoAreaView,
-              let contentView = window?.contentView else { return }
-
-        // Add 1 pixel for the window divider line at the top of echo area
-        let totalHeight = height + 1
-
-        // Position at bottom of window, FULL WIDTH (no sidebar offset)
-        echoView.frame = NSRect(
-            x: 0,
-            y: 0,
-            width: contentView.bounds.width,
-            height: totalHeight
-        )
-        echoView.setNeedsDisplay(echoView.bounds)
-        echoView.displayIfNeeded()
-    }
-
-    /// Set the echo area tint opacity from Emacs
-    func setEchoAreaTintOpacity(_ opacity: CGFloat) {
-        echoAreaView?.tintOpacity = opacity
-        echoAreaView?.needsDisplay = true
-    }
-
-    /// Set the theme mode for echo area overlay (affects tint color)
-    func setEchoAreaDarkTheme(_ isDark: Bool) {
-        echoAreaView?.isDarkTheme = isDark
-        echoAreaView?.needsDisplay = true
-    }
 }
