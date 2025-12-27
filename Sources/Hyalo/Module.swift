@@ -608,6 +608,32 @@ final class HyaloModule: Module {
             return false
         }
 
+        try env.defun(
+            "hyalo-get-panel-vibrancy-material",
+            with: """
+            Get the current vibrancy material from the Swift panel.
+            Returns one of: "none", "ultraThick", "thick", "regular", "thin", "ultraThin".
+            """
+        ) { () -> String in
+            if #available(macOS 26.0, *) {
+                return AppearanceSettings.shared.vibrancyMaterial.rawValue
+            }
+            return "ultraThin"
+        }
+
+        try env.defun(
+            "hyalo-get-panel-opacity",
+            with: """
+            Get the current opacity from the Swift panel.
+            Returns a value from 0.0 to 1.0.
+            """
+        ) { () -> Double in
+            if #available(macOS 26.0, *) {
+                return AppearanceSettings.shared.opacity
+            }
+            return 0.5
+        }
+
         // MARK: - System Integration
 
         try env.defun(

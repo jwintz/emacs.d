@@ -111,7 +111,7 @@ final class AppearanceSettings {
     }
 }
 
-// MARK: - Modern Glass Slider
+// MARK: - Modern Glass Slider (for Opacity)
 
 @available(macOS 26.0, *)
 struct GlassSlider: View {
@@ -137,6 +137,82 @@ struct GlassSlider: View {
             Slider(value: $value, in: 0...1)
                 .controlSize(.regular)
                 .onChange(of: value) { _, _ in onChange() }
+        }
+    }
+}
+
+// MARK: - Vibrancy Picker
+
+/// Vibrancy levels ordered from less vibrant (none) to more vibrant (ultraThin)
+@available(macOS 26.0, *)
+struct VibrancyPicker: View {
+    @Bindable var settings: AppearanceSettings
+    var onChange: () -> Void
+
+    /// Ordered from less vibrant to more vibrant
+    private let levels: [VibrancyMaterial] = [
+        .none, .ultraThick, .thick, .regular, .thin, .ultraThin
+    ]
+
+    private var selectedIndex: Double {
+        Double(levels.firstIndex(of: settings.vibrancyMaterial) ?? 0)
+    }
+
+    private func labelFor(_ material: VibrancyMaterial) -> String {
+        switch material {
+        case .none: return "None"
+        case .ultraThick: return "Ultra Thick"
+        case .thick: return "Thick"
+        case .regular: return "Regular"
+        case .thin: return "Thin"
+        case .ultraThin: return "Ultra Thin"
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Header
+            HStack {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary.opacity(0.7))
+                Text("Vibrancy")
+                    .font(.system(size: 13, weight: .medium))
+                Spacer()
+                Text(labelFor(settings.vibrancyMaterial))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+            }
+
+            // Native discrete slider
+            VStack(spacing: 2) {
+                Slider(
+                    value: Binding(
+                        get: { selectedIndex },
+                        set: { newValue in
+                            let index = Int(newValue.rounded())
+                            if index >= 0 && index < levels.count {
+                                settings.setVibrancyFromMaterial(levels[index])
+                                onChange()
+                            }
+                        }
+                    ),
+                    in: 0...Double(levels.count - 1),
+                    step: 1
+                )
+                .controlSize(.regular)
+
+                // Labels
+                HStack {
+                    Text("None")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("Max")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+            }
         }
     }
 }
@@ -251,15 +327,12 @@ struct AppearancePanelView: View {
             // Presets
             PresetPicker(settings: settings, onChange: onApply)
 
-            // Sliders
+            // Controls
             VStack(spacing: 16) {
-                GlassSlider(
-                    label: "Vibrancy",
-                    icon: "sparkles",
-                    value: $settings.vibrancy,
-                    onChange: onApply
-                )
+                // Discrete vibrancy picker
+                VibrancyPicker(settings: settings, onChange: onApply)
 
+                // Continuous opacity slider
                 GlassSlider(
                     label: "Opacity",
                     icon: "drop.halffull",

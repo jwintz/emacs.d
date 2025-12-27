@@ -487,10 +487,27 @@
   ;; * 'match - Used for matching parentheses or search terms.
   ;; * 'isearch - Used for the current search match (usually very high contrast).
   ;; * 'highlight - Used for mouse rollovers or generic highlighting.
-  (defun hyalo-set-region-foreground (&rest _)
-    (interactive)
-    (set-face-attribute 'region nil
-                        :foreground (face-foreground 'highlight nil t)))
+  ;;
+  ;; * `ultra-light` (or extra-light)
+  ;; * `thin` (or hairline) — This is your current default.
+  ;; * `light`
+  ;; * `semi-light` (or demi-light)
+  ;; * `normal` (or regular, book)
+  ;; * `medium`
+  ;; * `semi-bold` (or demi-bold)
+  ;; * `bold`
+  ;; * `extra-bold`
+  ;; * `ultra-bold` (or heavy, black)
+  (defun hyalo-set-highlights (&rest _)
+    (let ((fg (face-foreground 'highlight nil t))
+          (w 'ultra-bold))
+      (set-face-attribute 'region nil :foreground fg :weight w)
+      (set-face-attribute 'isearch nil :foreground fg :weight w)
+      (set-face-attribute 'lazy-highlight nil :foreground fg :weight w)
+      (set-face-attribute 'match nil :foreground fg :weight w)
+      (when (facep 'magit-diff-file-heading-selection)
+        (set-face-attribute 'magit-diff-file-heading-selection nil :foreground fg :weight w))))
+
   :custom
   (hyalo-module-appearance-theme-light 'modus-operandi)
   (hyalo-module-appearance-theme-dark 'modus-vivendi)
@@ -499,14 +516,17 @@
     "l v" '(hyalo-module-appearance-set-vibrancy :wk "vibrancy")
     "l o" '(hyalo-module-appearance-set-opacity :wk "opacity")
     "l p" '(hyalo-module-appearance-set :wk "appearance mode")
-    "l P" '(hyalo-module-appearance-show-panel :wk "panel")
-    "l f" '(hyalo-set-region-foreground :wk "region foreground"))
+    "l P" '(hyalo-module-appearance-show-panel :wk "panel"))
   :config
   (hyalo-module-appearance-mode 1)
 
-  ;; Sync region foreground with theme
-  (add-hook 'enable-theme-functions #'hyalo-set-region-foreground)
-  (hyalo-set-region-foreground)
+  ;; Hook the highlight face update
+  (add-hook 'enable-theme-functions #'hyalo-set-highlights)
+  (hyalo-set-highlights)
+
+  ;; Ensure highlights are applied to Magit faces if Magit loads later
+  (with-eval-after-load 'magit
+    (hyalo-set-highlights))
 
   ;; Add Hyalo Appearance menu
   (easy-menu-define hyalo-appearance-menu global-map

@@ -262,15 +262,15 @@ struct EmacsContentView: View {
     var state: NavigationSidebarState
 
     /// Map vibrancy material to NSVisualEffectView.Material
-    /// These materials affect blur amount, tint is controlled separately
+    /// Ordered from least vibrancy (none) to most vibrancy (ultraThin)
     private var effectMaterial: NSVisualEffectView.Material {
         switch state.vibrancyMaterial {
-        case .ultraThin: return .hudWindow
-        case .thin: return .popover
-        case .regular: return .sheet
-        case .thick: return .sidebar
-        case .ultraThick: return .titlebar
-        case .none: return .windowBackground
+        case .none: return .windowBackground      // Solid, no vibrancy
+        case .ultraThick: return .headerView      // Minimal vibrancy
+        case .thick: return .titlebar             // Low vibrancy
+        case .regular: return .menu               // Medium vibrancy
+        case .thin: return .popover               // High vibrancy
+        case .ultraThin: return .hudWindow        // Maximum vibrancy
         }
     }
 
@@ -331,14 +331,15 @@ struct HyaloNavigationLayout: View {
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
 
     /// Map vibrancy material to NSVisualEffectView.Material
+    /// Ordered from least vibrancy (none) to most vibrancy (ultraThin)
     private var effectMaterialForState: NSVisualEffectView.Material {
         switch state.vibrancyMaterial {
-        case .ultraThin: return .hudWindow
-        case .thin: return .popover
-        case .regular: return .sheet
-        case .thick: return .sidebar
-        case .ultraThick: return .titlebar
-        case .none: return .windowBackground
+        case .none: return .windowBackground      // Solid, no vibrancy
+        case .ultraThick: return .headerView      // Minimal vibrancy
+        case .thick: return .titlebar             // Low vibrancy
+        case .regular: return .menu               // Medium vibrancy
+        case .thin: return .popover               // High vibrancy
+        case .ultraThin: return .hudWindow        // Maximum vibrancy
         }
     }
 
