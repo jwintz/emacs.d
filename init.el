@@ -155,22 +155,19 @@
 ;; Open Appearance Panel: C-c l P or Menu: Hyalo > Appearance Panel
 (hyalo-module-appearance-show-panel)
 
-;; Settings are persisted in custom.el
-;; Vibrancy: 0 = no blur, 1 = maximum blur
-;; Opacity: 0 = full vibrancy, 1 = solid theme color
-
 ;; Presets (eval with C-x C-e):
+
 ;; Clear:
-(progn (hyalo-module-appearance-set-vibrancy "ultraThin")
+(progn (hyalo-module-appearance-set-vibrancy \"ultraThin\")
        (hyalo-module-appearance-set-opacity 0.1))
 
 ;; Balanced:
-;; (progn (hyalo-module-appearance-set-vibrancy "regular")
-;;        (hyalo-module-appearance-set-opacity 0.5))
+(progn (hyalo-module-appearance-set-vibrancy \"regular\")
+       (hyalo-module-appearance-set-opacity 0.5))
 
 ;; Solid:
-;; (progn (hyalo-module-appearance-set-vibrancy "none")
-;;        (hyalo-module-appearance-set-opacity 0.9))
+(progn (hyalo-module-appearance-set-vibrancy \"none\")
+       (hyalo-module-appearance-set-opacity 0.9))
 
 ")
   (initial-buffer-choice t)
@@ -316,6 +313,12 @@
   :config
   (add-to-list 'page-break-lines-modes 'special-mode)
   (global-page-break-lines-mode))
+
+;;;; Minions (Minor Mode Menu)
+
+(use-package minions
+  :config
+  (minions-mode 1))
 
 ;;;; Dimmer
 
@@ -529,16 +532,6 @@
   ;; Apply vibrancy settings on startup
   (add-hook 'hyalo-module-appearance-mode-hook
             #'hyalo-module-appearance--apply-vibrancy))
-
-(use-package hyalo-module-traffic-lights
-  :if (eq window-system 'ns)
-  :after hyalo-module
-  :load-path emacs-config-dir
-;;:diminish " ηTL"
-  :custom
-  (hyalo-module-traffic-lights-auto-hide t)
-  :config
-  (hyalo-module-traffic-lights-mode 1))
 
 (use-package hyalo-module-viewport
   :if (eq window-system 'ns)

@@ -359,10 +359,9 @@ struct HyaloNavigationLayout: View {
         }
         .navigationSplitViewStyle(.balanced)
         .toolbar {
-            // Use .principal with flexible spacer for centered content that expands
+            // Mode-line expands to fill available toolbar space
             ToolbarItem(placement: .principal) {
                 ModeLineToolbarView(content: state.modeLine)
-                    .frame(minWidth: 200, maxWidth: .infinity)
             }
         }
         .toolbarRole(.editor)
