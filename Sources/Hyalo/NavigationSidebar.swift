@@ -671,6 +671,8 @@ final class NavigationSidebarController: NSObject {
     }
 
     /// Set the background color from Emacs (color string + alpha)
+    /// NOTE: Does NOT sync to AppearanceSettings.shared to avoid overwriting
+    /// user's panel adjustments. Panel syncs from controller when opened.
     func setBackgroundColor(_ colorString: String, alpha: CGFloat) {
         let newColor = parseEmacsColor(colorString) ?? .windowBackgroundColor
         state.backgroundColor = newColor
@@ -678,6 +680,8 @@ final class NavigationSidebarController: NSObject {
     }
 
     /// Set the window appearance mode
+    /// NOTE: Does NOT sync to AppearanceSettings.shared to avoid overwriting
+    /// user's panel adjustments. Panel syncs from controller when opened.
     func setWindowAppearance(_ appearance: String) {
         guard let window = window else { return }
         state.windowAppearance = appearance
@@ -693,6 +697,8 @@ final class NavigationSidebarController: NSObject {
     }
 
     /// Set the vibrancy material style
+    /// NOTE: Does NOT sync to AppearanceSettings.shared to avoid overwriting
+    /// user's panel adjustments. Panel syncs from controller when opened.
     func setVibrancyMaterial(_ materialName: String) {
         if let material = VibrancyMaterial(rawValue: materialName) {
             state.vibrancyMaterial = material

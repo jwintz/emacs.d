@@ -104,7 +104,7 @@
   "Log MSG using elog if available, otherwise use `message'."
   (if (and elog-emacs (fboundp 'elog-info))
       (elog-info elog-emacs msg)
-    (message "[emacs] %s" msg)))
+    (message "[emacs.d/init] %s" msg)))
 
 (defun emacs-section-start (name)
   "Start timing section NAME."
@@ -309,6 +309,7 @@
 ;;;; Page Breaks
 
 (use-package page-break-lines
+  :disabled t
   :diminish
   :config
   (add-to-list 'page-break-lines-modes 'special-mode)
@@ -380,6 +381,8 @@
 ;;; ============================================================================
 
 (emacs-section-start "Editing")
+
+;; TODO: move in a block
 
 (use-package move-dup
   :general
@@ -477,6 +480,17 @@
   :load-path emacs-config-dir
   :demand t
 ;;:diminish " ηAppearance"
+  :preface
+  ;; Trying:
+  ;; * 'secondary-selection - The color used for the "other" selection (often yellow/orange
+  ;;    tinted).
+  ;; * 'match - Used for matching parentheses or search terms.
+  ;; * 'isearch - Used for the current search match (usually very high contrast).
+  ;; * 'highlight - Used for mouse rollovers or generic highlighting.
+  (defun hyalo-set-region-foreground (&rest _)
+    (interactive)
+    (set-face-attribute 'region nil
+                        :foreground (face-foreground 'highlight nil t)))
   :custom
   (hyalo-module-appearance-theme-light 'modus-operandi)
   (hyalo-module-appearance-theme-dark 'modus-vivendi)
@@ -485,9 +499,14 @@
     "l v" '(hyalo-module-appearance-set-vibrancy :wk "vibrancy")
     "l o" '(hyalo-module-appearance-set-opacity :wk "opacity")
     "l p" '(hyalo-module-appearance-set :wk "appearance mode")
-    "l P" '(hyalo-module-appearance-show-panel :wk "panel"))
+    "l P" '(hyalo-module-appearance-show-panel :wk "panel")
+    "l f" '(hyalo-set-region-foreground :wk "region foreground"))
   :config
   (hyalo-module-appearance-mode 1)
+
+  ;; Sync region foreground with theme
+  (add-hook 'enable-theme-functions #'hyalo-set-region-foreground)
+  (hyalo-set-region-foreground)
 
   ;; Add Hyalo Appearance menu
   (easy-menu-define hyalo-appearance-menu global-map
@@ -570,7 +589,8 @@
   - Traffic lights mode: %s
   - Viewport mode: %s
   - Current appearance: %s
-  - Alpha (light/dark): %.2f / %.2f
+  - Opacity: %.2f
+  - Vibrancy: %s
   - Header height: %s
   - Window top: %s
   - Echo area height: %s"
@@ -581,10 +601,10 @@
              (bound-and-true-p hyalo-module-viewport-mode)
              (if (fboundp 'hyalo-module-appearance-current)
                  (hyalo-module-appearance-current) "N/A")
-             (if (boundp 'hyalo-module-appearance-alpha-light)
-                 hyalo-module-appearance-alpha-light 0)
-             (if (boundp 'hyalo-module-appearance-alpha-dark)
-                 hyalo-module-appearance-alpha-dark 0)
+             (if (boundp 'hyalo-module-appearance-opacity)
+                 hyalo-module-appearance-opacity 0)
+             (if (boundp 'hyalo-module-appearance-vibrancy-material)
+                 hyalo-module-appearance-vibrancy-material "N/A")
              (if (fboundp 'hyalo-header-height)
                  (hyalo-header-height) "N/A")
              (nth 1 (window-pixel-edges))

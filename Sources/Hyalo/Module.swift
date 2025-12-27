@@ -575,6 +575,39 @@ final class HyaloModule: Module {
             return false
         }
 
+        try env.defun(
+            "hyalo-get-panel-appearance-mode",
+            with: """
+            Get the current appearance mode from the Swift panel.
+            Returns "light", "dark", or "auto".
+            """
+        ) { () -> String in
+            if #available(macOS 26.0, *) {
+                return AppearanceSettings.shared.appearanceMode.emacsValue
+            }
+            return "auto"
+        }
+
+        try env.defun(
+            "hyalo-set-panel-appearance-mode",
+            with: """
+            Set the appearance mode in the Swift panel.
+            MODE is "light", "dark", or "auto".
+            This updates the panel UI and applies the window appearance.
+            """
+        ) { (env: Environment, mode: String) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    let appearanceMode = AppearanceMode.from(emacsValue: mode)
+                    AppearanceSettings.shared.appearanceMode = appearanceMode
+                    AppearancePanelController.shared.onAppearanceModeChanged?(appearanceMode)
+                    AppearancePanelController.shared.refreshPanel()
+                }
+                return true
+            }
+            return false
+        }
+
         // MARK: - System Integration
 
         try env.defun(

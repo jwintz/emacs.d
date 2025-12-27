@@ -33,6 +33,32 @@ enum AppearancePreset: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - Appearance Mode
+
+enum AppearanceMode: String, CaseIterable, Identifiable {
+    case auto = "Auto"
+    case light = "Light"
+    case dark = "Dark"
+
+    var id: String { rawValue }
+
+    var emacsValue: String {
+        switch self {
+        case .auto: return "auto"
+        case .light: return "light"
+        case .dark: return "dark"
+        }
+    }
+
+    static func from(emacsValue: String) -> AppearanceMode {
+        switch emacsValue {
+        case "light": return .light
+        case "dark": return .dark
+        default: return .auto
+        }
+    }
+}
+
 // MARK: - Appearance Settings Model
 
 @available(macOS 26.0, *)
@@ -43,6 +69,7 @@ final class AppearanceSettings {
     var vibrancy: Double = 0.5
     var opacity: Double = 0.5
     var tintColor: NSColor = .windowBackgroundColor
+    var appearanceMode: AppearanceMode = .auto
 
     private init() {}
 
@@ -80,6 +107,7 @@ final class AppearanceSettings {
     func syncFromController(_ controller: NavigationSidebarController) {
         setVibrancyFromMaterial(controller.state.vibrancyMaterial)
         opacity = Double(controller.state.backgroundAlpha)
+        appearanceMode = AppearanceMode.from(emacsValue: controller.state.windowAppearance)
     }
 }
 
@@ -146,6 +174,51 @@ struct PresetPicker: View {
     }
 }
 
+// MARK: - Appearance Mode Picker
+
+@available(macOS 26.0, *)
+struct AppearanceModePicker: View {
+    @Bindable var settings: AppearanceSettings
+    var onChange: () -> Void
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(AppearanceMode.allCases) { mode in
+                Button {
+                    settings.appearanceMode = mode
+                    onChange()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: iconName(for: mode))
+                            .font(.system(size: 10))
+                        Text(mode.rawValue)
+                            .font(.system(size: 12, weight: settings.appearanceMode == mode ? .semibold : .regular))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+                .background {
+                    if settings.appearanceMode == mode {
+                        Capsule()
+                            .fill(.white.opacity(0.15))
+                    }
+                }
+            }
+        }
+        .padding(4)
+        .background(.ultraThinMaterial, in: Capsule())
+    }
+
+    private func iconName(for mode: AppearanceMode) -> String {
+        switch mode {
+        case .auto: return "circle.lefthalf.filled"
+        case .light: return "sun.max"
+        case .dark: return "moon"
+        }
+    }
+}
+
 // MARK: - Modern Appearance Panel View
 
 @available(macOS 26.0, *)
@@ -153,6 +226,7 @@ struct AppearancePanelView: View {
     @Bindable var settings: AppearanceSettings
     var onDismiss: () -> Void
     var onApply: () -> Void
+    var onAppearanceModeChange: ((AppearanceMode) -> Void)?
 
     var body: some View {
         VStack(spacing: 16) {
@@ -167,6 +241,11 @@ struct AppearancePanelView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+            }
+
+            // Appearance Mode Picker
+            AppearanceModePicker(settings: settings) {
+                onAppearanceModeChange?(settings.appearanceMode)
             }
 
             // Presets
@@ -210,6 +289,7 @@ final class AppearancePanelController {
     private var hostingView: NSHostingView<AppearancePanelView>?
 
     var onSettingsChanged: ((AppearanceSettings) -> Void)?
+    var onAppearanceModeChanged: ((AppearanceMode) -> Void)?
 
     private init() {
         onSettingsChanged = { settings in
@@ -223,6 +303,14 @@ final class AppearancePanelController {
                 window.contentView?.setNeedsDisplay(window.contentView?.bounds ?? .zero)
                 window.display()
             }
+        }
+
+        // Default implementation - can be overridden by Module.swift
+        onAppearanceModeChanged = { mode in
+            guard let window = findEmacsWindow() else { return }
+            let controller = NavigationSidebarManager.shared.getController(for: window)
+            controller.setWindowAppearance(mode.emacsValue)
+            controller.state.windowAppearance = mode.emacsValue
         }
     }
 
@@ -246,7 +334,8 @@ final class AppearancePanelController {
         let panelView = AppearancePanelView(
             settings: settings,
             onDismiss: { [weak self] in self?.dismiss() },
-            onApply: { [weak self] in self?.onSettingsChanged?(settings) }
+            onApply: { [weak self] in self?.onSettingsChanged?(settings) },
+            onAppearanceModeChange: { [weak self] mode in self?.onAppearanceModeChanged?(mode) }
         )
 
         let hosting = NSHostingView(rootView: panelView)
