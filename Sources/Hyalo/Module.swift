@@ -502,6 +502,18 @@ final class HyaloModule: Module {
         }
 
         try env.defun(
+            "hyalo-appearance-panel-visible-p",
+            with: """
+            Return t if the appearance panel is currently visible.
+            """
+        ) { () -> Bool in
+            if #available(macOS 26.0, *) {
+                return AppearancePanelController.shared.isVisible()
+            }
+            return false
+        }
+
+        try env.defun(
             "hyalo-set-opacity-from-panel",
             with: """
             Set opacity from the appearance panel.
@@ -611,12 +623,16 @@ final class HyaloModule: Module {
         try env.defun(
             "hyalo-get-panel-vibrancy-material",
             with: """
-            Get the current vibrancy material from the Swift panel.
+            Get the current vibrancy material from the Swift controller state.
             Returns one of: "none", "ultraThick", "thick", "regular", "thin", "ultraThin".
             """
         ) { () -> String in
             if #available(macOS 26.0, *) {
-                return AppearanceSettings.shared.vibrancyMaterial.rawValue
+                // Read from controller state (source of truth), not AppearanceSettings
+                if let window = findEmacsWindow() {
+                    let controller = NavigationSidebarManager.shared.getController(for: window)
+                    return controller.state.vibrancyMaterial.rawValue
+                }
             }
             return "ultraThin"
         }
@@ -624,12 +640,16 @@ final class HyaloModule: Module {
         try env.defun(
             "hyalo-get-panel-opacity",
             with: """
-            Get the current opacity from the Swift panel.
+            Get the current opacity from the Swift controller state.
             Returns a value from 0.0 to 1.0.
             """
         ) { () -> Double in
             if #available(macOS 26.0, *) {
-                return AppearanceSettings.shared.opacity
+                // Read from controller state (source of truth), not AppearanceSettings
+                if let window = findEmacsWindow() {
+                    let controller = NavigationSidebarManager.shared.getController(for: window)
+                    return Double(controller.state.backgroundAlpha)
+                }
             }
             return 0.5
         }

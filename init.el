@@ -91,6 +91,22 @@
   :config
   (which-key-mode 1))
 
+(use-package helpful
+  :commands (helpful-callable helpful-variable helpful-command helpful-key helpful-symbol)
+  :bind
+  ([remap describe-function] . helpful-callable)
+  ([remap describe-command] . helpful-command)
+  ([remap describe-variable] . helpful-variable)
+  ([remap describe-key] . helpful-key)
+  ([remap describe-symbol] . helpful-symbol)
+  :general
+  (leader-def
+    "h f" 'helpful-callable
+    "h v" 'helpful-variable
+    "h k" 'helpful-key
+    "h s" 'helpful-symbol
+    "h ." 'helpful-at-point))
+
 (defvar elog-emacs nil
   "Main Emacs logger (nil if elog not loaded).")
 
@@ -150,26 +166,7 @@
   (inhibit-startup-screen t)
   (inhibit-startup-message t)
   (inhibit-startup-echo-area-message t)
-  (initial-scratch-message ";;; Hyalo Liquid Glass
-
-;; Open Appearance Panel: C-c l P or Menu: Hyalo > Appearance Panel
-(hyalo-module-appearance-show-panel)
-
-;; Presets (eval with C-x C-e):
-
-;; Clear:
-(progn (hyalo-module-appearance-set-vibrancy \"ultraThin\")
-       (hyalo-module-appearance-set-opacity 0.1))
-
-;; Balanced:
-(progn (hyalo-module-appearance-set-vibrancy \"regular\")
-       (hyalo-module-appearance-set-opacity 0.5))
-
-;; Solid:
-(progn (hyalo-module-appearance-set-vibrancy \"none\")
-       (hyalo-module-appearance-set-opacity 0.9))
-
-")
+  (initial-scratch-message "")
   (initial-buffer-choice nil)
   ;; Cursor
   (cursor-in-non-selected-windows nil)
@@ -212,7 +209,10 @@
 
 (use-package recentf
   :ensure nil
-  :init (recentf-mode 1)
+  :demand t
+  :init
+  (defvar recentf-mode nil)
+  (require 'recentf)
   :custom
   (recentf-auto-cleanup (if (daemonp) 300 'never))
   (recentf-max-saved-items 200)
@@ -223,22 +223,33 @@
      "\\.\\(?:gz\\|gif\\|svg\\|png\\|jpe?g\\|bmp\\|xpm\\)$"
      "-autoloads\\.el$" "autoload\\.el$"))
   :config
+  (recentf-mode 1)
   (add-hook 'kill-emacs-hook #'recentf-cleanup -90))
 
 (use-package savehist
   :ensure nil
-  :init (savehist-mode 1)
+  :demand t
+  :init
+  (defvar savehist-mode nil)
+  (require 'savehist)
   :custom
   (savehist-autosave-interval 600)
   (savehist-additional-variables
    '(kill-ring register-alist mark-ring global-mark-ring
-     search-ring regexp-search-ring extended-command-history)))
+     search-ring regexp-search-ring extended-command-history))
+  :config
+  (savehist-mode 1))
 
 (use-package saveplace
   :ensure nil
-  :init (save-place-mode 1)
+  :demand t
+  :init
+  (defvar save-place-mode nil)
+  (require 'saveplace)
   :custom
-  (save-place-limit 400))
+  (save-place-limit 400)
+  :config
+  (save-place-mode 1))
 
 (use-package eldoc
   :ensure nil

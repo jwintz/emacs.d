@@ -18,7 +18,7 @@ enum AppearancePreset: String, CaseIterable, Identifiable {
     var vibrancy: Double {
         switch self {
         case .clear: return 0.9
-        case .balanced: return 0.5
+        case .balanced: return 0.65  // Regular vibrancy
         case .solid: return 0.1
         }
     }
@@ -27,7 +27,7 @@ enum AppearancePreset: String, CaseIterable, Identifiable {
     var opacity: Double {
         switch self {
         case .clear: return 0.1
-        case .balanced: return 0.5
+        case .balanced: return 0.6  // 60% opacity
         case .solid: return 0.9
         }
     }
@@ -412,10 +412,13 @@ final class AppearancePanelController {
         )
 
         let hosting = NSHostingView(rootView: panelView)
-        hosting.wantsLayer = true
-        hosting.layer?.backgroundColor = .clear
         let size = hosting.fittingSize
         hosting.frame = NSRect(origin: .zero, size: size)
+
+        // Set up layer with corner radius for proper visual clipping
+        hosting.wantsLayer = true
+        hosting.layer?.cornerRadius = 16
+        hosting.layer?.masksToBounds = true
 
         let panel = NSPanel(
             contentRect: NSRect(origin: .zero, size: size),
@@ -428,23 +431,22 @@ final class AppearancePanelController {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false  // SwiftUI provides shadow
-
-        // Ensure the content view is also transparent
-        if let contentView = panel.contentView {
-            contentView.wantsLayer = true
-            contentView.layer?.backgroundColor = .clear
-        }
         panel.level = .floating
         panel.isMovableByWindowBackground = true
         panel.isMovable = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         panel.animationBehavior = .utilityWindow
+        panel.becomesKeyOnlyIfNeeded = false  // Allow panel to become key for button clicks
+        panel.acceptsMouseMovedEvents = true
 
         let windowFrame = window.frame
         let panelSize = panel.frame.size
         let x = windowFrame.midX - panelSize.width / 2
         let y = windowFrame.maxY - panelSize.height - 80
         panel.setFrameOrigin(NSPoint(x: x, y: y))
+
+        // Parent the panel to the root NSWindow
+        window.addChildWindow(panel, ordered: .above)
 
         panel.makeKeyAndOrderFront(nil)
 
@@ -453,8 +455,11 @@ final class AppearancePanelController {
     }
 
     func dismiss() {
-        panel?.orderOut(nil)
-        panel?.close()
+        if let panel = panel {
+            panel.parent?.removeChildWindow(panel)
+            panel.orderOut(nil)
+            panel.close()
+        }
         panel = nil
         hostingView = nil
     }

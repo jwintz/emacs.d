@@ -211,11 +211,15 @@ If CLOSED is non-nil, return closed folder icon."
           (run-with-idle-timer 0.3 nil #'hyalo-explorer--refresh))))
 
 (defun hyalo-explorer--sync-background-color ()
-  "Sync sidebar vibrancy background color with Emacs default face + alpha."
+  "Sync sidebar background color with Emacs default face.
+Only updates the color, preserving the current opacity from Swift controller."
   (when (and hyalo-explorer--visible
              (fboundp 'hyalo-sidebar-set-background-color))
     (let* ((bg-color (face-background 'default nil t))
-           (alpha (or (frame-parameter nil 'alpha-background) 1.0))
+           ;; Read opacity directly from Swift controller (source of truth)
+           (alpha (if (fboundp 'hyalo-get-panel-opacity)
+                      (hyalo-get-panel-opacity)
+                    0.5))
            ;; Convert color to hex if it's a name
            (hex-color (if (and bg-color (string-prefix-p "#" bg-color))
                           bg-color
