@@ -170,7 +170,7 @@
        (hyalo-module-appearance-set-opacity 0.9))
 
 ")
-  (initial-buffer-choice t)
+  (initial-buffer-choice nil)
   ;; Cursor
   (cursor-in-non-selected-windows nil)
   (cursor-type '(hbar . 2))

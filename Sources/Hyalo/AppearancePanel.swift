@@ -412,6 +412,8 @@ final class AppearancePanelController {
         )
 
         let hosting = NSHostingView(rootView: panelView)
+        hosting.wantsLayer = true
+        hosting.layer?.backgroundColor = .clear
         let size = hosting.fittingSize
         hosting.frame = NSRect(origin: .zero, size: size)
 
@@ -426,6 +428,12 @@ final class AppearancePanelController {
         panel.backgroundColor = .clear
         panel.isOpaque = false
         panel.hasShadow = false  // SwiftUI provides shadow
+
+        // Ensure the content view is also transparent
+        if let contentView = panel.contentView {
+            contentView.wantsLayer = true
+            contentView.layer?.backgroundColor = .clear
+        }
         panel.level = .floating
         panel.isMovableByWindowBackground = true
         panel.isMovable = true
