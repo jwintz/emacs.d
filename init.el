@@ -77,9 +77,10 @@
   (leader-def
     "b" '(:ignore t :wk "buffer")
     "f" '(:ignore t :wk "file")
-    "g" '(:ignore t :wk "git")
+    "v" '(:ignore t :wk "versionning")
     "h" '(:ignore t :wk "help")
     "l" '(:ignore t :wk "hyalo")
+    "p" '(:ignore t :wk "project")
     "t" '(:ignore t :wk "toggle")))
 
 (use-package which-key
@@ -180,8 +181,11 @@
   (use-dialog-box nil)
   (frame-title-format nil)
   :config
+  (setq visible-bell nil)
+  (setq ring-bell-function 'ignore)
   (advice-add 'display-startup-echo-area-message :override #'ignore)
   (blink-cursor-mode 0)
+  (show-paren-mode 1)
   ;; Coding systems
   (set-default-coding-systems 'utf-8)
   (prefer-coding-system 'utf-8)
@@ -510,24 +514,78 @@
   ;; * `extra-bold`
   ;; * `ultra-bold` (or heavy, black)
   (defun hyalo-set-highlights (&rest _)
-    (let ((fg (face-foreground 'highlight nil t))
-          (w 'ultra-bold))
-      (set-face-attribute 'region nil :foreground fg :weight w)
-      (set-face-attribute 'isearch nil :foreground fg :weight w)
-      (set-face-attribute 'lazy-highlight nil :foreground fg :weight w)
-      (set-face-attribute 'match nil :foreground fg :weight w)
-      (when (facep 'magit-diff-file-heading-selection)
-        (set-face-attribute 'magit-diff-file-heading-selection nil :foreground fg :weight w))))
+    (let ((w 'ultra-bold))
+      ;; Only enforce weight for standard highlights to preserve theme colors
+      (set-face-attribute 'region nil :weight w)
+      (set-face-attribute 'isearch nil :weight w)
+      (set-face-attribute 'lazy-highlight nil :weight w)
+      (set-face-attribute 'match nil :weight w)
+      (set-face-attribute 'show-paren-match nil :weight w)
+      (dolist (face '(magit-item-highlight
+                      magit-section-highlight
+                      magit-diff-added-highlight
+                      magit-diff-removed-highlight
+                      magit-diff-context-highlight
+                      magit-diff-file-heading-highlight
+                      magit-diff-hunk-heading-highlight
+                      magit-diff-base-highlight
+                      magit-diff-our-highlight
+                      magit-diff-their-highlight
+                      magit-diff-added-selection
+                      magit-diff-removed-selection
+                      magit-diff-context-selection
+                      magit-diff-file-heading-selection
+                      magit-diff-hunk-heading-selection))
+        (when (facep face)
+          (set-face-attribute face nil :weight w)))))
 
-  :custom
-  (hyalo-module-appearance-theme-light 'modus-operandi)
-  (hyalo-module-appearance-theme-dark 'modus-vivendi)
+  (defvar hyalo-profiles
+    '((focus . (:appearance light :theme modus-operandi :vibrancy "none"      :opacity 1.0))
+      (glass . (:appearance dark  :theme modus-vivendi  :vibrancy "ultraThin" :opacity 0.85))
+      (void  . (:appearance dark  :theme ef-winter      :vibrancy "thick"     :opacity 0.80)))
+    "Alist of Hyalo appearance profiles.")
+
+  (defun hyalo-load-profile (name)
+    "Load the profile NAME."
+    (let ((profile (alist-get name hyalo-profiles)))
+      (when profile
+        (let ((appearance (plist-get profile :appearance))
+              (theme (plist-get profile :theme))
+              (vibrancy (plist-get profile :vibrancy))
+              (opacity (plist-get profile :opacity)))
+          (when appearance
+            (hyalo-module-appearance-set appearance))
+          (when theme
+            (mapc #'disable-theme custom-enabled-themes)
+            (load-theme theme t)
+            (hyalo-set-highlights))
+          (when vibrancy
+            (hyalo-module-appearance-set-vibrancy vibrancy))
+          (when opacity
+            (hyalo-module-appearance-set-opacity opacity))
+          (message "Loaded profile: %s" name)))))
+
+  (defun hyalo-switch-profile ()
+    "Switch to a defined profile."
+    (interactive)
+    (let* ((choices (mapcar (lambda (x) (symbol-name (car x))) hyalo-profiles))
+           (selection (completing-read "Select Profile: " choices nil t)))
+      (hyalo-load-profile (intern selection))))
+
+  :init
+  ;; Set default themes only if not already customized
+  ;; This prevents overwriting saved values in custom.el
+  (unless (get 'hyalo-module-appearance-theme-light 'saved-value)
+    (setq hyalo-module-appearance-theme-light 'modus-operandi))
+  (unless (get 'hyalo-module-appearance-theme-dark 'saved-value)
+    (setq hyalo-module-appearance-theme-dark 'modus-vivendi))
   :general
   (leader-def
     "l v" '(hyalo-module-appearance-set-vibrancy :wk "vibrancy")
     "l o" '(hyalo-module-appearance-set-opacity :wk "opacity")
     "l p" '(hyalo-module-appearance-set :wk "appearance mode")
-    "l P" '(hyalo-module-appearance-show-panel :wk "panel"))
+    "l P" '(hyalo-module-appearance-show-panel :wk "panel")
+    "l ." '(hyalo-switch-profile :wk "profile"))
   :config
   (hyalo-module-appearance-mode 1)
 
@@ -550,6 +608,12 @@
        :help "Change vibrancy/blur material"]
       ["Set Opacity..." hyalo-module-appearance-set-opacity
        :help "Change tint opacity level"]
+      "---"
+      ("Profiles"
+       ["Focus" (hyalo-load-profile 'focus) :help "Load Focus profile"]
+       ["Glass" (hyalo-load-profile 'glass) :help "Load Glass profile"]
+       ["Void"  (hyalo-load-profile 'void)  :help "Load Void profile"]
+       ["Switch..." hyalo-switch-profile :help "Select a profile"])
       "---"
       ("Presets"
        ["Clear" (progn
@@ -652,14 +716,34 @@
 
 (emacs-section-start "Tools")
 
+(use-package project
+  :ensure nil
+  :general
+  (leader-def
+    "p f" '(project-find-file :wk "find file")
+    "p b" '(project-switch-to-buffer :wk "switch buffer")
+    "p d" '(project-dired :wk "dired")
+    "p k" '(project-kill-buffers :wk "kill buffers")
+    "p p" '(project-switch-project :wk "switch project")
+    "p s" '(project-search :wk "search")
+    "p c" '(project-compile :wk "compile")
+    "p v" '(magit-project-status :wk "magit"))
+  :custom
+  (project-switch-commands
+   '((project-find-file "Find file")
+     (project-find-regexp "Find regexp")
+     (project-dired "Dired")
+     (magit-project-status "Magit" ?v)
+     (project-eshell "Eshell"))))
+
 (use-package magit
   :defer t
   :general
   (leader-def
-    "g s" '(magit-status :wk "status")
-    "g l" '(magit-log :wk "log")
-    "g b" '(magit-blame :wk "blame")
-    "g d" '(magit-diff :wk "diff"))
+    "v s" '(magit-status :wk "status")
+    "v l" '(magit-log :wk "log")
+    "v b" '(magit-blame :wk "blame")
+    "v d" '(magit-diff :wk "diff"))
   :custom
   (magit-display-buffer-function
    (lambda (buffer) (display-buffer buffer '(display-buffer-same-window))))

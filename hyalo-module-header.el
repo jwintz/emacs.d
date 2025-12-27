@@ -196,9 +196,15 @@ Called by hooks to override modes that set mode-line-format buffer-locally."
         ;; Setup NavigationSplitView with toolbar (replaces legacy HeaderView)
         (when (fboundp 'hyalo-navigation-setup)
           (hyalo-navigation-setup))
-        ;; Sync appearance settings for this window (background color, vibrancy, echo area)
-        (when (fboundp 'hyalo-module-appearance--sync-to-window)
-          (hyalo-module-appearance--sync-to-window))))))
+        ;; Apply appearance settings AFTER navigation is ready
+        ;; This ensures saved vibrancy/opacity values are applied to Swift
+        (when (and (boundp 'hyalo-module-appearance-mode)
+                   hyalo-module-appearance-mode
+                   (fboundp 'hyalo-module-appearance--apply-vibrancy))
+          (hyalo-module-appearance--apply-vibrancy))
+        ;; Restore Emacs keyboard focus after setup
+        (when (fboundp 'hyalo-restore-focus)
+          (run-with-timer 0.5 nil #'hyalo-restore-focus))))))
 
 (defun hyalo-module-header--teardown-frame (&optional frame)
   "Teardown Hyalo for FRAME (or current frame if nil)."

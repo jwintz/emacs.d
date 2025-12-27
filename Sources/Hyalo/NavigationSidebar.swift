@@ -302,19 +302,89 @@ struct EmacsContentView: View {
 // NOTE: EchoAreaOverlay removed per AGENTS.md
 // The NavigationSplitView handles all vibrancy uniformly - no bottom overlay needed
 
-/// NSViewRepresentable wrapper for Emacs NSView
+/// Custom container view that ensures Emacs keeps keyboard focus
+/// and filters out mouse events in the toolbar area
+class EmacsContainerView: NSView {
+    weak var emacsView: NSView?
+
+    /// Height of the toolbar area to exclude from hit testing
+    var toolbarHeight: CGFloat = 52  // Approximate toolbar height
+
+    override var acceptsFirstResponder: Bool { true }
+
+    override func becomeFirstResponder() -> Bool {
+        // Forward first responder to Emacs view
+        if let emacs = emacsView {
+            return window?.makeFirstResponder(emacs) ?? false
+        }
+        return false
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        // Ensure Emacs view gets focus when added to window
+        DispatchQueue.main.async { [weak self] in
+            self?.restoreEmacsFirstResponder()
+        }
+    }
+
+    func restoreEmacsFirstResponder() {
+        guard let window = window, let emacs = emacsView else { return }
+        if window.firstResponder != emacs {
+            window.makeFirstResponder(emacs)
+        }
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // Don't accept hits in the toolbar area (top of the view)
+        // This prevents mouse clicks in toolbar from being forwarded to Emacs
+        if point.y > bounds.height - toolbarHeight {
+            return nil
+        }
+        return super.hitTest(point)
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        // Check if click is in toolbar area
+        let location = convert(event.locationInWindow, from: nil)
+        if location.y > bounds.height - toolbarHeight {
+            return // Don't forward to Emacs
+        }
+        super.mouseDown(with: event)
+    }
+}
+
+/// NSViewRepresentable wrapper for Emacs NSView with focus management
 struct EmacsNSViewRepresentable: NSViewRepresentable {
     let emacsView: NSView
 
-    func makeNSView(context: Context) -> NSView {
+    func makeNSView(context: Context) -> EmacsContainerView {
+        let container = EmacsContainerView()
+        container.emacsView = emacsView
+        container.wantsLayer = true
+        container.layer?.cornerRadius = 0
+        container.layer?.masksToBounds = false
+
         emacsView.wantsLayer = true
         emacsView.layer?.cornerRadius = 0
         emacsView.layer?.masksToBounds = false
-        return emacsView
+        emacsView.translatesAutoresizingMaskIntoConstraints = false
+
+        container.addSubview(emacsView)
+        NSLayoutConstraint.activate([
+            emacsView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            emacsView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            emacsView.topAnchor.constraint(equalTo: container.topAnchor),
+            emacsView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+        ])
+
+        return container
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
+    func updateNSView(_ nsView: EmacsContainerView, context: Context) {
         nsView.layer?.cornerRadius = 0
+        // Restore Emacs first responder on updates
+        nsView.restoreEmacsFirstResponder()
     }
 }
 
@@ -421,6 +491,8 @@ final class NavigationSidebarState {
     var windowAppearance: String = "auto"
     /// Vibrancy material style
     var vibrancyMaterial: VibrancyMaterial = .ultraThin
+    /// Debug: reference to Emacs view for diagnostics
+    weak var debugEmacsView: NSView?
 }
 
 // MARK: - Controller
@@ -440,6 +512,14 @@ final class NavigationSidebarController: NSObject {
     /// Appearance change observer
     private var appearanceObserver: NSObjectProtocol?
 
+    /// Window focus observer to restore Emacs first responder
+    private var windowBecameKeyObserver: NSObjectProtocol?
+    private var windowBecameMainObserver: NSObjectProtocol?
+    private var appDidBecomeActiveObserver: NSObjectProtocol?
+
+    /// Reference to the Emacs view for focus restoration
+    private weak var emacsViewRef: NSView?
+
     /// Callbacks
     var onBufferSelect: ((String) -> Void)?
     var onBufferClose: ((String) -> Void)?
@@ -456,9 +536,40 @@ final class NavigationSidebarController: NSObject {
     /// Setup the NavigationSplitView (called at Hyalo initialization)
     /// Sidebar starts collapsed, toolbar is immediately visible
     func setup() {
-        guard !isSetup, let window = window, let emacsView = window.contentView else { return }
+        guard let window = window, let currentContentView = window.contentView else { return }
 
-        originalContentView = emacsView
+        // If already setup, check if content view changed (restart-emacs case)
+        if isSetup {
+            // If current content view is our hosting view, just restore focus
+            if currentContentView == hostingView {
+                restoreEmacsFocus()
+                return
+            }
+            // Content view changed - need to re-setup
+            teardown()
+        }
+
+        var emacsView = currentContentView
+
+        // The contentView might be a wrapper NSView - find the actual EmacsView
+        // which accepts first responder
+        for subview in emacsView.subviews {
+            let subClass = String(describing: type(of: subview))
+            if subClass.contains("EmacsView") || subview.acceptsFirstResponder {
+                // Store the wrapper as originalContentView but use EmacsView for focus
+                originalContentView = emacsView
+                emacsViewRef = subview
+                state.debugEmacsView = subview
+                break
+            }
+        }
+
+        // If no EmacsView found in subviews, use the contentView itself
+        if emacsViewRef == nil {
+            originalContentView = emacsView
+            emacsViewRef = emacsView
+        }
+
         state.sidebarVisible = false
 
         // Save and remove corner radius from Emacs view
@@ -522,6 +633,105 @@ final class NavigationSidebarController: NSObject {
 
         // Setup appearance change observer
         setupAppearanceObserver()
+
+        // emacsViewRef is already set above to the actual EmacsView
+
+        // Setup window focus observer to restore Emacs first responder
+        setupWindowFocusObserver(emacsView: emacsView)
+
+        // Initial focus restore with multiple attempts for robustness on launch
+        for delay in [0.0, 0.1, 0.3, 0.5, 1.0] {
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self, weak window] in
+                guard let self = self, let window = window, let emacs = self.emacsViewRef else { return }
+                window.makeFirstResponder(emacs)
+            }
+        }
+    }
+
+    /// Restore Emacs focus - can be called externally
+    func restoreEmacsFocus() {
+        guard let window = window, let emacs = emacsViewRef else { return }
+
+        // Make window key first
+        if !window.isKeyWindow {
+            window.makeKeyAndOrderFront(nil)
+        }
+
+        // Make Emacs first responder
+        window.makeFirstResponder(emacs)
+    }
+
+    /// Find the Emacs NSView in the view hierarchy
+    private func findEmacsViewInHierarchy(_ view: NSView?) -> NSView? {
+        guard let view = view else { return nil }
+
+        let className = String(describing: type(of: view))
+
+        // Check for EmacsView or similar Emacs-related view
+        if className.contains("EmacsView") {
+            return view
+        }
+
+        // Check if this is our container with the emacs view
+        if let container = view as? EmacsContainerView, let emacs = container.emacsView {
+            return emacs
+        }
+
+        // Check for views that accept first responder (likely the real Emacs view)
+        if view.acceptsFirstResponder && !className.hasPrefix("NS") && !className.contains("Hosting") && !className.contains("Container") {
+            return view
+        }
+
+        // Recursively search subviews
+        for subview in view.subviews {
+            if let found = findEmacsViewInHierarchy(subview) {
+                return found
+            }
+        }
+
+        return nil
+    }
+
+    /// Setup observer for window becoming key to restore Emacs focus
+    private func setupWindowFocusObserver(emacsView: NSView) {
+        // Observer for window becoming key
+        windowBecameKeyObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeKeyNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                self.restoreEmacsFocus()
+            }
+        }
+
+        // Observer for window becoming main
+        windowBecameMainObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didBecomeMainNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self = self else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                self.restoreEmacsFocus()
+            }
+        }
+
+        // Observer for application becoming active (handles restart-emacs)
+        appDidBecomeActiveObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let self = self else { return }
+            // Multiple attempts after app activation
+            for delay in [0.1, 0.3, 0.5, 1.0] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    self.restoreEmacsFocus()
+                }
+            }
+        }
     }
 
     /// Setup observer for system appearance changes
@@ -556,6 +766,15 @@ final class NavigationSidebarController: NSObject {
         if let observer = appearanceObserver {
             DistributedNotificationCenter.default.removeObserver(observer)
         }
+        if let observer = windowBecameKeyObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = windowBecameMainObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = appDidBecomeActiveObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     /// Teardown the NavigationSplitView
@@ -566,6 +785,20 @@ final class NavigationSidebarController: NSObject {
         if let observer = appearanceObserver {
             DistributedNotificationCenter.default.removeObserver(observer)
             appearanceObserver = nil
+        }
+
+        // Clean up window focus observers
+        if let observer = windowBecameKeyObserver {
+            NotificationCenter.default.removeObserver(observer)
+            windowBecameKeyObserver = nil
+        }
+        if let observer = windowBecameMainObserver {
+            NotificationCenter.default.removeObserver(observer)
+            windowBecameMainObserver = nil
+        }
+        if let observer = appDidBecomeActiveObserver {
+            NotificationCenter.default.removeObserver(observer)
+            appDidBecomeActiveObserver = nil
         }
 
         // Clean up title observation

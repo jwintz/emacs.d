@@ -56,6 +56,12 @@ If nil, no theme change is made."
   :type 'symbol
   :group 'hyalo-module-appearance)
 
+(defcustom hyalo-module-appearance-current-theme nil
+  "Currently active theme, saved when theme is loaded.
+Restored at startup when not in auto mode."
+  :type 'symbol
+  :group 'hyalo-module-appearance)
+
 (defcustom hyalo-module-appearance-vibrancy-material "ultraThin"
   "Vibrancy material style for the blur effect.
 Available options:
@@ -89,6 +95,35 @@ This value is shared across light and dark appearances."
          (when (and (boundp 'hyalo-module-appearance-mode)
                     hyalo-module-appearance-mode)
            (hyalo-module-appearance--apply-vibrancy))))
+
+(defcustom hyalo-module-appearance-alpha-elements
+  '(ns-alpha-all)
+  "List of Emacs elements to render with transparency.
+Available elements:
+- `ns-alpha-default': Default face/background
+- `ns-alpha-fringe': Fringes and internal border clears
+- `ns-alpha-box': Boxed face outlines
+- `ns-alpha-stipple': Stipple mask background clears
+- `ns-alpha-relief': 3D relief/shadow lines
+- `ns-alpha-glyphs': Glyph background fills (hl-line, region, etc.)
+- `ns-alpha-all': All elements (shortcut for all above)
+
+Default is (ns-alpha-default ns-alpha-fringe) which provides transparency
+for the main window background and fringes while keeping highlights opaque.
+Add `ns-alpha-glyphs' if you want transparent hl-line/region backgrounds."
+  :type '(repeat symbol)
+  :group 'hyalo-module-appearance
+  :set (lambda (sym val)
+         (set-default sym val)
+         (when (and (boundp 'hyalo-module-appearance-mode)
+                    hyalo-module-appearance-mode)
+           (hyalo-module-appearance--apply-frame-settings))))
+
+;;; State Variables
+
+(defvar hyalo-module-appearance--initialized nil
+  "Non-nil after initial appearance setup is complete.
+Used to prevent hooks from overwriting saved values at startup.")
 
 ;;; Appearance Detection
 
@@ -149,17 +184,27 @@ This is the core function for applying visual settings."
       (hyalo-sidebar-set-window-appearance (symbol-name appearance)))))
 
 (defun hyalo-module-appearance--apply-frame-settings ()
-  "Apply frame-level settings (alpha-background)."
+  "Apply frame-level transparency settings.
+Sets `alpha-background' to 0 for vibrancy pass-through and
+configures `ns-alpha-elements' for fine-grained transparency control."
   (dolist (f (frame-list))
     (when (and (display-graphic-p f) (eq (framep f) 'ns))
-      (set-frame-parameter f 'alpha-background 0.0))))
+      ;; Set alpha-background for vibrancy layer pass-through
+      (set-frame-parameter f 'alpha-background 0.0)
+      ;; Set which elements should be transparent
+      (set-frame-parameter f 'ns-alpha-elements
+                           hyalo-module-appearance-alpha-elements)
+      ;; Ensure fringes are visible
+      (set-frame-parameter f 'left-fringe 8)
+      (set-frame-parameter f 'right-fringe 8))))
+
 
 ;;; Face Background Cleanup
 
 (defun hyalo-module-appearance--clear-backgrounds (&optional _theme)
   "Clear face backgrounds that should be transparent.
 Can be used as a hook function (ignores THEME argument)."
-  (set-face-background 'fringe nil)
+  ;; (set-face-background 'fringe nil)
   (when (facep 'line-number)
     (set-face-background 'line-number nil))
   (when (facep 'line-number-current-line)
@@ -170,9 +215,7 @@ Can be used as a hook function (ignores THEME argument)."
 (defun hyalo-module-appearance--on-system-change (appearance)
   "Handle system appearance change to APPEARANCE.
 APPEARANCE is `light' or `dark' as provided by `ns-system-appearance-change-functions'.
-Only reacts if appearance mode is `auto' (checks both Emacs and Swift panel)."
-  ;; First sync ALL settings from panel to Emacs
-  (hyalo-module-appearance-sync-from-panel)
+Only reacts if appearance mode is `auto'."
   ;; Only proceed if mode is auto
   (when (eq hyalo-module-appearance-mode-setting 'auto)
     ;; Load appropriate theme (only in auto mode)
@@ -184,28 +227,31 @@ Only reacts if appearance mode is `auto' (checks both Emacs and Swift panel)."
         (load-theme theme t)))
     ;; Update window appearance on Swift side
     (hyalo-module-appearance--apply-window-appearance appearance)
-    ;; Reapply vibrancy with current (synced) settings
+    ;; Reapply vibrancy with current Emacs settings (NOT synced from Swift)
     (hyalo-module-appearance--apply-vibrancy)))
 
-(defun hyalo-module-appearance--on-theme-load (_theme)
-  "Handle theme load event.
-Clears backgrounds and applies new theme color while preserving opacity from Swift."
+(defun hyalo-module-appearance--on-theme-load (theme)
+  "Handle theme load event for THEME.
+Saves the loaded theme as current-theme and applies tint.
+Does NOT alter vibrancy settings."
   (hyalo-module-appearance--clear-backgrounds)
-  ;; Apply new theme background color while preserving opacity from Swift
   (when (hyalo-module-available-p)
-    (let* ((bg (or (face-background 'default nil 'default)
-                   (if (hyalo-module-appearance-dark-p) "#282c34" "#fafafa")))
+    ;; Save the loaded theme as current-theme (if initialized)
+    (when (and hyalo-module-appearance--initialized
+               theme (symbolp theme))
+      (setq hyalo-module-appearance-current-theme theme)
+      (customize-save-variable 'hyalo-module-appearance-current-theme theme))
+    ;; Apply tint (background color with current opacity) - NOT vibrancy
+    (let* ((is-dark (hyalo-module-appearance-dark-p))
+           (bg (or (face-background 'default nil 'default)
+                   (if is-dark "#282c34" "#fafafa")))
            (hex-color (if (string-prefix-p "#" bg)
                           bg
                         (apply #'format "#%02x%02x%02x"
                                (mapcar (lambda (c) (/ c 256))
-                                       (color-values bg)))))
-           ;; Get current opacity from Swift (source of truth)
-           (opacity (if (fboundp 'hyalo-get-panel-opacity)
-                        (hyalo-get-panel-opacity)
-                      0.5)))
+                                       (color-values bg))))))
       (when (fboundp 'hyalo-sidebar-set-background-color)
-        (hyalo-sidebar-set-background-color hex-color (float opacity))))))
+        (hyalo-sidebar-set-background-color hex-color (float hyalo-module-appearance-opacity))))))
 
 ;;; Public API
 
@@ -238,33 +284,53 @@ Theme switching only occurs in `auto' mode."
       (hyalo-set-panel-appearance-mode (symbol-name appearance))))
   (hyalo-module-log "Appearance set to %s" appearance))
 
-(defun hyalo-module-appearance-sync-from-panel ()
+(defun hyalo-module-appearance-sync-from-panel (&optional save)
   "Sync all appearance settings from Swift panel to Emacs.
-Call this to pull current panel settings into Emacs variables."
-  (interactive)
+Call this to pull current panel settings into Emacs variables.
+If SAVE is non-nil, also persist the settings."
+  (interactive "P")
   (when (hyalo-module-available-p)
     ;; Sync appearance mode
     (when (fboundp 'hyalo-get-panel-appearance-mode)
       (let ((mode (intern (hyalo-get-panel-appearance-mode))))
-        (setq hyalo-module-appearance-mode-setting mode)))
+        (setq hyalo-module-appearance-mode-setting mode)
+        (when save
+          (customize-save-variable 'hyalo-module-appearance-mode-setting mode))))
     ;; Sync vibrancy material
     (when (fboundp 'hyalo-get-panel-vibrancy-material)
       (let ((material (hyalo-get-panel-vibrancy-material)))
-        (setq hyalo-module-appearance-vibrancy-material material)))
+        (setq hyalo-module-appearance-vibrancy-material material)
+        (when save
+          (customize-save-variable 'hyalo-module-appearance-vibrancy-material material))))
     ;; Sync opacity
     (when (fboundp 'hyalo-get-panel-opacity)
       (let ((opacity (hyalo-get-panel-opacity)))
-        (setq hyalo-module-appearance-opacity opacity)))))
+        (setq hyalo-module-appearance-opacity opacity)
+        (when save
+          (customize-save-variable 'hyalo-module-appearance-opacity opacity))))))
 
 (defun hyalo-module-appearance-sync-to-panel ()
   "Sync all Emacs appearance settings to the Swift panel.
-Call this after changing settings to update the panel display."
+Pushes vibrancy, opacity, and appearance mode to Swift, then refreshes panel."
   (interactive)
   (when (hyalo-module-available-p)
-    ;; Sync appearance mode
+    ;; Push vibrancy material to Swift controller
+    (when (fboundp 'hyalo-sidebar-set-vibrancy-material)
+      (hyalo-sidebar-set-vibrancy-material hyalo-module-appearance-vibrancy-material))
+    ;; Push opacity to Swift controller (with current background color)
+    (let* ((bg (or (face-background 'default nil 'default)
+                   (if (hyalo-module-appearance-dark-p) "#282c34" "#fafafa")))
+           (hex-color (if (string-prefix-p "#" bg)
+                          bg
+                        (apply #'format "#%02x%02x%02x"
+                               (mapcar (lambda (c) (/ c 256))
+                                       (color-values bg))))))
+      (when (fboundp 'hyalo-sidebar-set-background-color)
+        (hyalo-sidebar-set-background-color hex-color (float hyalo-module-appearance-opacity))))
+    ;; Push appearance mode
     (when (fboundp 'hyalo-set-panel-appearance-mode)
       (hyalo-set-panel-appearance-mode (symbol-name hyalo-module-appearance-mode-setting)))
-    ;; Refresh panel to pick up vibrancy/opacity from controller
+    ;; Refresh panel to display updated values
     (when (fboundp 'hyalo-refresh-appearance-panel)
       (hyalo-refresh-appearance-panel))))
 
@@ -281,6 +347,7 @@ Applies to all frames without changing the theme."
     (hyalo-module-appearance--apply-vibrancy)
     (when (and (hyalo-module-available-p) (fboundp 'hyalo-refresh-appearance-panel))
       (hyalo-refresh-appearance-panel))
+    (customize-save-variable 'hyalo-module-appearance-opacity clamped)
     (hyalo-module-log "Opacity set to %.2f" clamped)))
 
 (defun hyalo-module-appearance-set-vibrancy (material)
@@ -298,77 +365,124 @@ Use ultraThin for maximum see-through effect."
   (customize-save-variable 'hyalo-module-appearance-vibrancy-material material)
   (hyalo-module-log "Vibrancy material set to %s" material))
 
-(defvar hyalo-module-appearance--panel-sync-timer nil
-  "Timer for syncing panel changes to Emacs.")
+;;; Panel Timer (active only while panel is open)
 
-(defun hyalo-module-appearance--panel-sync-tick ()
-  "Poll Swift panel for changes and apply them."
-  (when (and (hyalo-module-available-p)
-             (fboundp 'hyalo-appearance-panel-visible-p)
-             (hyalo-appearance-panel-visible-p))
-    ;; Check if appearance mode changed
+(defvar hyalo-module-appearance--panel-timer nil
+  "Timer for syncing panel settings while panel is open.")
+
+(defun hyalo-module-appearance--start-panel-timer ()
+  "Start timer to sync from panel while it's open."
+  (hyalo-module-appearance--stop-panel-timer)
+  (setq hyalo-module-appearance--panel-timer
+        (run-with-timer 0.3 0.3 #'hyalo-module-appearance--panel-tick)))
+
+(defun hyalo-module-appearance--stop-panel-timer ()
+  "Stop the panel sync timer."
+  (when (timerp hyalo-module-appearance--panel-timer)
+    (cancel-timer hyalo-module-appearance--panel-timer)
+    (setq hyalo-module-appearance--panel-timer nil)))
+
+(defun hyalo-module-appearance--panel-tick ()
+  "Timer callback - sync from panel if still visible.
+Syncs to Emacs variables and saves if values differ."
+  (if (and (hyalo-module-available-p)
+           (fboundp 'hyalo-appearance-panel-visible-p)
+           (hyalo-appearance-panel-visible-p))
+      ;; Panel is open - sync from Swift and save if changed
+      (hyalo-module-appearance--sync-and-save-if-changed)
+    ;; Panel was closed externally - stop timer
+    (hyalo-module-appearance--stop-panel-timer)))
+
+(defun hyalo-module-appearance--sync-and-save-if-changed ()
+  "Sync from panel and save only values that have changed."
+  (when (hyalo-module-available-p)
+    ;; Sync and save appearance mode if changed
     (when (fboundp 'hyalo-get-panel-appearance-mode)
-      (let ((panel-mode (intern (hyalo-get-panel-appearance-mode))))
-        (unless (eq panel-mode hyalo-module-appearance-mode-setting)
-          ;; Mode changed in panel - apply it
-          (setq hyalo-module-appearance-mode-setting panel-mode)
-          ;; Apply window appearance
-          (hyalo-module-appearance--apply-window-appearance
-           (hyalo-module-appearance-current))
-          ;; Load theme if in auto mode
-          (when (eq panel-mode 'auto)
-            (let* ((effective (hyalo-module-appearance-current))
-                   (theme (if (eq effective 'dark)
-                              hyalo-module-appearance-theme-dark
-                            hyalo-module-appearance-theme-light)))
-              (when theme
-                (mapc #'disable-theme custom-enabled-themes)
-                (load-theme theme t)))))))))
-
-(defun hyalo-module-appearance--start-panel-sync ()
-  "Start polling timer for panel sync."
-  (hyalo-module-appearance--stop-panel-sync)
-  (setq hyalo-module-appearance--panel-sync-timer
-        (run-with-timer 0.2 0.2 #'hyalo-module-appearance--panel-sync-tick)))
-
-(defun hyalo-module-appearance--stop-panel-sync ()
-  "Stop polling timer for panel sync."
-  (when hyalo-module-appearance--panel-sync-timer
-    (cancel-timer hyalo-module-appearance--panel-sync-timer)
-    (setq hyalo-module-appearance--panel-sync-timer nil)))
+      (let ((mode (intern (hyalo-get-panel-appearance-mode))))
+        (unless (eq mode hyalo-module-appearance-mode-setting)
+          (setq hyalo-module-appearance-mode-setting mode)
+          (customize-save-variable 'hyalo-module-appearance-mode-setting mode))))
+    ;; Sync and save vibrancy material if changed
+    (when (fboundp 'hyalo-get-panel-vibrancy-material)
+      (let ((material (hyalo-get-panel-vibrancy-material)))
+        (unless (equal material hyalo-module-appearance-vibrancy-material)
+          (setq hyalo-module-appearance-vibrancy-material material)
+          (customize-save-variable 'hyalo-module-appearance-vibrancy-material material))))
+    ;; Sync and save opacity if changed
+    (when (fboundp 'hyalo-get-panel-opacity)
+      (let ((opacity (hyalo-get-panel-opacity)))
+        (unless (equal opacity hyalo-module-appearance-opacity)
+          (setq hyalo-module-appearance-opacity opacity)
+          (customize-save-variable 'hyalo-module-appearance-opacity opacity))))))
 
 (defun hyalo-module-appearance-show-panel ()
-  "Show the Hyalo appearance panel with sliders for vibrancy control."
+  "Show the Hyalo appearance panel and start sync timer."
   (interactive)
   (when (hyalo-module-available-p)
-    ;; Sync settings to panel before showing
     (hyalo-module-appearance-sync-to-panel)
     (hyalo-show-appearance-panel)
-    ;; Start polling for changes
-    (hyalo-module-appearance--start-panel-sync)))
+    (hyalo-module-appearance--start-panel-timer)))
 
 (defun hyalo-module-appearance-toggle-panel ()
   "Toggle the Hyalo appearance panel visibility."
   (interactive)
   (when (hyalo-module-available-p)
-    ;; Sync settings to panel before showing
-    (hyalo-module-appearance-sync-to-panel)
-    (hyalo-toggle-appearance-panel)
-    ;; Start/stop polling based on visibility
-    (if (and (fboundp 'hyalo-appearance-panel-visible-p)
-             (hyalo-appearance-panel-visible-p))
-        (hyalo-module-appearance--start-panel-sync)
-      (hyalo-module-appearance--stop-panel-sync)
-      (hyalo-module-appearance-sync-from-panel))))
+    (let ((was-visible (and (fboundp 'hyalo-appearance-panel-visible-p)
+                            (hyalo-appearance-panel-visible-p))))
+      (if was-visible
+          ;; Closing: stop timer, sync and save
+          (progn
+            (hyalo-module-appearance--stop-panel-timer)
+            (hyalo-module-appearance-sync-from-panel t)
+            (hyalo-hide-appearance-panel))
+        ;; Opening: sync to panel, show, start timer
+        (hyalo-module-appearance-sync-to-panel)
+        (hyalo-show-appearance-panel)
+        (hyalo-module-appearance--start-panel-timer)))))
 
 (defun hyalo-module-appearance-hide-panel ()
-  "Hide the Hyalo appearance panel."
+  "Hide the Hyalo appearance panel and save settings."
   (interactive)
   (when (hyalo-module-available-p)
-    ;; Stop polling and sync final state
-    (hyalo-module-appearance--stop-panel-sync)
-    (hyalo-module-appearance-sync-from-panel)
+    (hyalo-module-appearance--stop-panel-timer)
+    (hyalo-module-appearance-sync-from-panel t)
     (hyalo-hide-appearance-panel)))
+
+(defun hyalo-module-appearance-save ()
+  "Save current appearance settings from Swift to Emacs custom file.
+Use this to persist settings adjusted in the panel."
+  (interactive)
+  (hyalo-module-appearance-sync-from-panel t)
+  (hyalo-module-log "Appearance settings saved"))
+
+(defun hyalo-module-appearance-save-from-panel ()
+  "Called from Swift when panel settings change.
+Syncs current Swift state to Emacs and saves to custom.el.
+This is the callback function that Swift calls via the pending actions mechanism."
+  (when (hyalo-module-available-p)
+    ;; Sync appearance mode
+    (when (fboundp 'hyalo-get-panel-appearance-mode)
+      (let ((mode (intern (hyalo-get-panel-appearance-mode))))
+        (unless (eq mode hyalo-module-appearance-mode-setting)
+          (setq hyalo-module-appearance-mode-setting mode)
+          (customize-save-variable 'hyalo-module-appearance-mode-setting mode))))
+    ;; Sync vibrancy material
+    (when (fboundp 'hyalo-get-panel-vibrancy-material)
+      (let ((material (hyalo-get-panel-vibrancy-material)))
+        (unless (equal material hyalo-module-appearance-vibrancy-material)
+          (setq hyalo-module-appearance-vibrancy-material material)
+          (customize-save-variable 'hyalo-module-appearance-vibrancy-material material))))
+    ;; Sync opacity
+    (when (fboundp 'hyalo-get-panel-opacity)
+      (let ((opacity (hyalo-get-panel-opacity)))
+        (unless (equal opacity hyalo-module-appearance-opacity)
+          (setq hyalo-module-appearance-opacity opacity)
+          (customize-save-variable 'hyalo-module-appearance-opacity opacity))))
+    ;; Apply the new settings (for appearance mode changes)
+    (let ((appearance (hyalo-module-appearance-current)))
+      (hyalo-module-appearance--apply-window-appearance appearance)
+      (hyalo-module-appearance--apply-vibrancy))
+    (hyalo-module-log "Appearance settings saved from panel")))
 
 
 ;;; Mode Definition
@@ -378,34 +492,39 @@ Use ultraThin for maximum see-through effect."
   (let ((f (or frame (selected-frame))))
     (when (and (display-graphic-p f) (eq (framep f) 'ns))
       (set-frame-parameter f 'alpha-background 0.0)
+      (set-frame-parameter f 'left-fringe 8)
+      (set-frame-parameter f 'right-fringe 8)
       (when (hyalo-module-available-p)
         (hyalo-module-appearance--apply-window-appearance
          (hyalo-module-appearance-current))))))
 
 (defun hyalo-module-appearance--enable ()
-  "Enable appearance management."
+  "Enable appearance management.
+Syncs SAVED Emacs values TO Swift - does not override them."
   (condition-case err
       (progn
         ;; Apply frame settings
         (hyalo-module-appearance--apply-frame-settings)
-        ;; Get current appearance
+        ;; Get current appearance based on saved mode setting
         (let ((appearance (hyalo-module-appearance-current)))
-          ;; Load theme if in auto mode
-          (when (eq hyalo-module-appearance-mode-setting 'auto)
-            (let ((theme (if (eq appearance 'dark)
-                             hyalo-module-appearance-theme-dark
-                           hyalo-module-appearance-theme-light)))
-              (when theme
-                (mapc #'disable-theme custom-enabled-themes)
-                (load-theme theme t))))
-          ;; Apply window appearance to Swift
-          (hyalo-module-appearance--apply-window-appearance appearance)
-          ;; Sync appearance mode to Swift panel
-          (when (and (hyalo-module-available-p) (fboundp 'hyalo-set-panel-appearance-mode))
-            (hyalo-set-panel-appearance-mode
-             (symbol-name hyalo-module-appearance-mode-setting))))
-        ;; Apply vibrancy/opacity settings
-        (hyalo-module-appearance--apply-vibrancy)
+          ;; Load theme based on saved mode
+          (if (eq hyalo-module-appearance-mode-setting 'auto)
+              ;; Auto mode: use light/dark theme settings
+              (let ((theme (if (eq appearance 'dark)
+                               hyalo-module-appearance-theme-dark
+                             hyalo-module-appearance-theme-light)))
+                (when theme
+                  (mapc #'disable-theme custom-enabled-themes)
+                  (load-theme theme t)))
+            ;; Manual mode: restore saved current theme
+            (when hyalo-module-appearance-current-theme
+              (mapc #'disable-theme custom-enabled-themes)
+              (load-theme hyalo-module-appearance-current-theme t)))
+          ;; Apply window appearance to Swift (from Emacs saved setting)
+          (hyalo-module-appearance--apply-window-appearance appearance))
+        ;; IMPORTANT: Sync saved Emacs values TO Swift panel
+        ;; This ensures Swift has the correct saved values, not defaults
+        (hyalo-module-appearance-sync-to-panel)
         ;; Clear backgrounds
         (hyalo-module-appearance--clear-backgrounds)
         ;; Register hooks
@@ -416,6 +535,8 @@ Use ultraThin for maximum see-through effect."
           (add-hook 'enable-theme-functions #'hyalo-module-appearance--on-theme-load))
         ;; Multi-frame support
         (add-hook 'after-make-frame-functions #'hyalo-module-appearance--setup-frame)
+        ;; Mark initialization complete - hooks can now sync from panel
+        (setq hyalo-module-appearance--initialized t)
         (hyalo-module-log "Appearance: Enabled (appearance: %s, opacity: %.2f, vibrancy: %s)"
                  (hyalo-module-appearance-current)
                  hyalo-module-appearance-opacity
@@ -424,6 +545,8 @@ Use ultraThin for maximum see-through effect."
 
 (defun hyalo-module-appearance--disable ()
   "Disable appearance management."
+  ;; Mark as not initialized
+  (setq hyalo-module-appearance--initialized nil)
   ;; Remove hooks
   (when (boundp 'ns-system-appearance-change-functions)
     (remove-hook 'ns-system-appearance-change-functions

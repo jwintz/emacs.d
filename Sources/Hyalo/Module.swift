@@ -14,6 +14,7 @@ func findEmacsWindow() -> NSWindow? {
     return NSApp.windows.first
 }
 
+
 /// Hyalo module provides:
 /// - Vibrancy (NSVisualEffectView)
 /// - Window styling (transparent titlebar, corners)
@@ -306,6 +307,49 @@ final class HyaloModule: Module {
                 return NavigationSidebarManager.shared.isSidebarVisible(for: window)
             }
             return false
+        }
+
+        try env.defun(
+            "hyalo-restore-focus",
+            with: """
+            Restore keyboard focus to the Emacs content view.
+            Call this after restart-emacs or when Meta key stops working.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    let controller = NavigationSidebarManager.shared.getController(for: window)
+                    controller.restoreEmacsFocus()
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-debug-focus",
+            with: """
+            Debug keyboard focus state. Returns info about current first responder.
+            """
+        ) { () -> String in
+            if #available(macOS 26.0, *) {
+                guard let window = findEmacsWindow() else { return "No window" }
+                let firstResponder = window.firstResponder
+                let frClass = String(describing: type(of: firstResponder as Any))
+                let isKey = window.isKeyWindow
+                let isMain = window.isMainWindow
+
+                // Try to find Emacs view
+                let controller = NavigationSidebarManager.shared.getController(for: window)
+                var emacsInfo = "not found"
+                if let emacs = controller.state.debugEmacsView {
+                    emacsInfo = String(describing: type(of: emacs))
+                }
+
+                return "FirstResponder: \(frClass), isKey: \(isKey), isMain: \(isMain), emacsView: \(emacsInfo)"
+            }
+            return "macOS 26 required"
         }
 
         try env.defun(
@@ -605,14 +649,20 @@ final class HyaloModule: Module {
             with: """
             Set the appearance mode in the Swift panel.
             MODE is "light", "dark", or "auto".
-            This updates the panel UI and applies the window appearance.
+            This updates the controller state and panel UI.
             """
         ) { (env: Environment, mode: String) throws -> Bool in
             if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
+                    // Update controller state (source of truth)
+                    if let window = findEmacsWindow() {
+                        let controller = NavigationSidebarManager.shared.getController(for: window)
+                        controller.state.windowAppearance = mode
+                    }
+                    // Update panel settings
                     let appearanceMode = AppearanceMode.from(emacsValue: mode)
                     AppearanceSettings.shared.appearanceMode = appearanceMode
-                    AppearancePanelController.shared.onAppearanceModeChanged?(appearanceMode)
+                    // Refresh panel to display updated value
                     AppearancePanelController.shared.refreshPanel()
                 }
                 return true
@@ -653,6 +703,7 @@ final class HyaloModule: Module {
             }
             return 0.5
         }
+
 
         // MARK: - System Integration
 
