@@ -62,13 +62,16 @@
   "Map from window to its last known window-start position.
 Used to avoid redundant overlay updates.")
 
+(defvar hyalo-module-viewport--margin 12
+  "Margin in pixels added to header height for offset calculation.")
+
 ;;; Header Height
 
 (defun hyalo-module-viewport--header-height ()
   "Return the current header height in pixels.
 Queries the Swift module for the authoritative value."
   (if (and (hyalo-module-available-p) (fboundp 'hyalo-header-height))
-      (hyalo-header-height)
+      (+ (hyalo-header-height) hyalo-module-viewport--margin)
     47))  ; Fallback
 
 ;;; Window Analysis

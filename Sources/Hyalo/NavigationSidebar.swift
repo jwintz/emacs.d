@@ -64,8 +64,11 @@ final class ModeLineToolbarItemView: NSView {
         // Use autoresizing to fill container
         autoresizingMask = [.width, .height]
 
+        // Use nerd font for proper icon rendering
+        let font = findModeLineFont(size: 11)
+        
         // Configure LHS label - use autoresizing, not constraints
-        lhsLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        lhsLabel.font = font
         lhsLabel.textColor = .labelColor
         lhsLabel.backgroundColor = .clear
         lhsLabel.drawsBackground = false
@@ -74,7 +77,7 @@ final class ModeLineToolbarItemView: NSView {
         lhsLabel.autoresizingMask = [.maxXMargin]
 
         // Configure RHS label
-        rhsLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        rhsLabel.font = font
         rhsLabel.textColor = .secondaryLabelColor
         rhsLabel.backgroundColor = .clear
         rhsLabel.drawsBackground = false

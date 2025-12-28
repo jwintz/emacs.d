@@ -374,6 +374,72 @@
 (emacs-section-end)
 
 ;;; ============================================================================
+;;; Modeline
+;;; ============================================================================
+
+(emacs-section-start "Modeline")
+
+(defvar rcirc-track-minor-mode nil) ;; Fix doom-modeline error
+
+(use-package doom-modeline
+  :ensure t
+  :after nerd-icons
+  :config
+  (doom-modeline-mode 1)
+  :custom
+  ;; Height and bar
+  (doom-modeline-height 22)
+  (doom-modeline-bar-width 4)
+  (doom-modeline-hud t)
+
+  ;; Enable nerd-icons for rich visual feedback
+  (doom-modeline-icon t)
+  (doom-modeline-major-mode-icon t)
+  (doom-modeline-major-mode-color-icon t)
+  (doom-modeline-buffer-state-icon t)
+  (doom-modeline-buffer-modification-icon t)
+  (doom-modeline-time-icon t)
+  (doom-modeline-buffer-encoding-icon t)
+
+  ;; Modal editing state (god-mode, evil, etc.)
+  (doom-modeline-modal t)
+  (doom-modeline-modal-icon t)
+  (doom-modeline-modal-modern-icon t)
+
+  ;; Buffer display
+  (doom-modeline-buffer-file-name-style 'truncate-upto-project)
+
+  ;; Project integration (uses built-in project.el)
+  (doom-modeline-project-detection 'project)
+
+  ;; VCS/Git settings (integrates with magit)
+  (doom-modeline-vcs-max-length 24)
+  (doom-modeline-check-simple-format t)
+
+  ;; Environment display
+  (doom-modeline-env-version nil)  ; Don't show Python/Node versions
+  (doom-modeline-buffer-encoding nil)  ; Usually utf-8, no need to show
+  (doom-modeline-indent-info nil)
+
+  ;; Minor modes
+  (doom-modeline-minor-modes nil)  ; Keep modeline clean
+
+  ;; Markdown support
+  (doom-modeline-enable-word-count nil)
+  (doom-modeline-continuous-word-count-modes '(markdown-mode gfm-mode org-mode))
+
+  ;; Unicode fallback for any missing glyphs
+  (doom-modeline-unicode-fallback t)
+
+  ;; No IRC
+  (doom-modeline-irc nil)
+
+  ;; Performance
+  (doom-modeline-checker-simple-format t))
+
+(emacs-section-end)
+
+;;; ============================================================================
 ;;; Completion
 ;;; ============================================================================
 
@@ -552,7 +618,7 @@
   ;; * `extra-bold`
   ;; * `ultra-bold` (or heavy, black)
   (defun hyalo-set-highlights (&rest _)
-    (let ((w 'ultra-bold))
+    (let ((w 'bold))
       ;; Only enforce weight for standard highlights to preserve theme colors
       (set-face-attribute 'region nil :weight w)
       (set-face-attribute 'isearch nil :weight w)

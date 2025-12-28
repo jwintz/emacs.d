@@ -3,7 +3,7 @@ import AppKit
 
 /// Preferred fonts for mode-line rendering (in order of preference)
 /// These fonts have nerd font icons
-private let preferredFonts = [
+let preferredFonts = [
     "Symbols Nerd Font Mono",
     "Hack Nerd Font Mono", 
     "FiraCode Nerd Font Mono",
@@ -13,7 +13,8 @@ private let preferredFonts = [
 ]
 
 /// Find a suitable font for mode-line rendering
-private func findModeLineFont(size: CGFloat) -> NSFont {
+/// Tries nerd fonts first, falls back to monospaced system font
+func findModeLineFont(size: CGFloat) -> NSFont {
     // Try preferred nerd fonts first
     for fontName in preferredFonts {
         if let font = NSFont(name: fontName, size: size) {
