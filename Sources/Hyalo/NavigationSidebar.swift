@@ -28,6 +28,203 @@ struct SidebarFile: Identifiable, Hashable {
     let icon: String  // Nerd font icon character
 }
 
+// MARK: - Custom NSToolbar for Modeline
+
+/// Custom toolbar item identifier for the mode-line
+private extension NSToolbarItem.Identifier {
+    static let modeLineItem = NSToolbarItem.Identifier("com.hyalo.modeline")
+    static let flexibleSpace = NSToolbarItem.Identifier.flexibleSpace
+    static let sidebarTracking = NSToolbarItem.Identifier.sidebarTrackingSeparator
+    static let toggleSidebar = NSToolbarItem.Identifier.toggleSidebar
+}
+
+/// Custom view for the modeline toolbar item with proper layout
+/// NO background - relies on toolbar's native glass effect
+/// Uses autoresizing to fill available space
+@available(macOS 26.0, *)
+final class ModeLineToolbarItemView: NSView {
+    private let lhsLabel = NSTextField(labelWithString: "")
+    private let rhsLabel = NSTextField(labelWithString: "")
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        setupView()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        setupView()
+    }
+
+    private func setupView() {
+        // NO background - toolbar provides glass effect
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+
+        // Use autoresizing to fill container
+        autoresizingMask = [.width, .height]
+
+        // Configure LHS label - use autoresizing, not constraints
+        lhsLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        lhsLabel.textColor = .labelColor
+        lhsLabel.backgroundColor = .clear
+        lhsLabel.drawsBackground = false
+        lhsLabel.alignment = .left
+        lhsLabel.lineBreakMode = .byTruncatingTail
+        lhsLabel.autoresizingMask = [.maxXMargin]
+
+        // Configure RHS label
+        rhsLabel.font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        rhsLabel.textColor = .secondaryLabelColor
+        rhsLabel.backgroundColor = .clear
+        rhsLabel.drawsBackground = false
+        rhsLabel.alignment = .right
+        rhsLabel.lineBreakMode = .byTruncatingHead
+        rhsLabel.autoresizingMask = [.minXMargin]
+
+        addSubview(lhsLabel)
+        addSubview(rhsLabel)
+
+        print("[Hyalo Debug] ModeLineToolbarItemView: setupView completed (no background, autoresizing)")
+    }
+
+    func updateContent(lhs: String, rhs: String) {
+        lhsLabel.stringValue = lhs
+        rhsLabel.stringValue = rhs
+        layoutLabels()
+        print("[Hyalo Debug] ModeLineToolbarItemView: updateContent frame=\(frame), bounds=\(bounds)")
+    }
+
+    private func layoutLabels() {
+        let margin: CGFloat = 8
+        let spacing: CGFloat = 16
+        let height = bounds.height
+
+        // Size labels to fit content
+        lhsLabel.sizeToFit()
+        rhsLabel.sizeToFit()
+
+        // Position LHS at left
+        let lhsY = (height - lhsLabel.frame.height) / 2
+        lhsLabel.frame = NSRect(x: margin, y: lhsY, width: lhsLabel.frame.width, height: lhsLabel.frame.height)
+
+        // Position RHS at right
+        let rhsY = (height - rhsLabel.frame.height) / 2
+        let rhsX = bounds.width - margin - rhsLabel.frame.width
+        rhsLabel.frame = NSRect(x: rhsX, y: rhsY, width: rhsLabel.frame.width, height: rhsLabel.frame.height)
+
+        // If labels overlap, truncate LHS
+        let lhsRight = lhsLabel.frame.maxX + spacing
+        if lhsRight > rhsLabel.frame.minX {
+            let newLhsWidth = max(0, rhsLabel.frame.minX - spacing - margin)
+            lhsLabel.frame.size.width = newLhsWidth
+        }
+    }
+
+    override func layout() {
+        super.layout()
+        layoutLabels()
+        print("[Hyalo Debug] ModeLineToolbarItemView: layout() frame=\(frame), superview=\(superview?.frame ?? .zero)")
+    }
+
+    override func resizeSubviews(withOldSize oldSize: NSSize) {
+        super.resizeSubviews(withOldSize: oldSize)
+        layoutLabels()
+    }
+
+    // Don't override intrinsicContentSize - let toolbar manage sizing
+}
+
+/// Controller for NSToolbar with flexible-width modeline item
+/// NOTE: This controller is no longer used - SwiftUI toolbar is used instead
+/// Kept for reference and potential fallback
+@available(macOS 26.0, *)
+final class ModeLineToolbarController: NSObject, NSToolbarDelegate {
+    weak var window: NSWindow?
+    private var modeLineView: ModeLineToolbarItemView?
+    private var modeLineItem: NSToolbarItem?
+    private var modeLineContent: String = ""
+
+    /// Parse modeline into LHS and RHS
+    private func parseSegments(_ input: String) -> (lhs: String, rhs: String) {
+        let trimmed = input.trimmingCharacters(in: .whitespaces)
+        if let range = trimmed.range(of: "   +", options: .regularExpression) {
+            let lhs = String(trimmed[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
+            let rhs = String(trimmed[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+            return (lhs, rhs)
+        }
+        return (trimmed, "")
+    }
+
+    func setupToolbar(for window: NSWindow) {
+        self.window = window
+
+        let toolbar = NSToolbar(identifier: "com.hyalo.modeline.toolbar")
+        toolbar.delegate = self
+        toolbar.displayMode = .iconOnly
+        toolbar.allowsUserCustomization = false
+
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
+
+        print("[Hyalo Debug] ModeLineToolbarController: toolbar installed, window frame=\(window.frame)")
+    }
+
+    func updateModeLine(_ content: String) {
+        modeLineContent = content
+
+        let segments = parseSegments(content)
+        modeLineView?.updateContent(lhs: segments.lhs, rhs: segments.rhs)
+        print("[Hyalo Debug] ModeLineToolbarController: updated LHS='\(segments.lhs)' RHS='\(segments.rhs)'")
+    }
+
+    // MARK: - NSToolbarDelegate
+
+    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        // System sidebar toggle is handled by NavigationSplitView
+        // Modeline fills remaining space after toggle
+        print("[Hyalo Debug] ModeLineToolbarController: toolbarDefaultItemIdentifiers called")
+        return [.toggleSidebar, .modeLineItem]
+    }
+
+    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        return [.toggleSidebar, .modeLineItem]
+    }
+
+    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
+        print("[Hyalo Debug] ModeLineToolbarController: itemForItemIdentifier '\(itemIdentifier.rawValue)' willBeInserted=\(flag)")
+
+        if itemIdentifier == .modeLineItem {
+            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+
+            // Create custom view - uses autoresizing to fill available space
+            let view = ModeLineToolbarItemView(frame: NSRect(x: 0, y: 0, width: 400, height: 28))
+
+            // Parse and set initial content
+            let segments = parseSegments(modeLineContent)
+            view.updateContent(lhs: segments.lhs, rhs: segments.rhs)
+
+            item.view = view
+
+            // Use deprecated minSize/maxSize for toolbar item sizing
+            // minSize allows shrinking, maxSize allows full expansion
+            item.minSize = NSSize(width: 100, height: 28)
+            item.maxSize = NSSize(width: 10000, height: 28)
+
+            modeLineView = view
+            modeLineItem = item
+
+            print("[Hyalo Debug] ModeLineToolbarController: created modeline item")
+            print("[Hyalo Debug]   view.frame=\(view.frame)")
+            print("[Hyalo Debug]   item.minSize=\(item.minSize), item.maxSize=\(item.maxSize)")
+
+            return item
+        }
+
+        return nil
+    }
+}
+
 // MARK: - Sidebar SwiftUI Views
 
 /// Row for a single buffer in Open Editors
@@ -182,8 +379,8 @@ struct SidebarContentView: View {
 }
 
 /// Mode-line toolbar view with Liquid Glass styling
-/// Uses flexible layout to fill entire toolbar width
-/// NOTE: For macOS Tahoe, this is placed in the title/subtitle area for full width
+/// Uses full-width layout that spans the entire toolbar area
+/// NOTE: For macOS Tahoe, uses glassEffect for Liquid Glass appearance
 @available(macOS 26.0, *)
 struct ModeLineToolbarView: View {
     let content: String
@@ -206,13 +403,17 @@ struct ModeLineToolbarView: View {
     var body: some View {
         let segments = parseSegments(content)
         HStack(spacing: 8) {
+            // Left padding for traffic lights area (approximately 78px)
+            Spacer()
+                .frame(width: 78)
+
             Text(segments.lhs.isEmpty ? " " : segments.lhs)
                 .font(.system(size: 11, design: .monospaced))
                 .foregroundStyle(.primary)
                 .lineLimit(1)
                 .truncationMode(.tail)
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 20)
 
             if !segments.rhs.isEmpty {
                 Text(segments.rhs)
@@ -221,10 +422,100 @@ struct ModeLineToolbarView: View {
                     .lineLimit(1)
                     .truncationMode(.head)
             }
+
+            // Right margin
+            Spacer()
+                .frame(width: 12)
         }
-        .frame(height: 22)
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 8)
+        .frame(height: 28)
+        .onAppear {
+            print("[Hyalo Debug] ModeLineToolbarView: content='\(content)'")
+        }
+    }
+}
+
+// MARK: - Titlebar Accessory View for Toolbar Integration
+
+/// NSTitlebarAccessoryViewController that hosts the modeline SwiftUI view
+/// This places the modeline directly in the toolbar area alongside traffic lights
+@available(macOS 26.0, *)
+final class ModeLineTitlebarAccessoryController: NSTitlebarAccessoryViewController {
+    private var hostingView: NSHostingView<AnyView>?
+    private var modeLineContent: String = ""
+    private var isContentVisible: Bool = true
+
+    override func loadView() {
+        // Create the hosting view with the modeline content
+        let swiftUIView = ModeLineTitlebarView(content: modeLineContent)
+        let hosting = NSHostingView(rootView: AnyView(swiftUIView))
+        hosting.translatesAutoresizingMaskIntoConstraints = false
+        self.view = hosting
+        self.hostingView = hosting
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        // Position at the bottom of the titlebar (in the toolbar area)
+        self.layoutAttribute = .bottom
+        // Allow full width
+        self.fullScreenMinHeight = 28
+    }
+
+    func updateModeLine(_ content: String) {
+        modeLineContent = content
+        let swiftUIView = ModeLineTitlebarView(content: content)
+        hostingView?.rootView = AnyView(swiftUIView)
+    }
+
+    func setVisible(_ visible: Bool) {
+        isContentVisible = visible
+        view.isHidden = !visible
+    }
+}
+
+/// SwiftUI view for the modeline displayed in the titlebar accessory
+/// Designed to sit alongside traffic lights and sidebar toggle
+@available(macOS 26.0, *)
+struct ModeLineTitlebarView: View {
+    let content: String
+
+    /// Parse a string into LHS and RHS by splitting on 3+ consecutive spaces
+    private func parseSegments(_ input: String) -> (lhs: String, rhs: String) {
+        let trimmed = input.trimmingCharacters(in: .whitespaces)
+        if let range = trimmed.range(of: "   +", options: .regularExpression) {
+            let lhs = String(trimmed[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
+            let rhs = String(trimmed[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+            return (lhs, rhs)
+        }
+        return (trimmed, "")
+    }
+
+    var body: some View {
+        let segments = parseSegments(content)
+        HStack(spacing: 8) {
+            // Left side content
+            Text(segments.lhs.isEmpty ? " " : segments.lhs)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            Spacer(minLength: 20)
+
+            // Right side content
+            if !segments.rhs.isEmpty {
+                Text(segments.rhs)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .frame(maxWidth: .infinity)
+        .frame(height: 28)
     }
 }
 
@@ -413,51 +704,88 @@ struct HyaloNavigationLayout: View {
         }
     }
 
+    /// Parse modeline into LHS and RHS segments
+    private func parseSegments(_ input: String) -> (lhs: String, rhs: String) {
+        let trimmed = input.trimmingCharacters(in: .whitespaces)
+        if let range = trimmed.range(of: "   +", options: .regularExpression) {
+            let lhs = String(trimmed[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
+            let rhs = String(trimmed[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+            return (lhs, rhs)
+        }
+        return (trimmed, "")
+    }
+
     var body: some View {
-        NavigationSplitView(columnVisibility: $columnVisibility) {
-            SidebarContentView(
-                state: state,
-                onBufferSelect: onBufferSelect,
-                onBufferClose: onBufferClose,
-                onFileSelect: onFileSelect
-            )
-            .navigationSplitViewColumnWidth(min: 200, ideal: 280, max: 400)
-        } detail: {
-            EmacsContentView(
-                emacsView: emacsView,
-                state: state
-            )
-        }
-        .navigationSplitViewStyle(.balanced)
-        .toolbar {
-            // Mode-line expands to fill available toolbar space
-            ToolbarItem(placement: .principal) {
-                ModeLineToolbarView(content: state.modeLine)
-            }
-        }
-        .toolbarRole(.editor)
-        // Use .large title display mode for more space in toolbar area
-        .toolbarTitleDisplayMode(.inline)
-        .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
-        .navigationTitle("")  // Prevent geometry from showing in title area
-        // Liquid Glass: Apply matching vibrancy material to entire NavigationSplitView
-        .background {
-            ZStack {
-                // Base vibrancy using NSVisualEffectView to match EmacsContentView
-                VibrancyBackgroundView(
-                    material: effectMaterialForState,
-                    blendingMode: .behindWindow,
-                    isActive: state.vibrancyMaterial != .none
+        let segments = parseSegments(state.modeLine)
+
+        GeometryReader { geometry in
+            NavigationSplitView(columnVisibility: $columnVisibility) {
+                SidebarContentView(
+                    state: state,
+                    onBufferSelect: onBufferSelect,
+                    onBufferClose: onBufferClose,
+                    onFileSelect: onFileSelect
                 )
-                // Emacs theme color tint
-                Color(nsColor: state.backgroundColor)
-                    .opacity(Double(state.backgroundAlpha))
+                .navigationSplitViewColumnWidth(min: 200, ideal: 280, max: 400)
+            } detail: {
+                EmacsContentView(
+                    emacsView: emacsView,
+                    state: state
+                )
             }
-            .ignoresSafeArea()
-        }
-        .onChange(of: state.sidebarVisible) { _, newValue in
-            withAnimation {
-                columnVisibility = newValue ? .all : .detailOnly
+            .navigationSplitViewStyle(.balanced)
+            // Let the system handle toolbar background for Safari-like blur effect
+            // Content will scroll behind the toolbar with vibrancy
+            .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
+            .navigationTitle("")
+            // SwiftUI toolbar with system sidebar toggle and modeline
+            // NavigationSplitView automatically adds sidebar toggle - we keep it
+            .toolbar {
+                // Modeline left segment after sidebar toggle
+                ToolbarItem(placement: .navigation) {
+                    Text(segments.lhs.isEmpty ? " " : segments.lhs)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                }
+
+                // Modeline right segment
+                ToolbarItem(placement: .primaryAction) {
+                    Text(segments.rhs.isEmpty ? " " : segments.rhs)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                }
+            }
+            .background {
+                ZStack {
+                    VibrancyBackgroundView(
+                        material: effectMaterialForState,
+                        blendingMode: .behindWindow,
+                        isActive: state.vibrancyMaterial != .none
+                    )
+                    Color(nsColor: state.backgroundColor)
+                        .opacity(Double(state.backgroundAlpha))
+                }
+                .ignoresSafeArea()
+            }
+            .onChange(of: state.sidebarVisible) { _, newValue in
+                withAnimation {
+                    columnVisibility = newValue ? .all : .detailOnly
+                }
+            }
+            .onChange(of: geometry.size) { _, newSize in
+                state.toolbarWidth = newSize.width
+                print("[Hyalo Debug] Window geometry changed: width=\(newSize.width)")
+            }
+            .onAppear {
+                state.toolbarWidth = geometry.size.width
+                print("[Hyalo Debug] HyaloNavigationLayout appeared")
+                print("[Hyalo Debug] Using SwiftUI toolbar with modeline segments")
+                print("[Hyalo Debug] Window width: \(geometry.size.width)")
+                print("[Hyalo Debug] Vibrancy material: \(state.vibrancyMaterial)")
             }
         }
     }
@@ -491,6 +819,10 @@ final class NavigationSidebarState {
     var windowAppearance: String = "auto"
     /// Vibrancy material style
     var vibrancyMaterial: VibrancyMaterial = .ultraThin
+    /// Whether decorations (toolbar and traffic lights) are visible
+    var decorationsVisible: Bool = true
+    /// Available toolbar width (calculated from window geometry)
+    var toolbarWidth: CGFloat = 600
     /// Debug: reference to Emacs view for diagnostics
     weak var debugEmacsView: NSView?
 }
@@ -519,6 +851,12 @@ final class NavigationSidebarController: NSObject {
 
     /// Reference to the Emacs view for focus restoration
     private weak var emacsViewRef: NSView?
+
+    /// Custom NSToolbar controller for flexible-width modeline (legacy, unused)
+    private var modeLineToolbar: ModeLineToolbarController?
+
+    /// Titlebar accessory view controller for modeline in toolbar
+    private var modeLineAccessory: ModeLineTitlebarAccessoryController?
 
     /// Callbacks
     var onBufferSelect: ((String) -> Void)?
@@ -598,19 +936,25 @@ final class NavigationSidebarController: NSObject {
         // Set hosting view directly as content view (required for SwiftUI toolbar)
         window.contentView = hosting
 
-        // Configure window for proper NavigationSplitView with vibrancy
+        // Configure window for proper NavigationSplitView with glass effect
         window.styleMask.insert(.fullSizeContentView)
-        window.titlebarAppearsTransparent = true
+        // DON'T set titlebarAppearsTransparent - let system provide glass effect
+        // window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.isOpaque = false
-        window.backgroundColor = .clear
+        // Keep window opaque - the glass effect provides transparency
+        // window.isOpaque = false
+        // window.backgroundColor = .clear
 
-        // Configure toolbar style
+        // Configure toolbar style - .unified merges toolbar with titlebar for glass effect
         window.toolbarStyle = .unified
 
+        print("[Hyalo Debug] Window config: fullSizeContentView=\(window.styleMask.contains(.fullSizeContentView))")
+        print("[Hyalo Debug] Window config: isOpaque=\(window.isOpaque), backgroundColor=\(window.backgroundColor)")
+        print("[Hyalo Debug] Window config: toolbarStyle=\(window.toolbarStyle.rawValue)")
+
         // CRITICAL: Clear and maintain empty window title to prevent Emacs geometry display
+        // NOTE: Do NOT set window.subtitle - SwiftUI's .navigationSubtitle() handles modeline
         window.title = ""
-        window.subtitle = ""
         window.representedURL = nil
 
         // Add observer to prevent Emacs from changing the title
@@ -619,6 +963,10 @@ final class NavigationSidebarController: NSObject {
                 window.title = ""
             }
         }
+
+        // Modeline is now handled by SwiftUI toolbar in HyaloNavigationLayout
+        // NavigationSplitView provides its own sidebar toggle automatically
+        print("[Hyalo Debug] Using SwiftUI toolbar (NavigationSplitView provides sidebar toggle)")
 
         hostingView = hosting
         isSetup = true
@@ -809,6 +1157,9 @@ final class NavigationSidebarController: NSObject {
         blurView?.removeFromSuperview()
         blurView = nil
 
+        // Clean up custom toolbar
+        modeLineToolbar = nil
+
         original.removeFromSuperview()
         original.frame = hostingView?.superview?.frame ?? window.frame
         original.autoresizingMask = [.width, .height]
@@ -862,6 +1213,37 @@ final class NavigationSidebarController: NSObject {
         state.sidebarVisible
     }
 
+    // MARK: - Decorations (Toolbar & Traffic Lights)
+
+    /// Set visibility of decorations (toolbar area and traffic lights)
+    func setDecorationsVisible(_ visible: Bool) {
+        guard let window = window else {
+            print("[Hyalo Debug] setDecorationsVisible: no window")
+            return
+        }
+        print("[Hyalo Debug] setDecorationsVisible(\(visible)), current state: \(state.decorationsVisible)")
+        state.decorationsVisible = visible
+        // Toggle toolbar visibility
+        window.toolbar?.isVisible = visible
+        print("[Hyalo Debug] toolbar.isVisible = \(window.toolbar?.isVisible ?? false)")
+        if visible {
+            showTrafficLights(window)
+        } else {
+            hideTrafficLights(window)
+        }
+    }
+
+    /// Toggle visibility of decorations
+    func toggleDecorations() {
+        print("[Hyalo Debug] toggleDecorations called, current visible: \(state.decorationsVisible)")
+        setDecorationsVisible(!state.decorationsVisible)
+    }
+
+    /// Check if decorations are currently visible
+    var areDecorationsVisible: Bool {
+        state.decorationsVisible
+    }
+
     // MARK: - Traffic Lights
 
     private func showTrafficLights(_ window: NSWindow) {
@@ -902,6 +1284,7 @@ final class NavigationSidebarController: NSObject {
 
     func updateModeLine(_ content: String) {
         state.modeLine = content
+        // SwiftUI toolbar updates automatically via state.modeLine binding
     }
 
     /// Set the background color from Emacs (color string + alpha)
@@ -1063,5 +1446,17 @@ final class NavigationSidebarManager {
 
     func setVibrancyMaterial(for window: NSWindow, material: String) {
         controllers[window.windowNumber]?.setVibrancyMaterial(material)
+    }
+
+    func setDecorationsVisible(for window: NSWindow, visible: Bool) {
+        controllers[window.windowNumber]?.setDecorationsVisible(visible)
+    }
+
+    func toggleDecorations(for window: NSWindow) {
+        controllers[window.windowNumber]?.toggleDecorations()
+    }
+
+    func areDecorationsVisible(for window: NSWindow) -> Bool {
+        controllers[window.windowNumber]?.areDecorationsVisible ?? true
     }
 }

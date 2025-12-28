@@ -493,6 +493,54 @@ final class HyaloModule: Module {
             return false
         }
 
+        // MARK: - Decorations (Toolbar & Traffic Lights)
+
+        try env.defun(
+            "hyalo-set-decorations-visible",
+            with: """
+            Set visibility of decorations (toolbar and traffic lights).
+            VISIBLE is t to show, nil to hide.
+            """
+        ) { (env: Environment, visible: Bool) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.setDecorationsVisible(for: window, visible: visible)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-toggle-decorations",
+            with: """
+            Toggle visibility of decorations (toolbar and traffic lights).
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.toggleDecorations(for: window)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-decorations-visible-p",
+            with: """
+            Return t if decorations (toolbar and traffic lights) are visible, nil otherwise.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                guard let window = findEmacsWindow() else { return true }
+                return NavigationSidebarManager.shared.areDecorationsVisible(for: window)
+            }
+            return true
+        }
+
         // Note: Treemacs runs inside Emacs (detail area), not managed by Swift sidebar
 
         // MARK: - Appearance Panel

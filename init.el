@@ -26,7 +26,7 @@
 
 (setq user-emacs-directory (expand-file-name ".local/" emacs-config-dir))
 
-(dolist (subdir '("" "auto-save-list" "transient" "eshell" "etc"))
+(dolist (subdir '("" "auto-save" "auto-save-list" "transient" "eshell" "etc"))
   (make-directory (expand-file-name subdir user-emacs-directory) t))
 
 ;; Suppress the load-path warning for our config directory
@@ -48,6 +48,15 @@
 (when (file-exists-p custom-file)
   (load custom-file 'noerror 'nomessage))
 
+;; Suppress "Saving file..." and "Wrote..." messages for custom-file
+(defun emacs--suppress-custom-save-message (orig-fun &rest args)
+  "Suppress messages during `custom-save-all` and `customize-save-variable`."
+  (let ((inhibit-message t)
+        (save-silently t))
+    (apply orig-fun args)))
+(advice-add 'custom-save-all :around #'emacs--suppress-custom-save-message)
+(advice-add 'customize-save-variable :around #'emacs--suppress-custom-save-message)
+
 ;;;; Package System
 
 (require 'package)
@@ -65,6 +74,13 @@
 
 ;;;; Core Packages
 
+(use-package exec-path-from-shell
+  :ensure t
+  :demand t
+  :config
+  (when (memq window-system '(mac ns x))
+    (exec-path-from-shell-initialize)))
+
 (use-package diminish
   :demand t)
 
@@ -77,11 +93,12 @@
   (leader-def
     "b" '(:ignore t :wk "buffer")
     "f" '(:ignore t :wk "file")
-    "v" '(:ignore t :wk "versionning")
     "h" '(:ignore t :wk "help")
     "l" '(:ignore t :wk "hyalo")
+    "n" '(:ignore t :wk "notes")
     "p" '(:ignore t :wk "project")
-    "t" '(:ignore t :wk "toggle")))
+    "t" '(:ignore t :wk "toggle")
+    "v" '(:ignore t :wk "versionning")))
 
 (use-package which-key
   :diminish
@@ -294,6 +311,14 @@
 
 (use-package nerd-icons
   :demand t)
+
+;;;; Highlighting
+
+(use-package hl-line
+  :ensure nil
+  :demand t
+  :config
+  (global-hl-line-mode 1))
 
 ;;;; Themes
 
@@ -521,6 +546,12 @@
       (set-face-attribute 'lazy-highlight nil :weight w)
       (set-face-attribute 'match nil :weight w)
       (set-face-attribute 'show-paren-match nil :weight w)
+      (when (facep 'hl-line)
+        (set-face-attribute 'hl-line nil :weight w))
+      (when (facep 'highlight)
+        (set-face-attribute 'highlight nil :weight w))
+      (when (facep 'vertico-current)
+        (set-face-attribute 'vertico-current nil :weight w))
       (dolist (face '(magit-item-highlight
                       magit-section-highlight
                       magit-diff-added-highlight
@@ -653,7 +684,10 @@
   :load-path emacs-config-dir
 ;;:diminish " ηViewport"
   :custom
-  (hyalo-module-viewport-debug nil)
+  (hyalo-module-viewport-debug t)
+  (hyalo-module-viewport-excluded-modes '(agent-shell-mode
+                                          agent-shell-viewport-view-mode
+                                          agent-shell-viewport-edit-mode))
   :config
   (hyalo-module-viewport-mode 1))
 
@@ -769,10 +803,23 @@
   (treemacs-no-png-images t)
   (treemacs-indentation 1)
   (treemacs-indentation-string " ")
+  :general
+  (leader-def
+    "t f" '(treemacs-toggle-focus :wk "focus toggle")
+    "t n" '(treemacs-next-project :wk "next project")
+    "t p" '(treemacs-previous-project :wk "previous project")
+    "t s" '(treemacs-select-window :wk "select window"))
   :config
   (treemacs-follow-mode t)
   (treemacs-filewatch-mode t)
-  (treemacs-fringe-indicator-mode 'always))
+  (treemacs-fringe-indicator-mode 'always)
+
+  (defun treemacs-toggle-focus ()
+    "Toggle focus between the Treemacs window and the previously selected window."
+    (interactive)
+    (if (eq (selected-window) (treemacs-get-local-window))
+        (other-window 1)
+      (treemacs-select-window))))
 
 (use-package hyalo-explorer-icons
   :load-path emacs-config-dir
@@ -838,10 +885,104 @@
 
   (advice-add 'make-process :around #'emacs/copilot-redirect-stderr))
 
-;; (use-package agent-shell
-;;   :vc (:url "...")
-;;   :config
-;;   ...)
+(use-package agent-shell
+  :vc (:url "https://github.com/xenodium/agent-shell"
+            :rev :newest)
+  :custom
+  (agent-shell-section-functions nil)
+  :general
+  (leader-def
+    "a" '(:ignore t :wk "agents")
+    "a c" '(agent-shell-anthropic-start-claude-code :wk "claude")
+    "a g" '(agent-shell-google-start-gemini :wk "gemini")
+    "a s" '(agent-shell-sidebar-toggle :wk "sidebar toggle")
+    "a f" '(agent-shell-sidebar-toggle-focus :wk "sidebar focus")))
+
+(use-package agent-shell-sidebar
+  :vc (:url "https://github.com/cmacrae/agent-shell-sidebar"
+            :rev :newest)
+  :after agent-shell)
+
+(emacs-section-end)
+
+;;; ============================================================================
+;;; Knowledge Management
+;;; ============================================================================
+
+(emacs-section-start "Knowledge Management")
+
+(use-package markdown-mode
+  :mode (("README\\.md\\'" . markdown-mode)
+         ("\\.md\\'" . markdown-mode)
+         ("\\.markdown\\'" . markdown-mode))
+  :general
+  (:keymaps 'markdown-mode-map
+   :prefix "C-c m"
+   "" '(:ignore t :which-key "markdown")
+   "l" 'markdown-insert-link
+   "u" 'markdown-insert-uri
+   "f" 'markdown-insert-footnote
+   "w" 'markdown-insert-wiki-link
+   "c" 'markdown-insert-code
+   "C" 'markdown-insert-gfm-code-block
+   "p" 'markdown-insert-pre
+   "t" 'markdown-insert-table
+   "h" 'markdown-insert-header-dwim
+   "b" 'markdown-insert-bold
+   "i" 'markdown-insert-italic
+   "s" 'markdown-insert-strike-through
+   "q" 'markdown-insert-blockquote))
+
+(use-package obsidian
+  :ensure t
+  :defer t
+  :commands (obsidian-capture obsidian-jump obsidian-daily-note obsidian-search)
+  :init
+  (let ((path (expand-file-name "~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Vault")))
+    (setq obsidian-directory path)
+    (setq obsidian--relative-path-length (length (file-name-as-directory path))))
+
+  ;; Inhibit the "Setting obsidian-directory to..." message
+  (with-eval-after-load 'obsidian
+    (let ((setter (get 'obsidian-directory 'custom-set)))
+      (when setter
+        (put 'obsidian-directory 'custom-set
+             (lambda (symbol value)
+               (let ((inhibit-message t))
+                 (funcall setter symbol value)))))))
+
+  :config
+  (global-obsidian-mode t)
+  ;; Initialize vault cache after loading if not already done
+  (unless (and (boundp 'obsidian-vault-cache) obsidian-vault-cache)
+    (when (file-directory-p (expand-file-name obsidian-directory))
+      (obsidian-update)))
+  :custom
+  ;; Default location for new notes from `obsidian-capture'
+  (obsidian-inbox-directory "Inbox")
+  ;; (obsidian-daily-notes-directory "Journal")
+  ;; (obsidian-templates-directory "Templates")
+  (obsidian-wiki-link-create-file-in-inbox t)
+  ;; Useful if you're going to be using wiki links
+  (markdown-enable-wiki-links t)
+  :bind
+  (:map obsidian-mode-map
+   ("C-c C-o" . obsidian-follow-link-at-point))
+  :general
+  (:prefix "C-c n"
+   "" '(:ignore t :which-key "notes")
+   "n" 'obsidian-capture
+   "j" 'obsidian-jump
+   "d" 'obsidian-daily-note
+   "t" 'obsidian-tag-find
+   "l" 'obsidian-insert-link
+   "w" 'obsidian-insert-wikilink
+   "b" 'obsidian-backlink-jump
+   "f" 'obsidian-follow-link-at-point
+   "s" 'obsidian-search
+   "m" 'obsidian-move-file
+   "g" 'obsidian-grep
+   "v" 'obsidian-jump))
 
 (emacs-section-end)
 

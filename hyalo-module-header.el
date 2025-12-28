@@ -47,6 +47,11 @@
   :type 'integer
   :group 'hyalo-module-header)
 
+(defcustom hyalo-module-header-right-padding 12
+  "Right padding for header view in pixels."
+  :type 'integer
+  :group 'hyalo-module-header)
+
 ;;; Internal State
 
 (defvar hyalo-module-header--saved-mode-line-format nil
@@ -277,6 +282,24 @@ and their content is displayed in a floating SwiftUI header."
   (if hyalo-module-header-mode
       (hyalo-module-header--enable)
     (hyalo-module-header--disable)))
+
+;; Interactive wrappers for Swift-defined functions
+;; Swift env.defun creates non-interactive functions, so we need wrappers
+
+;;;###autoload
+(defun hyalo-toggle-decorations-command ()
+  "Toggle visibility of toolbar and traffic lights.
+When hidden, provides a minimal chrome experience."
+  (interactive)
+  (if (fboundp 'hyalo-toggle-decorations)
+      (progn
+        (hyalo-toggle-decorations)
+        (message "Decorations %s" (if (hyalo-decorations-visible-p) "shown" "hidden")))
+    (message "Hyalo decorations toggle not available - module not loaded")))
+
+;; Create an alias so M-x hyalo-toggle-decorations works
+(defalias 'hyalo-toggle-chrome 'hyalo-toggle-decorations-command
+  "Alias for `hyalo-toggle-decorations-command'.")
 
 (provide 'hyalo-module-header)
 ;;; hyalo-module-header.el ends here

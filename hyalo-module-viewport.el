@@ -43,6 +43,13 @@
   :type 'boolean
   :group 'hyalo-module-viewport)
 
+(defcustom hyalo-module-viewport-excluded-modes '(agent-shell-mode
+                                                   agent-shell-viewport-view-mode
+                                                   agent-shell-viewport-edit-mode)
+  "List of major modes where viewport offset should NOT be applied."
+  :type '(repeat symbol)
+  :group 'hyalo-module-viewport)
+
 ;;; Internal State
 
 (defvar hyalo-module-viewport--overlays (make-hash-table :test 'eq :weakness 'key)
@@ -90,6 +97,8 @@ Queries the Swift module for the authoritative value."
        (not (window-minibuffer-p window))
        (not (eq window (minibuffer-window)))
        (not (hyalo-module-viewport--window-sidebar-p window))
+       (not (memq (buffer-local-value 'major-mode (window-buffer window))
+                  hyalo-module-viewport-excluded-modes))
        (hyalo-module-viewport--window-intersects-header-p window)))
 
 (defun hyalo-module-viewport--calculate-offset (window)
@@ -164,23 +173,34 @@ If HEIGHT is 0, clears the overlay display."
 ;;; Core Update Logic
 
 (defun hyalo-module-viewport--update-window (window)
-  "Update the viewport overlay for WINDOW if needed.
-Only updates when window-start has changed to avoid redundant work."
-  (when (hyalo-module-viewport--window-eligible-p window)
-    (let* ((current-start (window-start window))
-           (last-start (gethash window hyalo-module-viewport--last-window-starts))
-           (at-top (hyalo-module-viewport--at-buffer-top-p window)))
-      ;; Only update if scroll position changed OR this is first check
-      (when (or (null last-start) (not (= current-start last-start)))
-        (puthash window current-start hyalo-module-viewport--last-window-starts)
-        (if at-top
-            ;; At buffer top: show overlay with calculated offset
-            (let* ((ov (hyalo-module-viewport--get-or-create-overlay window))
-                   (offset (hyalo-module-viewport--calculate-offset window)))
-              (when ov
-                (hyalo-module-viewport--set-overlay-height window offset)))
-          ;; Not at top: hide overlay
-          (hyalo-module-viewport--set-overlay-height window 0))))))
+  "Update the viewport overlay for WINDOW.
+If window is eligible, update overlay based on scroll position.
+If window is NOT eligible, ensure overlay is hidden."
+  (let ((eligible (hyalo-module-viewport--window-eligible-p window)))
+    (when hyalo-module-viewport-debug
+      (hyalo-module-log
+       (format "Viewport Update: win=%s buf=%s mode=%s eligible=%s"
+               window
+               (window-buffer window)
+               (buffer-local-value 'major-mode (window-buffer window))
+               eligible)))
+    (if eligible
+      (let* ((current-start (window-start window))
+             (last-start (gethash window hyalo-module-viewport--last-window-starts))
+             (at-top (hyalo-module-viewport--at-buffer-top-p window)))
+        ;; Only update if scroll position changed OR this is first check
+        (when (or (null last-start) (not (= current-start last-start)))
+          (puthash window current-start hyalo-module-viewport--last-window-starts)
+          (if at-top
+              ;; At buffer top: show overlay with calculated offset
+              (let* ((ov (hyalo-module-viewport--get-or-create-overlay window))
+                     (offset (hyalo-module-viewport--calculate-offset window)))
+                (when ov
+                  (hyalo-module-viewport--set-overlay-height window offset)))
+            ;; Not at top: hide overlay
+            (hyalo-module-viewport--set-overlay-height window 0))))
+    ;; Window is NOT eligible (e.g. excluded mode) - ensure overlay is removed
+    (hyalo-module-viewport--remove-overlay window))))
 
 ;;; Hook Functions
 
@@ -220,9 +240,8 @@ Cleans up overlays for dead windows and updates all eligible windows."
 Called from `window-buffer-change-functions'."
   ;; Force overlay recreation on next update by clearing last-start cache
   (dolist (window (window-list))
-    (when (hyalo-module-viewport--window-eligible-p window)
-      (remhash window hyalo-module-viewport--last-window-starts)
-      (hyalo-module-viewport--update-window window))))
+    (remhash window hyalo-module-viewport--last-window-starts)
+    (hyalo-module-viewport--update-window window)))
 
 ;;; Mode Definition
 
