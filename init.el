@@ -695,7 +695,7 @@
   :load-path emacs-config-dir
 ;;:diminish " ηViewport"
   :custom
-  (hyalo-module-viewport-debug t)
+  (hyalo-module-viewport-debug nil)
   (hyalo-module-viewport-excluded-modes '(agent-shell-mode
                                           agent-shell-viewport-view-mode
                                           agent-shell-viewport-edit-mode))
