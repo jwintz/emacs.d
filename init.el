@@ -552,6 +552,17 @@
         (set-face-attribute 'highlight nil :weight w))
       (when (facep 'vertico-current)
         (set-face-attribute 'vertico-current nil :weight w))
+      (dolist (face '(orderless-match-face-0
+                      orderless-match-face-1
+                      orderless-match-face-2
+                      orderless-match-face-3
+                      consult-highlight-match
+                      consult-preview-match
+                      consult-buffer
+                      consult-file
+                      consult-bookmark))
+        (when (facep face)
+          (set-face-attribute face nil :weight w)))
       (dolist (face '(magit-item-highlight
                       magit-section-highlight
                       magit-diff-added-highlight

@@ -543,6 +543,59 @@ struct VibrancyBackgroundView: NSViewRepresentable {
     }
 }
 
+/// Placeholder view for the detail column (right panel)
+/// Will eventually host child frames for agent-shell, buffer list, etc.
+@available(macOS 26.0, *)
+struct DetailPlaceholderView: View {
+    var state: NavigationSidebarState
+    
+    /// Map vibrancy material to NSVisualEffectView.Material
+    private var effectMaterial: NSVisualEffectView.Material {
+        switch state.vibrancyMaterial {
+        case .none: return .windowBackground
+        case .ultraThick: return .headerView
+        case .thick: return .titlebar
+        case .regular: return .menu
+        case .thin: return .popover
+        case .ultraThin: return .hudWindow
+        }
+    }
+    
+    var body: some View {
+        ZStack {
+            // Vibrancy background matching the rest of the UI
+            if state.vibrancyMaterial != .none {
+                VibrancyBackgroundView(
+                    material: effectMaterial,
+                    blendingMode: .behindWindow,
+                    isActive: true
+                )
+            }
+            
+            // Tint layer
+            Color(nsColor: state.backgroundColor)
+                .opacity(Double(state.backgroundAlpha))
+            
+            // Placeholder content
+            VStack(spacing: 16) {
+                Image(systemName: "sidebar.trailing")
+                    .font(.system(size: 48, weight: .ultraLight))
+                    .foregroundStyle(.tertiary)
+                
+                Text("Detail Panel")
+                    .font(.headline)
+                    .foregroundStyle(.secondary)
+                
+                Text("Future home of agent-shell,\nbuffer list, and other tools")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .ignoresSafeArea(.container, edges: .top)
+    }
+}
+
 /// Wrapper to embed Emacs NSView in SwiftUI
 /// Uses NSVisualEffectView for fine-grained vibrancy/blur control
 /// NOTE: With comprehensive alpha-background patch, Emacs renders fully transparent
@@ -690,6 +743,17 @@ struct HyaloNavigationLayout: View {
     var onFileSelect: ((SidebarFile) -> Void)?
 
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+    
+    /// Binding for inspector (right panel) visibility
+    private var inspectorVisibleBinding: Binding<Bool> {
+        Binding(
+            get: { state.detailVisible },
+            set: { newValue in
+                state.detailVisible = newValue
+                print("[Hyalo Debug] Inspector visibility changed to \(newValue)")
+            }
+        )
+    }
 
     /// Map vibrancy material to NSVisualEffectView.Material
     /// Ordered from least vibrancy (none) to most vibrancy (ultraThin)
@@ -714,12 +778,136 @@ struct HyaloNavigationLayout: View {
         }
         return (trimmed, "")
     }
-
+    
+    /// Log toolbar metrics for debugging layout calculations
+    private func logToolbarMetrics() {
+        guard let window = NSApp.keyWindow else {
+            print("[Hyalo Debug] Toolbar Metrics: No key window available")
+            return
+        }
+        
+        print("[Hyalo Debug] ========== TOOLBAR METRICS ==========")
+        
+        // Traffic light buttons (close, minimize, zoom)
+        var trafficLightWidth: CGFloat = 0
+        var trafficLightDetails: [String] = []
+        
+        if let closeButton = window.standardWindowButton(.closeButton) {
+            let frame = closeButton.frame
+            trafficLightDetails.append("close: x=\(frame.origin.x), w=\(frame.width)")
+            trafficLightWidth = max(trafficLightWidth, frame.maxX)
+        }
+        if let miniButton = window.standardWindowButton(.miniaturizeButton) {
+            let frame = miniButton.frame
+            trafficLightDetails.append("minimize: x=\(frame.origin.x), w=\(frame.width)")
+            trafficLightWidth = max(trafficLightWidth, frame.maxX)
+        }
+        if let zoomButton = window.standardWindowButton(.zoomButton) {
+            let frame = zoomButton.frame
+            trafficLightDetails.append("zoom: x=\(frame.origin.x), w=\(frame.width)")
+            trafficLightWidth = max(trafficLightWidth, frame.maxX)
+        }
+        
+        print("[Hyalo Debug] Traffic Light Buttons:")
+        for detail in trafficLightDetails {
+            print("[Hyalo Debug]   \(detail)")
+        }
+        print("[Hyalo Debug]   TOTAL WIDTH (rightmost edge): \(trafficLightWidth)pt")
+        
+        // Toolbar and its items
+        if let toolbar = window.toolbar {
+            print("[Hyalo Debug] Toolbar: identifier=\(toolbar.identifier)")
+            print("[Hyalo Debug]   isVisible=\(toolbar.isVisible)")
+            print("[Hyalo Debug]   displayMode=\(toolbar.displayMode.rawValue)")
+            
+            // Find toolbar view in the view hierarchy
+            if let contentView = window.contentView {
+                findToolbarItems(in: window, contentView: contentView)
+            }
+        } else {
+            print("[Hyalo Debug] Toolbar: nil (no toolbar)")
+        }
+        
+        // Sidebar toggle button - it's typically part of the toolbar
+        // We search for NSSplitViewDividerView or sidebar toggle in the hierarchy
+        if let contentView = window.contentView {
+            findSidebarToggle(in: contentView)
+        }
+        
+        // Detail toggle button is our custom SwiftUI button
+        // Its frame is within the sidebar column
+        print("[Hyalo Debug] Detail Toggle Button:")
+        print("[Hyalo Debug]   (Custom SwiftUI button in sidebar, ~24pt icon size)")
+        print("[Hyalo Debug]   padding: horizontal=12pt, vertical=8pt")
+        
+        // Standard toolbar item spacing
+        print("[Hyalo Debug] Standard Toolbar Padding:")
+        print("[Hyalo Debug]   Inter-item spacing: ~8pt (standard)")
+        print("[Hyalo Debug]   Edge margin: ~12pt (typical)")
+        print("[Hyalo Debug]   Traffic lights to content: ~8pt gap after zoom button")
+        
+        print("[Hyalo Debug] ======================================")
+    }
+    
+    /// Find toolbar items in the view hierarchy and log their frames
+    private func findToolbarItems(in window: NSWindow, contentView: NSView) {
+        // Get the titlebar container view
+        if let titlebarView = window.standardWindowButton(.closeButton)?.superview?.superview {
+            print("[Hyalo Debug] Titlebar container: \(type(of: titlebarView)), frame=\(titlebarView.frame)")
+            
+            // Look for toolbar items
+            enumerateViews(titlebarView, depth: 0) { view, depth in
+                let viewType = String(describing: type(of: view))
+                let indent = String(repeating: "  ", count: depth)
+                
+                if viewType.contains("ToolbarItem") || viewType.contains("Button") || viewType.contains("Sidebar") {
+                    print("[Hyalo Debug] \(indent)\(viewType): frame=\(view.frame)")
+                }
+            }
+        }
+    }
+    
+    /// Find the sidebar toggle button
+    private func findSidebarToggle(in view: NSView) {
+        enumerateViews(view, depth: 0) { subview, _ in
+            let viewType = String(describing: type(of: subview))
+            
+            // Look for sidebar toggle related views
+            if viewType.contains("SidebarToggle") || viewType.contains("NSSplitViewItemViewControllerWrapperView") {
+                print("[Hyalo Debug] Sidebar Toggle: \(viewType), frame=\(subview.frame)")
+            }
+            
+            // NSButton with sidebar.left image might be the toggle
+            if let button = subview as? NSButton {
+                if let image = button.image, image.name()?.contains("sidebar") == true {
+                    print("[Hyalo Debug] Sidebar Toggle Button: frame=\(button.frame), image=\(image.name() ?? "unnamed")")
+                }
+            }
+        }
+        
+        // The sidebar toggle from NavigationSplitView is typically ~28pt wide
+        print("[Hyalo Debug] Sidebar Toggle Button (NavigationSplitView default):")
+        print("[Hyalo Debug]   Estimated width: ~28pt (system sidebar.leading icon)")
+    }
+    
+    /// Enumerate views recursively
+    private func enumerateViews(_ view: NSView, depth: Int, handler: (NSView, Int) -> Void) {
+        handler(view, depth)
+        for subview in view.subviews {
+            enumerateViews(subview, depth: depth + 1, handler: handler)
+        }
+    }
+    
     var body: some View {
         let segments = parseSegments(state.modeLine)
 
         GeometryReader { geometry in
+            // 2-column NavigationSplitView with inspector for symmetric toolbar behavior
+            // sidebar | content (Emacs + inspector)
+            // This provides: sidebar toggle + tracking separator on left
+            //                inspector toggle + tracking separator on right
             NavigationSplitView(columnVisibility: $columnVisibility) {
+                // Sidebar column (left)
                 SidebarContentView(
                     state: state,
                     onBufferSelect: onBufferSelect,
@@ -727,36 +915,101 @@ struct HyaloNavigationLayout: View {
                     onFileSelect: onFileSelect
                 )
                 .navigationSplitViewColumnWidth(min: 200, ideal: 280, max: 400)
+                .background {
+                    // Track sidebar width for modeline calculation
+                    GeometryReader { sidebarGeometry in
+                        Color.clear
+                            .onAppear {
+                                state.sidebarWidth = sidebarGeometry.size.width
+                            }
+                            .onChange(of: sidebarGeometry.size.width) { _, newWidth in
+                                state.sidebarWidth = newWidth
+                            }
+                    }
+                }
             } detail: {
+                // Content/Detail column - Emacs with inspector
                 EmacsContentView(
                     emacsView: emacsView,
                     state: state
                 )
+                .background {
+                    // Track content column width for modeline calculation
+                    GeometryReader { contentGeometry in
+                        Color.clear
+                            .onAppear {
+                                state.contentWidth = contentGeometry.size.width
+                            }
+                            .onChange(of: contentGeometry.size.width) { _, newWidth in
+                                state.contentWidth = newWidth
+                            }
+                    }
+                }
+                // Inspector (right panel) - symmetric to sidebar
+                // System automatically adds inspector toggle button and tracking separator
+                .inspector(isPresented: inspectorVisibleBinding) {
+                    DetailPlaceholderView(state: state)
+                        .inspectorColumnWidth(min: 200, ideal: 300, max: 500)
+                        .background {
+                            // Track inspector width
+                            GeometryReader { inspectorGeometry in
+                                Color.clear
+                                    .onAppear {
+                                        state.detailWidth = inspectorGeometry.size.width
+                                    }
+                                    .onChange(of: inspectorGeometry.size.width) { _, newWidth in
+                                        state.detailWidth = newWidth
+                                    }
+                            }
+                        }
+                }
             }
             .navigationSplitViewStyle(.balanced)
             // Let the system handle toolbar background for Safari-like blur effect
             // Content will scroll behind the toolbar with vibrancy
             .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
-            .navigationTitle("")
-            // SwiftUI toolbar with system sidebar toggle and modeline
-            // NavigationSplitView automatically adds sidebar toggle - we keep it
+            .toolbarTitleDisplayMode(.inline)
+            // SwiftUI toolbar with system toggles and modeline
+            // NavigationSplitView automatically adds sidebar toggle + tracking separator
+            // Inspector modifier automatically adds inspector toggle + tracking separator
+            // Modeline goes in the principal (center) area between the two separators
             .toolbar {
-                // Modeline left segment after sidebar toggle
-                ToolbarItem(placement: .navigation) {
-                    Text(segments.lhs.isEmpty ? " " : segments.lhs)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.primary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                // Modeline (LHS and RHS combined) - centered between tracking separators
+                ToolbarItem(placement: .principal) {
+                    HStack(spacing: 0) {
+                        Text(segments.lhs.isEmpty ? " " : segments.lhs)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+
+                        Spacer(minLength: 16)
+
+                        if !segments.rhs.isEmpty {
+                            Text(segments.rhs)
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.head)
+                        }
+                    }
+                    // Don't specify width - let the principal placement manage sizing
+                    // The HStack with Spacer will expand to fill available space
                 }
 
-                // Modeline right segment
+                // Inspector toggle button - symmetric to sidebar toggle
+                // Note: .inspector() doesn't auto-add toggle on macOS, so we add manually
                 ToolbarItem(placement: .primaryAction) {
-                    Text(segments.rhs.isEmpty ? " " : segments.rhs)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.head)
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            state.detailVisible.toggle()
+                            print("[Hyalo Debug] Inspector toggle pressed: visible=\(state.detailVisible)")
+                        }
+                    } label: {
+                        Image(systemName: state.detailVisible ? "sidebar.trailing" : "sidebar.trailing")
+                            .symbolVariant(state.detailVisible ? .none : .none)
+                    }
+                    .help(state.detailVisible ? "Hide Inspector" : "Show Inspector")
                 }
             }
             .background {
@@ -772,9 +1025,21 @@ struct HyaloNavigationLayout: View {
                 .ignoresSafeArea()
             }
             .onChange(of: state.sidebarVisible) { _, newValue in
+                print("[Hyalo Debug] state.sidebarVisible changed to \(newValue)")
                 withAnimation {
                     columnVisibility = newValue ? .all : .detailOnly
                 }
+            }
+            .onChange(of: columnVisibility) { _, newValue in
+                // Sync state.sidebarVisible when NavigationSplitView's built-in toggle is used
+                let isSidebarNowVisible = (newValue == .all || newValue == .doubleColumn)
+                if state.sidebarVisible != isSidebarNowVisible {
+                    state.sidebarVisible = isSidebarNowVisible
+                    print("[Hyalo Debug] columnVisibility changed to \(newValue), synced sidebarVisible=\(isSidebarNowVisible)")
+                }
+            }
+            .onChange(of: state.detailVisible) { _, newValue in
+                print("[Hyalo Debug] state.detailVisible changed to \(newValue)")
             }
             .onChange(of: geometry.size) { _, newSize in
                 state.toolbarWidth = newSize.width
@@ -786,6 +1051,9 @@ struct HyaloNavigationLayout: View {
                 print("[Hyalo Debug] Using SwiftUI toolbar with modeline segments")
                 print("[Hyalo Debug] Window width: \(geometry.size.width)")
                 print("[Hyalo Debug] Vibrancy material: \(state.vibrancyMaterial)")
+                
+                // Compute and log toolbar metrics
+                logToolbarMetrics()
             }
         }
     }
@@ -813,6 +1081,7 @@ final class NavigationSidebarState {
     var projectName: String = ""
     var modeLine: String = ""
     var sidebarVisible: Bool = false
+    var detailVisible: Bool = false  // Detail column (right panel) visibility
     var backgroundColor: NSColor = .windowBackgroundColor
     var backgroundAlpha: CGFloat = 0.5  // Reduced default for more vibrancy
     /// Window appearance mode: "light", "dark", or "auto"
@@ -823,6 +1092,12 @@ final class NavigationSidebarState {
     var decorationsVisible: Bool = true
     /// Available toolbar width (calculated from window geometry)
     var toolbarWidth: CGFloat = 600
+    /// Current sidebar width (when visible)
+    var sidebarWidth: CGFloat = 280
+    /// Current detail panel width (when visible)
+    var detailWidth: CGFloat = 300
+    /// Current content column width (center column with Emacs)
+    var contentWidth: CGFloat = 400
     /// Debug: reference to Emacs view for diagnostics
     weak var debugEmacsView: NSView?
 }
@@ -1213,6 +1488,34 @@ final class NavigationSidebarController: NSObject {
         state.sidebarVisible
     }
 
+    // MARK: - Detail Panel
+
+    /// Show the detail column (right panel)
+    func showDetail() {
+        guard isSetup else { return }
+        state.detailVisible = true
+    }
+
+    /// Hide the detail column
+    func hideDetail() {
+        guard isSetup else { return }
+        state.detailVisible = false
+    }
+
+    /// Toggle the detail column visibility
+    func toggleDetail() {
+        if state.detailVisible {
+            hideDetail()
+        } else {
+            showDetail()
+        }
+    }
+
+    /// Check if detail is currently visible
+    var isDetailVisible: Bool {
+        state.detailVisible
+    }
+
     // MARK: - Decorations (Toolbar & Traffic Lights)
 
     /// Set visibility of decorations (toolbar area and traffic lights)
@@ -1418,6 +1721,22 @@ final class NavigationSidebarManager {
 
     func isSidebarVisible(for window: NSWindow) -> Bool {
         controllers[window.windowNumber]?.isSidebarVisible ?? false
+    }
+
+    func showDetail(for window: NSWindow) {
+        getController(for: window).showDetail()
+    }
+
+    func hideDetail(for window: NSWindow) {
+        getController(for: window).hideDetail()
+    }
+
+    func toggleDetail(for window: NSWindow) {
+        getController(for: window).toggleDetail()
+    }
+
+    func isDetailVisible(for window: NSWindow) -> Bool {
+        controllers[window.windowNumber]?.isDetailVisible ?? false
     }
 
     func updateBuffers(for window: NSWindow, buffers: [SidebarBuffer]) {
