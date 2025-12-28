@@ -382,8 +382,21 @@
 (use-package vertico
   :init (vertico-mode)
   :custom
-  (vertico-count 8)
+  (vertico-count 16)
   (vertico-resize nil))
+
+;; (use-package mini-frame
+;;   :custom
+;;   (mini-frame-show-parameters
+;;    '((top . 10)
+;;      (width . 0.7)
+;;      (left . 0.5)
+;;      (alpha-background . 0)
+;;      (internal-border-width . 0)
+;;      (left-fringe . 10)
+;;      (right-fringe . 10)))
+;;   :config
+;;   (mini-frame-mode 1))
 
 (use-package orderless
   :custom
@@ -711,6 +724,13 @@
     "l r" '(hyalo-module-reveal-in-finder :wk "reveal")
     "l s" '(hyalo-module-share :wk "share")
     "l e" '(hyalo-module-show-emoji-picker :wk "emoji")))
+
+;; (use-package hyalo-module-minibuffer
+;;   :if (eq window-system 'ns)
+;;   :after hyalo-module
+;;   :load-path emacs-config-dir
+;;   :config
+;;   (hyalo-module-minibuffer-mode 1))
 
 ;;;; Hyalo Debug
 

@@ -493,6 +493,44 @@ final class HyaloModule: Module {
             return false
         }
 
+        // MARK: - Minibuffer
+
+        try env.defun(
+            "hyalo-minibuffer-enable",
+            with: """
+            Enable glass effect for a specific window (minibuffer).
+            WINDOW-ID is the string ID of the window (frame-parameter 'window-id).
+            """
+        ) { (env: Environment, windowID: String) throws -> Bool in
+            DispatchQueue.main.async {
+                let id = Int(windowID) ?? 0
+                if let window = NSApp.window(withWindowNumber: id) {
+                    if #available(macOS 10.14, *) {
+                        GlassEffectView.attach(to: window)
+                    }
+                }
+            }
+            return true
+        }
+
+        try env.defun(
+            "hyalo-window-focus",
+            with: """
+            Make the window with WINDOW-ID key and order front.
+            Forcefully activates the application and focuses the specific window.
+            """
+        ) { (env: Environment, windowID: String) throws -> Bool in
+            DispatchQueue.main.async {
+                let id = Int(windowID) ?? 0
+                if let window = NSApp.window(withWindowNumber: id) {
+                    window.makeKeyAndOrderFront(nil)
+                    // Also ensure the app is active
+                    NSApp.activate(ignoringOtherApps: true)
+                }
+            }
+            return true
+        }
+
         // MARK: - Decorations (Toolbar & Traffic Lights)
 
         try env.defun(

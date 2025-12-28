@@ -85,14 +85,12 @@ final class ModeLineToolbarItemView: NSView {
         addSubview(lhsLabel)
         addSubview(rhsLabel)
 
-        print("[Hyalo Debug] ModeLineToolbarItemView: setupView completed (no background, autoresizing)")
     }
 
     func updateContent(lhs: String, rhs: String) {
         lhsLabel.stringValue = lhs
         rhsLabel.stringValue = rhs
         layoutLabels()
-        print("[Hyalo Debug] ModeLineToolbarItemView: updateContent frame=\(frame), bounds=\(bounds)")
     }
 
     private func layoutLabels() {
@@ -124,7 +122,6 @@ final class ModeLineToolbarItemView: NSView {
     override func layout() {
         super.layout()
         layoutLabels()
-        print("[Hyalo Debug] ModeLineToolbarItemView: layout() frame=\(frame), superview=\(superview?.frame ?? .zero)")
     }
 
     override func resizeSubviews(withOldSize oldSize: NSSize) {
@@ -133,96 +130,6 @@ final class ModeLineToolbarItemView: NSView {
     }
 
     // Don't override intrinsicContentSize - let toolbar manage sizing
-}
-
-/// Controller for NSToolbar with flexible-width modeline item
-/// NOTE: This controller is no longer used - SwiftUI toolbar is used instead
-/// Kept for reference and potential fallback
-@available(macOS 26.0, *)
-final class ModeLineToolbarController: NSObject, NSToolbarDelegate {
-    weak var window: NSWindow?
-    private var modeLineView: ModeLineToolbarItemView?
-    private var modeLineItem: NSToolbarItem?
-    private var modeLineContent: String = ""
-
-    /// Parse modeline into LHS and RHS
-    private func parseSegments(_ input: String) -> (lhs: String, rhs: String) {
-        let trimmed = input.trimmingCharacters(in: .whitespaces)
-        if let range = trimmed.range(of: "   +", options: .regularExpression) {
-            let lhs = String(trimmed[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
-            let rhs = String(trimmed[range.upperBound...]).trimmingCharacters(in: .whitespaces)
-            return (lhs, rhs)
-        }
-        return (trimmed, "")
-    }
-
-    func setupToolbar(for window: NSWindow) {
-        self.window = window
-
-        let toolbar = NSToolbar(identifier: "com.hyalo.modeline.toolbar")
-        toolbar.delegate = self
-        toolbar.displayMode = .iconOnly
-        toolbar.allowsUserCustomization = false
-
-        window.toolbar = toolbar
-        window.toolbarStyle = .unified
-
-        print("[Hyalo Debug] ModeLineToolbarController: toolbar installed, window frame=\(window.frame)")
-    }
-
-    func updateModeLine(_ content: String) {
-        modeLineContent = content
-
-        let segments = parseSegments(content)
-        modeLineView?.updateContent(lhs: segments.lhs, rhs: segments.rhs)
-        print("[Hyalo Debug] ModeLineToolbarController: updated LHS='\(segments.lhs)' RHS='\(segments.rhs)'")
-    }
-
-    // MARK: - NSToolbarDelegate
-
-    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        // System sidebar toggle is handled by NavigationSplitView
-        // Modeline fills remaining space after toggle
-        print("[Hyalo Debug] ModeLineToolbarController: toolbarDefaultItemIdentifiers called")
-        return [.toggleSidebar, .modeLineItem]
-    }
-
-    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [.toggleSidebar, .modeLineItem]
-    }
-
-    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
-        print("[Hyalo Debug] ModeLineToolbarController: itemForItemIdentifier '\(itemIdentifier.rawValue)' willBeInserted=\(flag)")
-
-        if itemIdentifier == .modeLineItem {
-            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-
-            // Create custom view - uses autoresizing to fill available space
-            let view = ModeLineToolbarItemView(frame: NSRect(x: 0, y: 0, width: 400, height: 28))
-
-            // Parse and set initial content
-            let segments = parseSegments(modeLineContent)
-            view.updateContent(lhs: segments.lhs, rhs: segments.rhs)
-
-            item.view = view
-
-            // Use deprecated minSize/maxSize for toolbar item sizing
-            // minSize allows shrinking, maxSize allows full expansion
-            item.minSize = NSSize(width: 100, height: 28)
-            item.maxSize = NSSize(width: 10000, height: 28)
-
-            modeLineView = view
-            modeLineItem = item
-
-            print("[Hyalo Debug] ModeLineToolbarController: created modeline item")
-            print("[Hyalo Debug]   view.frame=\(view.frame)")
-            print("[Hyalo Debug]   item.minSize=\(item.minSize), item.maxSize=\(item.maxSize)")
-
-            return item
-        }
-
-        return nil
-    }
 }
 
 // MARK: - Sidebar SwiftUI Views
@@ -430,7 +337,6 @@ struct ModeLineToolbarView: View {
         .frame(maxWidth: .infinity)
         .frame(height: 28)
         .onAppear {
-            print("[Hyalo Debug] ModeLineToolbarView: content='\(content)'")
         }
     }
 }
@@ -471,6 +377,313 @@ final class ModeLineTitlebarAccessoryController: NSTitlebarAccessoryViewControll
     func setVisible(_ visible: Bool) {
         isContentVisible = visible
         view.isHidden = !visible
+    }
+}
+
+/// Controller for modeline overlay with NSGlassEffectView positioned in toolbar area
+/// Uses NSGlassEffectView.cornerRadius for proper Liquid Glass appearance
+/// Frame is calculated relative to window's titlebar/toolbar area
+@available(macOS 26.0, *)
+final class ModeLineGlassOverlayController {
+    private var glassView: NSGlassEffectView?
+    private var modeLineView: ModeLineToolbarItemView?
+    private var modeLineContent: String = ""
+    private var frameObserver: NSObjectProtocol?
+    private var animationTimer: Timer?
+    private var animationEndTime: Date?
+    weak var window: NSWindow?
+    
+    /// Metrics for toolbar glass bar (matching SwiftUI defaults)
+    /// Height matches toolbar button height, radius is half for pill/capsule shape
+    private let glassHeight: CGFloat = 34     // Match toolbar button height
+    private let glassCornerRadius: CGFloat = 17  // Half of height for pill shape
+    private let verticalCenterOffset: CGFloat = 0  // Center in toolbar area
+    private let leadingPadding: CGFloat = 8   // Padding from left edge
+    private let trailingPadding: CGFloat = 8  // Padding from right edge
+    
+    /// Stored geometry for calculations (updated on each call)
+    private var sidebarToggleWidth: CGFloat = 116  // traffic lights (69) + toggle (47) 
+    private var inspectorToggleWidth: CGFloat = 47 // toggle button width
+    private var inspectorVisible: Bool = false
+    
+    /// Animation update callback (called by timer during animations)
+    var onAnimationUpdate: (() -> Void)?
+    
+    /// Setup the modeline overlay in the window
+    func setup(for window: NSWindow) {
+        self.window = window
+        
+        // Create modeline content view
+        let modeView = ModeLineToolbarItemView(frame: .zero)
+        
+        // Create glass effect view with proper properties
+        let glass = NSGlassEffectView()
+        glass.contentView = modeView
+        glass.cornerRadius = glassCornerRadius  // Use native NSGlassEffectView.cornerRadius
+        glass.wantsLayer = true
+        glass.autoresizingMask = []  // We manage position manually
+        
+        // Store references
+        self.glassView = glass
+        self.modeLineView = modeView
+        
+        // Add to window - find the toolbar view or titlebar container
+        if let toolbarView = findToolbarView(in: window) {
+            toolbarView.addSubview(glass)
+        } else if let contentSuperview = window.contentView?.superview {
+            // Fallback: add to theme frame
+            contentSuperview.addSubview(glass)
+        }
+        
+        // Observe window frame changes to update geometry
+        frameObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResizeNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updateLayout()
+        }
+        
+        // Also observe parent view frame changes for real-time animation updates
+        if let glass = glassView, let parentView = glass.superview {
+            parentView.postsFrameChangedNotifications = true
+            parentFrameObserver = NotificationCenter.default.addObserver(
+                forName: NSView.frameDidChangeNotification,
+                object: parentView,
+                queue: .main
+            ) { [weak self] _ in
+                self?.updateLayout()
+            }
+        }
+        
+        // Initial layout
+        updateLayout()
+    }
+    
+    private var parentFrameObserver: NSObjectProtocol?
+    
+    /// Find the toolbar view in the window hierarchy
+    private func findToolbarView(in window: NSWindow) -> NSView? {
+        // The toolbar lives inside NSTitlebarContainerView
+        guard let contentSuperview = window.contentView?.superview else { return nil }
+        
+        func findToolbarContainer(in view: NSView) -> NSView? {
+            let className = String(describing: type(of: view))
+            if className.contains("NSTitlebarContainerView") || className.contains("NSToolbarView") {
+                return view
+            }
+            for subview in view.subviews {
+                if let found = findToolbarContainer(in: subview) {
+                    return found
+                }
+            }
+            return nil
+        }
+        
+        return findToolbarContainer(in: contentSuperview)
+    }
+    
+    /// Find the rightmost edge of the sidebar toggle button
+    /// Returns the X coordinate where the modeline should start (after sidebar toggle)
+    private func findSidebarToggleMaxX() -> CGFloat {
+        guard let window = window,
+              let glass = glassView,
+              let parentView = glass.superview else { return 120 }  // Fallback
+        
+        // Find ALL toolbar items and identify the leftmost one
+        // The sidebar toggle is typically the leftmost toolbar item
+        var allToolbarItems: [(view: NSView, frame: NSRect)] = []
+        
+        func findToolbarItems(in view: NSView) {
+            let className = String(describing: type(of: view))
+            if className.contains("NSToolbarItemViewer") {
+                // Convert to parentView coordinates (same as glass view)
+                let frame = view.convert(view.bounds, to: parentView)
+                allToolbarItems.append((view, frame))
+            }
+            for subview in view.subviews {
+                findToolbarItems(in: subview)
+            }
+        }
+        
+        if let contentSuperview = window.contentView?.superview {
+            findToolbarItems(in: contentSuperview)
+        }
+        
+        // Filter out separators (width < 30pt) and sort by minX to find leftmost button
+        let buttons = allToolbarItems.filter { $0.frame.width >= 30 }
+        let sortedButtons = buttons.sorted { $0.frame.minX < $1.frame.minX }
+        
+        // Debug: log all toolbar items
+        for (index, item) in allToolbarItems.enumerated() {
+            let isSeparator = item.frame.width < 30 ? " (separator)" : ""
+        }
+        
+        // The leftmost button (not separator) is the sidebar toggle
+        if let first = sortedButtons.first {
+            return first.frame.maxX
+        }
+        
+        return 120
+    }
+    
+    /// Find the leftmost edge of the inspector toggle button
+    /// Returns the X coordinate where the modeline should end (before inspector toggle)
+    private func findInspectorToggleMinX() -> CGFloat {
+        guard let window = window else { return 0 }
+        
+        // Find the rightmost toolbar item (inspector toggle)
+        var rightmostToolbarItem: NSView?
+        var rightmostX: CGFloat = 0
+        
+        func findToolbarItems(in view: NSView) {
+            let className = String(describing: type(of: view))
+            if className.contains("NSToolbarItemViewer") {
+                let frame = view.convert(view.bounds, to: nil)
+                if frame.maxX > rightmostX {
+                    rightmostX = frame.maxX
+                    rightmostToolbarItem = view
+                }
+            }
+            for subview in view.subviews {
+                findToolbarItems(in: subview)
+            }
+        }
+        
+        if let contentSuperview = window.contentView?.superview {
+            findToolbarItems(in: contentSuperview)
+        }
+        
+        if let toolbarItem = rightmostToolbarItem {
+            let frame = toolbarItem.convert(toolbarItem.bounds, to: window.contentView?.superview)
+            return frame.minX
+        }
+        
+        return window.frame.width - 50
+    }
+    
+    /// Update content and store geometry parameters
+    func updateGeometry(
+        content: String,
+        sidebarToggleWidth: CGFloat,
+        contentWidth: CGFloat,
+        hasInspector: Bool,
+        inspectorToggleWidth: CGFloat
+    ) {
+        // Store parameters
+        modeLineContent = content
+        self.sidebarToggleWidth = sidebarToggleWidth
+        self.inspectorToggleWidth = inspectorToggleWidth
+        self.inspectorVisible = hasInspector
+        
+        // Update content
+        let segments = parseSegments(content)
+        modeLineView?.updateContent(lhs: segments.lhs, rhs: segments.rhs)
+        
+        // Update layout immediately
+        updateLayout()
+        
+        // Start animation timer for smooth updates during sidebar/inspector expansion
+        startAnimationTimer()
+    }
+    
+    /// Start a timer that triggers geometry updates during animations
+    private func startAnimationTimer() {
+        // Stop any existing timer
+        animationTimer?.invalidate()
+        
+        // Animation typically lasts 0.25-0.35 seconds, run for 0.5s to be safe
+        animationEndTime = Date().addingTimeInterval(0.5)
+        
+        // Create timer at 60fps
+        animationTimer = Timer.scheduledTimer(withTimeInterval: 1.0/60.0, repeats: true) { [weak self] timer in
+            guard let self = self else { 
+                timer.invalidate()
+                return 
+            }
+            
+            // Check if animation time has elapsed
+            if let endTime = self.animationEndTime, Date() > endTime {
+                timer.invalidate()
+                self.animationTimer = nil
+                return
+            }
+            
+            // Request geometry update from controller
+            self.onAnimationUpdate?()
+        }
+    }
+    
+    /// Calculate and set the glass view frame
+    /// Uses stored sidebar/inspector widths when panels are visible,
+    /// constant offsets when panels are collapsed
+    private func updateLayout() {
+        guard let glass = glassView,
+              let window = window,
+              let parentView = glass.superview else { return }
+        
+        // Get titlebar height (toolbar is part of titlebar in unified style)
+        let titlebarHeight = window.frame.height - window.contentLayoutRect.height
+        
+        // Calculate X position dynamically:
+        // - If sidebar is visible (expanded): use stored sidebarWidth + padding
+        //   (toggle button is inside sidebar, so we just need spacing from sidebar edge)
+        // - If sidebar is collapsed: dynamically find sidebar toggle button's right edge
+        let expandedSidebarPadding: CGFloat = 18  // padding after sidebar edge when expanded
+        
+        let x: CGFloat
+        if sidebarToggleWidth > 120 {  
+            // Sidebar is expanded, sidebarToggleWidth is the full sidebar width
+            // Toggle button is now inside the sidebar, so X = sidebarWidth + padding
+            x = sidebarToggleWidth + expandedSidebarPadding
+        } else {
+            // Sidebar is collapsed, find the actual toggle button position dynamically
+            let sidebarMaxX = findSidebarToggleMaxX()
+            x = sidebarMaxX + leadingPadding
+        }
+        
+        // Calculate Y position: center in toolbar area
+        let parentHeight = parentView.bounds.height
+        let toolbarCenterY = parentHeight - (titlebarHeight / 2)
+        let y = toolbarCenterY - (glassHeight / 2) + verticalCenterOffset
+        
+        // Calculate right edge dynamically:
+        // - If inspector is visible (expanded): subtract inspector panel width from parent width
+        // - If inspector is collapsed: dynamically find inspector toggle button's left edge
+        let rightLimit: CGFloat
+        if inspectorVisible {
+            // Inspector is expanded, inspectorToggleWidth is the full inspector panel width
+            rightLimit = parentView.bounds.width - inspectorToggleWidth - trailingPadding
+        } else {
+            // Inspector is collapsed, find the actual toggle button position dynamically
+            let inspectorMinX = findInspectorToggleMinX()
+            rightLimit = inspectorMinX - trailingPadding
+        }
+        
+        let width = max(100, rightLimit - x)  // Minimum width of 100
+        
+        // Set frame
+        glass.frame = NSRect(x: x, y: y, width: width, height: glassHeight)
+        
+        // Ensure modeline view fills glass
+        modeLineView?.frame = glass.bounds
+    }
+    
+    private func parseSegments(_ input: String) -> (lhs: String, rhs: String) {
+        let trimmed = input.trimmingCharacters(in: .whitespaces)
+        if let range = trimmed.range(of: "   +", options: .regularExpression) {
+            let lhs = String(trimmed[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
+            let rhs = String(trimmed[range.upperBound...]).trimmingCharacters(in: .whitespaces)
+            return (lhs, rhs)
+        }
+        return (trimmed, "")
+    }
+    
+    deinit {
+        animationTimer?.invalidate()
+        if let observer = frameObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 }
 
@@ -741,6 +954,7 @@ struct HyaloNavigationLayout: View {
     var onBufferSelect: ((SidebarBuffer) -> Void)?
     var onBufferClose: ((SidebarBuffer) -> Void)?
     var onFileSelect: ((SidebarFile) -> Void)?
+    var onGeometryUpdate: (() -> Void)?  // Called when sidebar/inspector visibility changes
 
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
     
@@ -750,7 +964,6 @@ struct HyaloNavigationLayout: View {
             get: { state.detailVisible },
             set: { newValue in
                 state.detailVisible = newValue
-                print("[Hyalo Debug] Inspector visibility changed to \(newValue)")
             }
         )
     }
@@ -782,11 +995,9 @@ struct HyaloNavigationLayout: View {
     /// Log toolbar metrics for debugging layout calculations
     private func logToolbarMetrics() {
         guard let window = NSApp.keyWindow else {
-            print("[Hyalo Debug] Toolbar Metrics: No key window available")
             return
         }
         
-        print("[Hyalo Debug] ========== TOOLBAR METRICS ==========")
         
         // Traffic light buttons (close, minimize, zoom)
         var trafficLightWidth: CGFloat = 0
@@ -808,24 +1019,17 @@ struct HyaloNavigationLayout: View {
             trafficLightWidth = max(trafficLightWidth, frame.maxX)
         }
         
-        print("[Hyalo Debug] Traffic Light Buttons:")
         for detail in trafficLightDetails {
-            print("[Hyalo Debug]   \(detail)")
         }
-        print("[Hyalo Debug]   TOTAL WIDTH (rightmost edge): \(trafficLightWidth)pt")
         
         // Toolbar and its items
         if let toolbar = window.toolbar {
-            print("[Hyalo Debug] Toolbar: identifier=\(toolbar.identifier)")
-            print("[Hyalo Debug]   isVisible=\(toolbar.isVisible)")
-            print("[Hyalo Debug]   displayMode=\(toolbar.displayMode.rawValue)")
             
             // Find toolbar view in the view hierarchy
             if let contentView = window.contentView {
                 findToolbarItems(in: window, contentView: contentView)
             }
         } else {
-            print("[Hyalo Debug] Toolbar: nil (no toolbar)")
         }
         
         // Sidebar toggle button - it's typically part of the toolbar
@@ -836,32 +1040,22 @@ struct HyaloNavigationLayout: View {
         
         // Detail toggle button is our custom SwiftUI button
         // Its frame is within the sidebar column
-        print("[Hyalo Debug] Detail Toggle Button:")
-        print("[Hyalo Debug]   (Custom SwiftUI button in sidebar, ~24pt icon size)")
-        print("[Hyalo Debug]   padding: horizontal=12pt, vertical=8pt")
         
         // Standard toolbar item spacing
-        print("[Hyalo Debug] Standard Toolbar Padding:")
-        print("[Hyalo Debug]   Inter-item spacing: ~8pt (standard)")
-        print("[Hyalo Debug]   Edge margin: ~12pt (typical)")
-        print("[Hyalo Debug]   Traffic lights to content: ~8pt gap after zoom button")
         
-        print("[Hyalo Debug] ======================================")
     }
     
     /// Find toolbar items in the view hierarchy and log their frames
     private func findToolbarItems(in window: NSWindow, contentView: NSView) {
         // Get the titlebar container view
         if let titlebarView = window.standardWindowButton(.closeButton)?.superview?.superview {
-            print("[Hyalo Debug] Titlebar container: \(type(of: titlebarView)), frame=\(titlebarView.frame)")
             
             // Look for toolbar items
             enumerateViews(titlebarView, depth: 0) { view, depth in
                 let viewType = String(describing: type(of: view))
-                let indent = String(repeating: "  ", count: depth)
+                let _ = String(repeating: "  ", count: depth)
                 
                 if viewType.contains("ToolbarItem") || viewType.contains("Button") || viewType.contains("Sidebar") {
-                    print("[Hyalo Debug] \(indent)\(viewType): frame=\(view.frame)")
                 }
             }
         }
@@ -874,20 +1068,16 @@ struct HyaloNavigationLayout: View {
             
             // Look for sidebar toggle related views
             if viewType.contains("SidebarToggle") || viewType.contains("NSSplitViewItemViewControllerWrapperView") {
-                print("[Hyalo Debug] Sidebar Toggle: \(viewType), frame=\(subview.frame)")
             }
             
             // NSButton with sidebar.left image might be the toggle
             if let button = subview as? NSButton {
                 if let image = button.image, image.name()?.contains("sidebar") == true {
-                    print("[Hyalo Debug] Sidebar Toggle Button: frame=\(button.frame), image=\(image.name() ?? "unnamed")")
                 }
             }
         }
         
         // The sidebar toggle from NavigationSplitView is typically ~28pt wide
-        print("[Hyalo Debug] Sidebar Toggle Button (NavigationSplitView default):")
-        print("[Hyalo Debug]   Estimated width: ~28pt (system sidebar.leading icon)")
     }
     
     /// Enumerate views recursively
@@ -899,7 +1089,8 @@ struct HyaloNavigationLayout: View {
     }
     
     var body: some View {
-        let segments = parseSegments(state.modeLine)
+        // NOTE: Modeline is now rendered by NSToolbar via ModeLineToolbarController
+        // with NSGlassEffectView for Liquid Glass effect
 
         GeometryReader { geometry in
             // 2-column NavigationSplitView with inspector for symmetric toolbar behavior
@@ -969,41 +1160,14 @@ struct HyaloNavigationLayout: View {
             // Content will scroll behind the toolbar with vibrancy
             .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
             .toolbarTitleDisplayMode(.inline)
-            // SwiftUI toolbar with system toggles and modeline
-            // NavigationSplitView automatically adds sidebar toggle + tracking separator
-            // Inspector modifier automatically adds inspector toggle + tracking separator
-            // Modeline goes in the principal (center) area between the two separators
+            // SwiftUI toolbar for inspector toggle only
+            // Modeline is rendered as separate NSGlassEffectView overlay by NavigationSidebarController
             .toolbar {
-                // Modeline (LHS and RHS combined) - centered between tracking separators
-                ToolbarItem(placement: .principal) {
-                    HStack(spacing: 0) {
-                        Text(segments.lhs.isEmpty ? " " : segments.lhs)
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                            .truncationMode(.tail)
-
-                        Spacer(minLength: 16)
-
-                        if !segments.rhs.isEmpty {
-                            Text(segments.rhs)
-                                .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.head)
-                        }
-                    }
-                    // Don't specify width - let the principal placement manage sizing
-                    // The HStack with Spacer will expand to fill available space
-                }
-
                 // Inspector toggle button - symmetric to sidebar toggle
-                // Note: .inspector() doesn't auto-add toggle on macOS, so we add manually
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         withAnimation(.easeInOut(duration: 0.25)) {
                             state.detailVisible.toggle()
-                            print("[Hyalo Debug] Inspector toggle pressed: visible=\(state.detailVisible)")
                         }
                     } label: {
                         Image(systemName: state.detailVisible ? "sidebar.trailing" : "sidebar.trailing")
@@ -1025,9 +1189,12 @@ struct HyaloNavigationLayout: View {
                 .ignoresSafeArea()
             }
             .onChange(of: state.sidebarVisible) { _, newValue in
-                print("[Hyalo Debug] state.sidebarVisible changed to \(newValue)")
                 withAnimation {
                     columnVisibility = newValue ? .all : .detailOnly
+                }
+                // Trigger geometry update after animation completes
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    onGeometryUpdate?()
                 }
             }
             .onChange(of: columnVisibility) { _, newValue in
@@ -1035,22 +1202,24 @@ struct HyaloNavigationLayout: View {
                 let isSidebarNowVisible = (newValue == .all || newValue == .doubleColumn)
                 if state.sidebarVisible != isSidebarNowVisible {
                     state.sidebarVisible = isSidebarNowVisible
-                    print("[Hyalo Debug] columnVisibility changed to \(newValue), synced sidebarVisible=\(isSidebarNowVisible)")
+                }
+                // Trigger geometry update after animation completes
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    onGeometryUpdate?()
                 }
             }
             .onChange(of: state.detailVisible) { _, newValue in
-                print("[Hyalo Debug] state.detailVisible changed to \(newValue)")
+                // Trigger geometry update after animation completes
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    onGeometryUpdate?()
+                }
             }
             .onChange(of: geometry.size) { _, newSize in
                 state.toolbarWidth = newSize.width
-                print("[Hyalo Debug] Window geometry changed: width=\(newSize.width)")
+                onGeometryUpdate?()
             }
             .onAppear {
                 state.toolbarWidth = geometry.size.width
-                print("[Hyalo Debug] HyaloNavigationLayout appeared")
-                print("[Hyalo Debug] Using SwiftUI toolbar with modeline segments")
-                print("[Hyalo Debug] Window width: \(geometry.size.width)")
-                print("[Hyalo Debug] Vibrancy material: \(state.vibrancyMaterial)")
                 
                 // Compute and log toolbar metrics
                 logToolbarMetrics()
@@ -1127,11 +1296,8 @@ final class NavigationSidebarController: NSObject {
     /// Reference to the Emacs view for focus restoration
     private weak var emacsViewRef: NSView?
 
-    /// Custom NSToolbar controller for flexible-width modeline (legacy, unused)
-    private var modeLineToolbar: ModeLineToolbarController?
-
-    /// Titlebar accessory view controller for modeline in toolbar
-    private var modeLineAccessory: ModeLineTitlebarAccessoryController?
+    /// Glass overlay controller for modeline in toolbar area
+    private var modeLineGlassOverlay: ModeLineGlassOverlayController?
 
     /// Callbacks
     var onBufferSelect: ((String) -> Void)?
@@ -1162,7 +1328,7 @@ final class NavigationSidebarController: NSObject {
             teardown()
         }
 
-        var emacsView = currentContentView
+        let emacsView = currentContentView
 
         // The contentView might be a wrapper NSView - find the actual EmacsView
         // which accepts first responder
@@ -1223,9 +1389,6 @@ final class NavigationSidebarController: NSObject {
         // Configure toolbar style - .unified merges toolbar with titlebar for glass effect
         window.toolbarStyle = .unified
 
-        print("[Hyalo Debug] Window config: fullSizeContentView=\(window.styleMask.contains(.fullSizeContentView))")
-        print("[Hyalo Debug] Window config: isOpaque=\(window.isOpaque), backgroundColor=\(window.backgroundColor)")
-        print("[Hyalo Debug] Window config: toolbarStyle=\(window.toolbarStyle.rawValue)")
 
         // CRITICAL: Clear and maintain empty window title to prevent Emacs geometry display
         // NOTE: Do NOT set window.subtitle - SwiftUI's .navigationSubtitle() handles modeline
@@ -1239,12 +1402,12 @@ final class NavigationSidebarController: NSObject {
             }
         }
 
-        // Modeline is now handled by SwiftUI toolbar in HyaloNavigationLayout
-        // NavigationSplitView provides its own sidebar toggle automatically
-        print("[Hyalo Debug] Using SwiftUI toolbar (NavigationSplitView provides sidebar toggle)")
-
         hostingView = hosting
         isSetup = true
+
+        // Setup modeline overlay with NSGlassEffectView in toolbar area
+        // Uses NSTitlebarAccessoryViewController for proper positioning
+        setupModeLineOverlay(for: window)
 
         // Show native traffic lights immediately and after a short delay
         // (Emacs or other code may hide them during initialization)
@@ -1269,6 +1432,54 @@ final class NavigationSidebarController: NSObject {
                 window.makeFirstResponder(emacs)
             }
         }
+    }
+    
+    /// Setup the modeline overlay with NSGlassEffectView in the toolbar area
+    /// Uses direct frame positioning for precise geometry control
+    private func setupModeLineOverlay(for window: NSWindow) {
+        let overlay = ModeLineGlassOverlayController()
+        overlay.setup(for: window)
+        
+        // Wire animation callback for smooth updates during sidebar/inspector expansion
+        overlay.onAnimationUpdate = { [weak self] in
+            self?.updateModeLineGeometry()
+        }
+        
+        modeLineGlassOverlay = overlay
+        
+        // Initial geometry update with current state
+        updateModeLineGeometry()
+        
+    }
+    
+    /// Update the modeline overlay geometry based on current state
+    private func updateModeLineGeometry() {
+        // Calculate leading offset (left edge of modeline)
+        // From debug logs: traffic lights end at 69pt, sidebar toggle button at 47pt
+        // When sidebar hidden: traffic lights (69pt) + toggle button (47pt) + padding (8pt) = ~124pt
+        // When sidebar visible: sidebar width
+        let sidebarToggleButtonWidth: CGFloat = 47  // From debug: NSToolbarItemViewer width
+        let trafficLightsWidth: CGFloat = 69        // From debug: rightmost edge of zoom button
+        let leadingOffset: CGFloat = state.sidebarVisible 
+            ? state.sidebarWidth 
+            : (trafficLightsWidth + sidebarToggleButtonWidth)
+        
+        // Calculate trailing offset (right edge of modeline)
+        // From debug: inspector toggle button NSToolbarItemViewer is 47pt  
+        // When inspector hidden: just the inspector toggle button (~47pt)
+        // When inspector visible: inspector panel width (detailWidth)
+        let inspectorToggleButtonWidth: CGFloat = 47  // From debug: NSToolbarItemViewer width
+        let trailingOffset: CGFloat = state.detailVisible 
+            ? state.detailWidth 
+            : inspectorToggleButtonWidth
+        
+        modeLineGlassOverlay?.updateGeometry(
+            content: state.modeLine,
+            sidebarToggleWidth: leadingOffset,
+            contentWidth: state.contentWidth,
+            hasInspector: state.detailVisible,
+            inspectorToggleWidth: trailingOffset
+        )
     }
 
     /// Restore Emacs focus - can be called externally
@@ -1432,8 +1643,8 @@ final class NavigationSidebarController: NSObject {
         blurView?.removeFromSuperview()
         blurView = nil
 
-        // Clean up custom toolbar
-        modeLineToolbar = nil
+        // Clean up glass overlay
+        modeLineGlassOverlay = nil
 
         original.removeFromSuperview()
         original.frame = hostingView?.superview?.frame ?? window.frame
@@ -1521,14 +1732,11 @@ final class NavigationSidebarController: NSObject {
     /// Set visibility of decorations (toolbar area and traffic lights)
     func setDecorationsVisible(_ visible: Bool) {
         guard let window = window else {
-            print("[Hyalo Debug] setDecorationsVisible: no window")
             return
         }
-        print("[Hyalo Debug] setDecorationsVisible(\(visible)), current state: \(state.decorationsVisible)")
         state.decorationsVisible = visible
         // Toggle toolbar visibility
         window.toolbar?.isVisible = visible
-        print("[Hyalo Debug] toolbar.isVisible = \(window.toolbar?.isVisible ?? false)")
         if visible {
             showTrafficLights(window)
         } else {
@@ -1538,7 +1746,6 @@ final class NavigationSidebarController: NSObject {
 
     /// Toggle visibility of decorations
     func toggleDecorations() {
-        print("[Hyalo Debug] toggleDecorations called, current visible: \(state.decorationsVisible)")
         setDecorationsVisible(!state.decorationsVisible)
     }
 
@@ -1587,7 +1794,8 @@ final class NavigationSidebarController: NSObject {
 
     func updateModeLine(_ content: String) {
         state.modeLine = content
-        // SwiftUI toolbar updates automatically via state.modeLine binding
+        // Update the modeline overlay with new content and recalculated geometry
+        updateModeLineGeometry()
     }
 
     /// Set the background color from Emacs (color string + alpha)
@@ -1660,7 +1868,8 @@ final class NavigationSidebarController: NSObject {
             emacsView: emacsView,
             onBufferSelect: { [weak self] buffer in self?.onBufferSelect?(buffer.name) },
             onBufferClose: { [weak self] buffer in self?.onBufferClose?(buffer.name) },
-            onFileSelect: { [weak self] file in self?.onFileSelect?(file.path) }
+            onFileSelect: { [weak self] file in self?.onFileSelect?(file.path) },
+            onGeometryUpdate: { [weak self] in self?.updateModeLineGeometry() }
         )
     }
 }
