@@ -451,18 +451,22 @@
   (vertico-count 16)
   (vertico-resize nil))
 
-;; (use-package mini-frame
-;;   :custom
-;;   (mini-frame-show-parameters
-;;    '((top . 10)
-;;      (width . 0.7)
-;;      (left . 0.5)
-;;      (alpha-background . 0)
-;;      (internal-border-width . 0)
-;;      (left-fringe . 10)
-;;      (right-fringe . 10)))
-;;   :config
-;;   (mini-frame-mode 1))
+(use-package mini-frame
+  :custom
+  (mini-frame-show-parameters
+   '((top . 10)
+     (width . 0.7)
+     (left . 0.5)
+     ;; Transparency for glass effect (requires patched Emacs)
+     ;; MUST include background-color to prevent mini-frame from calculating opaque one
+     (background-color . "white")  ; Color doesn't matter with alpha-background 0
+     (alpha-background . 0)
+     (ns-alpha-elements . (ns-alpha-all))
+     (internal-border-width . 0)
+     (left-fringe . 10)
+     (right-fringe . 10)))
+  :config
+  (mini-frame-mode 1))
 
 (use-package orderless
   :custom
@@ -791,12 +795,12 @@
     "l s" '(hyalo-module-share :wk "share")
     "l e" '(hyalo-module-show-emoji-picker :wk "emoji")))
 
-;; (use-package hyalo-module-minibuffer
-;;   :if (eq window-system 'ns)
-;;   :after hyalo-module
-;;   :load-path emacs-config-dir
-;;   :config
-;;   (hyalo-module-minibuffer-mode 1))
+(use-package hyalo-module-minibuffer
+  :if (eq window-system 'ns)
+  :after hyalo-module
+  :load-path emacs-config-dir
+  :config
+  (hyalo-module-minibuffer-mode 1))
 
 ;;;; Hyalo Debug
 
@@ -999,6 +1003,12 @@
   :vc (:url "https://github.com/cmacrae/agent-shell-sidebar"
             :rev :newest)
   :after agent-shell)
+
+(use-package mcp-server
+  :vc (:url "https://github.com/rhblind/emacs-mcp-server"
+            :rev :newest)
+  :config
+  (add-hook 'emacs-startup-hook #'mcp-server-start-unix))
 
 (emacs-section-end)
 

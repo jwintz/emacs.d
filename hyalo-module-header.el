@@ -103,6 +103,9 @@
 Called from post-command-hook and window-configuration-change-hook."
   (when (and (hyalo-module-available-p)
              (display-graphic-p))
+    ;; Enforce hidden mode-line/header-line if they reappeared
+    (when (or mode-line-format header-line-format)
+      (hyalo-module-header--enforce-hidden))
     (let* ((current-window (selected-window))
            (mode-line-str (or (hyalo-module-header--format-mode-line) ""))
            (header-line-str (or (hyalo-module-header--format-header-line) ""))
@@ -151,9 +154,10 @@ Called by hooks to override modes that set mode-line-format buffer-locally."
   (when hyalo-module-header--saved-mode-line-format
     ;; Save the header-line before hiding (modes like info set it)
     (when header-line-format
-      (hyalo-module-header--save-buffer-header-line))
-    (setq mode-line-format nil)
-    (setq header-line-format nil)))
+      (hyalo-module-header--save-buffer-header-line)))
+  ;; Always hide, regardless of whether we saved a format
+  (setq mode-line-format nil)
+  (setq header-line-format nil))
 
 (defun hyalo-module-header--restore-native ()
   "Restore native Emacs mode-line and header-line."
@@ -180,6 +184,50 @@ Called by hooks to override modes that set mode-line-format buffer-locally."
   (if (and (hyalo-module-available-p) (fboundp 'hyalo-header-height))
       (hyalo-header-height)
     47))  ; Fallback: 12 + 24 + 1 + 22 - 12 = 47 (approx)
+
+;;; Magit Support
+
+(defun hyalo-module-header--magit-setup-advice (buffer)
+  "Advice to enforce hidden mode-line after Magit setup.
+Run as :filter-return on `magit-setup-buffer-internal'."
+  (when hyalo-module-viewport-debug
+    (hyalo-module-log "Magit Setup Advice: buf=%s" buffer))
+  (when (buffer-live-p buffer)
+    (with-current-buffer buffer
+      (hyalo-module-header--enforce-hidden)
+      (when (and (boundp 'hyalo-module-viewport-mode)
+                 hyalo-module-viewport-mode)
+        ;; Update all windows displaying this buffer
+        (dolist (win (get-buffer-window-list buffer nil t))
+          (when hyalo-module-viewport-debug
+            (hyalo-module-log "Magit Setup: Updating window %s" win))
+          (hyalo-module-viewport--update-window win)))))
+  buffer)
+
+(defun hyalo-module-header--magit-refresh-advice (&rest _)
+  "Advice to enforce hidden mode-line after Magit refresh.
+Run as :after on `magit-refresh-buffer'."
+  (when hyalo-module-viewport-debug
+    (hyalo-module-log "Magit Refresh Advice: buf=%s" (current-buffer)))
+  (hyalo-module-header--enforce-hidden)
+  (when (and (boundp 'hyalo-module-viewport-mode)
+             hyalo-module-viewport-mode)
+    ;; Update all windows displaying this buffer
+    (dolist (win (get-buffer-window-list (current-buffer) nil t))
+      (when hyalo-module-viewport-debug
+        (hyalo-module-log "Magit Refresh: Updating window %s" win))
+      (hyalo-module-viewport--update-window win))))
+
+(defun hyalo-module-header--setup-magit ()
+  "Setup Magit integration using Advice."
+  ;; Use filter-return for setup to access the correct buffer context
+  (advice-add 'magit-setup-buffer-internal :filter-return #'hyalo-module-header--magit-setup-advice)
+  (advice-add 'magit-refresh-buffer :after #'hyalo-module-header--magit-refresh-advice))
+
+(defun hyalo-module-header--teardown-magit ()
+  "Remove Magit integration."
+  (advice-remove 'magit-setup-buffer-internal #'hyalo-module-header--magit-setup-advice)
+  (advice-remove 'magit-refresh-buffer #'hyalo-module-header--magit-refresh-advice))
 
 ;;; Setup/Teardown
 
@@ -243,6 +291,9 @@ Called by hooks to override modes that set mode-line-format buffer-locally."
   (add-hook 'window-configuration-change-hook #'hyalo-module-header--update)
   ;; Keep title empty (prevents dimension display in titlebar)
   (add-hook 'post-command-hook #'hyalo-module-header--keep-title-empty)
+  ;; Setup Magit support
+  (with-eval-after-load 'magit
+    (hyalo-module-header--setup-magit))
   ;; Initial update
   (hyalo-module-header--update)
   (hyalo-module-log "Header: Enabled"))
@@ -256,6 +307,9 @@ Called by hooks to override modes that set mode-line-format buffer-locally."
   (remove-hook 'post-command-hook #'hyalo-module-header--update)
   (remove-hook 'window-configuration-change-hook #'hyalo-module-header--update)
   (remove-hook 'post-command-hook #'hyalo-module-header--keep-title-empty)
+  ;; Teardown Magit support
+  (with-eval-after-load 'magit
+    (hyalo-module-header--teardown-magit))
   ;; Teardown all frames
   (dolist (frame (frame-list))
     (hyalo-module-header--teardown-frame frame))
@@ -300,6 +354,11 @@ When hidden, provides a minimal chrome experience."
 ;; Create an alias so M-x hyalo-toggle-decorations works
 (defalias 'hyalo-toggle-chrome 'hyalo-toggle-decorations-command
   "Alias for `hyalo-toggle-decorations-command'.")
+
+;; Handle case where Magit is loaded after this module is enabled
+(with-eval-after-load 'magit
+  (when hyalo-module-header-mode
+    (hyalo-module-header--setup-magit)))
 
 (provide 'hyalo-module-header)
 ;;; hyalo-module-header.el ends here

@@ -1489,6 +1489,16 @@ final class NavigationSidebarController: NSObject {
     func restoreEmacsFocus() {
         guard let window = window, let emacs = emacsViewRef else { return }
 
+        // Don't steal focus from mini-frames (child windows like minibuffer)
+        // Check if any child EmacsWindow is currently the key window
+        if let keyWindow = NSApp.keyWindow {
+            let keyClassName = String(describing: type(of: keyWindow))
+            if keyClassName.contains("EmacsWindow") && keyWindow.parent != nil {
+                // A mini-frame has focus, don't steal it
+                return
+            }
+        }
+
         // Make window key first
         if !window.isKeyWindow {
             window.makeKeyAndOrderFront(nil)

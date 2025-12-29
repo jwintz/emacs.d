@@ -500,13 +500,57 @@ final class HyaloModule: Module {
             with: """
             Enable glass effect for a specific window (minibuffer).
             WINDOW-ID is the string ID of the window (frame-parameter 'window-id).
+            Note: window-id doesn't match NSWindow.windowNumber, so we find child frames differently.
             """
         ) { (env: Environment, windowID: String) throws -> Bool in
             DispatchQueue.main.async {
-                let id = Int(windowID) ?? 0
-                if let window = NSApp.window(withWindowNumber: id) {
+                var emacsWindows: [NSWindow] = []
+                for w in NSApp.windows {
+                    // Collect EmacsWindow instances
+                    let className = String(describing: type(of: w))
+                    if className.contains("EmacsWindow") && w.isVisible {
+                        emacsWindows.append(w)
+                    }
+                }
+                
+                // Find the mini-frame: it's an EmacsWindow WITH a parent (child frame)
+                let miniFrame = emacsWindows.first { $0.parent != nil }
+                
+                // Find the ROOT window - must be a visible window WITHOUT a parent
+                // Cannot use keyWindow because mini-frame might be key
+                let rootCandidates = NSApp.windows.filter { $0.isVisible && $0.parent == nil }
+                let rootWindow = rootCandidates.first { String(describing: type(of: $0)).contains("EmacsWindow") }
+                    ?? rootCandidates.first
+                
+                guard let root = rootWindow else {
+                    return
+                }
+                
+                if let window = miniFrame {
                     if #available(macOS 10.14, *) {
                         GlassEffectView.attach(to: window)
+                        
+                        // Position the mini-frame RELATIVE TO ROOT WINDOW
+                        // Width: 75% of root, Y position: 25% from top
+                        let rootFrame = root.frame
+                        let widthRatio: CGFloat = 0.75
+                        let yRatio: CGFloat = 0.25
+                        
+                        let newWidth = rootFrame.width * widthRatio
+                        let newX = rootFrame.origin.x + (rootFrame.width - newWidth) / 2
+                        let newY = rootFrame.origin.y + rootFrame.height * (1 - yRatio) - window.frame.height
+                        
+                        window.setFrame(NSRect(x: newX, y: newY, width: newWidth, height: window.frame.height), display: true)
+                        
+                        // Make mini-frame modal-like: higher window level prevents interaction with parent
+                        window.level = .modalPanel
+                        
+                        // Activate modal tracking to enforce focus
+                        MiniFrameTracker.activate(window)
+                        
+                        // Ensure focus on the mini-frame
+                        window.makeKeyAndOrderFront(nil)
+                        NSApp.activate(ignoringOtherApps: true)
                     }
                 }
             }
@@ -526,6 +570,38 @@ final class HyaloModule: Module {
                     window.makeKeyAndOrderFront(nil)
                     // Also ensure the app is active
                     NSApp.activate(ignoringOtherApps: true)
+                }
+            }
+            return true
+        }
+
+        try env.defun(
+            "hyalo-minibuffer-deactivate",
+            with: """
+            Deactivate mini-frame modal tracking.
+            Call this when the minibuffer is dismissed to allow normal window focus.
+            """
+        ) { (env: Environment) throws -> Bool in
+            DispatchQueue.main.async {
+                MiniFrameTracker.deactivate()
+            }
+            return true
+        }
+
+        try env.defun(
+            "hyalo-minibuffer-update-appearance",
+            with: """
+            Update appearance of mini-frame glass effect.
+            Call this when system appearance or theme changes to refresh the glass look.
+            """
+        ) { (env: Environment) throws -> Bool in
+            DispatchQueue.main.async {
+                // Find all EmacsWindow child frames (mini-frames)
+                for w in NSApp.windows {
+                    let className = String(describing: type(of: w))
+                    if className.contains("EmacsWindow") && w.parent != nil && w.isVisible {
+                        GlassEffectView.updateAppearance(for: w)
+                    }
                 }
             }
             return true

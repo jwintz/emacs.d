@@ -181,7 +181,10 @@ This is the core function for applying visual settings."
   "Apply window APPEARANCE to Swift side."
   (when (hyalo-module-available-p)
     (when (fboundp 'hyalo-sidebar-set-window-appearance)
-      (hyalo-sidebar-set-window-appearance (symbol-name appearance)))))
+      (hyalo-sidebar-set-window-appearance (symbol-name appearance)))
+    ;; Also update mini-frame glass effect appearance
+    (when (fboundp 'hyalo-minibuffer-update-appearance)
+      (hyalo-minibuffer-update-appearance))))
 
 (defun hyalo-module-appearance--apply-frame-settings ()
   "Apply frame-level transparency settings.

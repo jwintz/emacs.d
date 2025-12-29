@@ -384,6 +384,17 @@ final class AppearancePanelController {
             let controller = NavigationSidebarManager.shared.getController(for: window)
             controller.setWindowAppearance(mode.emacsValue)
             controller.state.windowAppearance = mode.emacsValue
+            
+            // Also update mini-frame glass effects to match new appearance
+            DispatchQueue.main.async {
+                for w in NSApp.windows {
+                    let className = String(describing: type(of: w))
+                    if className.contains("EmacsWindow") && w.parent != nil && w.isVisible {
+                        print("[AppearancePanel] Updating glass appearance for mini-frame: #\(w.windowNumber)")
+                        GlassEffectView.updateAppearance(for: w)
+                    }
+                }
+            }
         }
     }
 

@@ -95,14 +95,19 @@ Queries the Swift module for the authoritative value."
 
 (defun hyalo-module-viewport--window-eligible-p (window)
   "Return non-nil if WINDOW should have viewport offset applied."
-  (and (display-graphic-p)
-       (window-live-p window)
-       (not (window-minibuffer-p window))
-       (not (eq window (minibuffer-window)))
-       (not (hyalo-module-viewport--window-sidebar-p window))
-       (not (memq (buffer-local-value 'major-mode (window-buffer window))
-                  hyalo-module-viewport-excluded-modes))
-       (hyalo-module-viewport--window-intersects-header-p window)))
+  (let ((graphic (display-graphic-p))
+        (live (window-live-p window))
+        (minibuf (window-minibuffer-p window))
+        (eq-mini (eq window (minibuffer-window)))
+        (sidebar (hyalo-module-viewport--window-sidebar-p window))
+        (mode (buffer-local-value 'major-mode (window-buffer window)))
+        (excluded (memq (buffer-local-value 'major-mode (window-buffer window))
+                        hyalo-module-viewport-excluded-modes))
+        (intersects (hyalo-module-viewport--window-intersects-header-p window)))
+    (when hyalo-module-viewport-debug
+      (hyalo-module-log "Eligible check win=%s: graphic=%s live=%s minibuf=%s eq-mini=%s sidebar=%s mode=%s excluded=%s intersects=%s"
+                        window graphic live minibuf eq-mini sidebar mode excluded intersects))
+    (and graphic live (not minibuf) (not eq-mini) (not sidebar) (not excluded) intersects)))
 
 (defun hyalo-module-viewport--calculate-offset (window)
   "Calculate the offset pixels needed for WINDOW.
@@ -127,13 +132,17 @@ Recreates overlay if window's buffer changed."
              (overlay-buffer ov)
              (eq (overlay-buffer ov) current-buffer)
              (eq saved-buffer current-buffer))
-        ov
+        (progn
+          ;; Ensure overlay is always at point-min (it might have drifted if text was inserted)
+          (unless (= (overlay-start ov) (point-min))
+            (move-overlay ov (point-min) (point-min)))
+          ov)
       ;; Delete old overlay if exists
       (when (and ov (overlay-buffer ov))
         (delete-overlay ov))
       ;; Create new overlay
       (with-current-buffer current-buffer
-        (let ((new-ov (make-overlay (point-min) (point-min) nil t nil)))
+        (let ((new-ov (make-overlay (point-min) (point-min) nil nil nil)))
           (overlay-put new-ov 'window window)
           (overlay-put new-ov 'hyalo-module-viewport t)
           (overlay-put new-ov 'priority 1000)
