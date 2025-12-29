@@ -126,6 +126,21 @@
     "h s" 'helpful-symbol
     "h ." 'helpful-at-point))
 
+(use-package elisp-refs
+  :general
+  (:prefix "C-c h r"
+   "" '(:ignore t :which-key "elisp-refs")
+   "f" 'elisp-refs-function
+   "m" 'elisp-refs-macro
+   "v" 'elisp-refs-variable
+   "s" 'elisp-refs-special
+   "r" 'elisp-refs-symbol)
+  :commands (elisp-refs-function
+             elisp-refs-macro
+             elisp-refs-variable
+             elisp-refs-special
+             elisp-refs-symbol))
+
 (defvar elog-emacs nil
   "Main Emacs logger (nil if elog not loaded).")
 
@@ -185,13 +200,36 @@
   (inhibit-startup-screen t)
   (inhibit-startup-message t)
   (inhibit-startup-echo-area-message t)
-  (initial-scratch-message "")
+  (initial-scratch-message ";;; Hyalo Footer Pattern Test (C-x C-e each line)
+
+;; 1. Load and enable footer module:
+(require 'hyalo-module-footer)
+(hyalo-module-footer-mode 1)
+
+;; 2. Set pattern:
+(hyalo-module-footer-set-pattern \"hexagons\")
+;; Options: hideout, hexagons, death-star, bathroom-floor,
+;;          tiny-checkers, plus, cage, diagonal-stripes,
+;;          stripes, diagonal-lines, polka-dots, signal, wallpaper
+
+;; 3. Adjust background alpha (tint layer - darker/lighter):
+(hyalo-module-footer-set-background-alpha 0.4)
+
+;; 4. Adjust pattern alpha (foreground pattern):
+(hyalo-module-footer-set-pattern-alpha 0.3)
+
+;; 5. Trigger message to see pattern:
+(message \"Hello from the echo area!\")
+
+")
   (initial-buffer-choice nil)
   ;; Cursor
   (cursor-in-non-selected-windows nil)
   (cursor-type '(hbar . 2))
   (cursor-intangible-mode t)
   (x-stretch-cursor nil)
+  ;; Text
+  (text-scale-mode-step 1.05)
   ;; Backups
   (make-backup-files nil)
   ;; Misc
@@ -273,6 +311,21 @@
   :config
   (save-place-mode 1))
 
+(use-package uniquify
+  :ensure nil
+  :custom
+  (uniquify-buffer-name-style 'reverse)
+  (uniquify-separator "•")
+  (uniquify-after-kill-buffer-p t))
+
+(use-package autorevert
+  :ensure nil
+  :init (global-auto-revert-mode 1)
+  :custom
+  (global-auto-revert-non-file-buffers nil)
+  (auto-revert-interval 3)
+  (auto-revert-verbose t))
+
 (use-package eldoc
   :ensure nil
   :diminish)
@@ -313,6 +366,37 @@
 (use-package nerd-icons
   :demand t)
 
+;; (use-package nerd-icons-ibuffer
+;;   :ensure t
+;;   :hook (ibuffer-mode . nerd-icons-ibuffer-mode)
+;;   :config
+;;   ;; Monkey-patch to fix "Symbol's value as variable is void: icon"
+;;   ;; This redefines the column using 'buf-icon' instead of 'icon'
+;;   (with-eval-after-load 'nerd-icons-ibuffer
+;;     (define-ibuffer-column icon
+;;       (:name "" :inline t)
+;;       (if nerd-icons-ibuffer-icon
+;;           (let ((buf-icon (if (eq major-mode 'dired-mode)
+;;                               (nerd-icons-icon-for-dir (buffer-name)
+;;                                                        :height nerd-icons-ibuffer-icon-size
+;;                                                        :face 'nerd-icons-ibuffer-dir-face)
+;;                             (nerd-icons-icon-for-buffer :height nerd-icons-ibuffer-icon-size))))
+;;             (concat
+;;              (if (or (null buf-icon) (symbolp buf-icon))
+;;                  (nerd-icons-faicon "nf-fa-file_o"
+;;                                     :face (if nerd-icons-ibuffer-color-icon
+;;                                               'nerd-icons-dsilver
+;;                                             'nerd-icons-ibuffer-icon-face)
+;;                                     :height nerd-icons-ibuffer-icon-size)
+;;                (if nerd-icons-ibuffer-color-icon
+;;                    buf-icon
+;;                  (propertize buf-icon
+;;                              'face `(:inherit nerd-icons-ibuffer-icon-face
+;;                                      :family ,(plist-get (get-text-property 0 'face buf-icon)
+;;                                                          :family)))))
+;;              " "))
+;;         ""))))
+
 ;;;; Highlighting
 
 (use-package hl-line
@@ -331,7 +415,17 @@
   (modus-themes-italic-constructs t)
   (modus-themes-bold-constructs t)
   (modus-themes-completions '((t . (bold))))
-  (modus-themes-prompts '(bold)))
+  (modus-themes-prompts '(bold))
+  :config
+  (defun hyalo-switch-to-dark (&rest _)
+    (when (fboundp 'hyalo-module-appearance-set)
+      (hyalo-module-appearance-set 'dark)))
+  (advice-add 'modus-themes-load-random-dark :after #'hyalo-switch-to-dark)
+
+  (defun hyalo-switch-to-light (&rest _)
+    (when (fboundp 'hyalo-module-appearance-set)
+      (hyalo-module-appearance-set 'light)))
+  (advice-add 'modus-themes-load-random-light :after #'hyalo-switch-to-light))
 
 (use-package ef-themes
   :demand t
@@ -449,30 +543,8 @@
 (use-package vertico
   :init (vertico-mode)
   :custom
-  (vertico-count 16)
-  (vertico-resize nil))
-
-(use-package mini-frame
-  :custom
-  ;; Prevent resize-related freezes (see vertico#446, debbugs#69140)
-  (mini-frame-resize nil)
-  (mini-frame-resize-min-height 20)
-  (mini-frame-show-parameters
-   '(;; Position is handled by Swift (hyalo-minibuffer-enable)
-     (width . 0.7)
-     (height . 20)  ; Fixed height in lines
-     (left . 0.5)
-     (top . 100)    ; Initial top, Swift will reposition
-     ;; Fully transparent - Swift provides glass + content container
-     (background-color . "white")
-     (alpha-background . 0)
-     (ns-alpha-elements . (ns-alpha-all))
-     ;; No internal border - Swift handles margins
-     (internal-border-width . 0)
-     (left-fringe . 0)
-     (right-fringe . 0)))
-  :config
-  (mini-frame-mode 1))
+  (vertico-count 8))
+;;(vertico-resize nil))
 
 (use-package orderless
   :custom
@@ -511,7 +583,15 @@
 
 (emacs-section-start "Editing")
 
-;; TODO: move in a block
+(use-package display-line-numbers
+  :ensure nil
+  :diminish display-line-numbers-mode
+;;:hook (prog-mode . display-line-numbers-mode)
+  :custom
+  (display-line-numbers-width 2)
+  (display-line-numbers-widen t)
+  (display-line-numbers-grow-only t))
+;;(display-line-numbers-type 'relative))
 
 (use-package move-dup
   :general
@@ -578,6 +658,9 @@
   :if (and (eq system-type 'darwin) (display-graphic-p))
   :config
   (setq frame-resize-pixelwise t)
+  ;; Prevent frame resize when face/font heights change (e.g., during theme load)
+  ;; This helps avoid unwanted window resize in NavigationSplitView
+  (setq frame-inhibit-implied-resize t)
   (set-frame-parameter nil 'internal-border-width 0)
   ;; Enable transparent titlebar for NavigationSplitView integration
   (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t))
@@ -628,7 +711,8 @@
   ;; * `extra-bold`
   ;; * `ultra-bold` (or heavy, black)
   (defun hyalo-set-highlights (&rest _)
-    (let ((w 'bold))
+    (let ((w 'bold)
+          (wb 'ultra-bold))
       ;; Only enforce weight for standard highlights to preserve theme colors
       (set-face-attribute 'region nil :weight w)
       (set-face-attribute 'isearch nil :weight w)
@@ -647,11 +731,12 @@
                       orderless-match-face-3
                       consult-highlight-match
                       consult-preview-match
-                      consult-buffer
                       consult-file
                       consult-bookmark))
         (when (facep face)
           (set-face-attribute face nil :weight w)))
+      (when (facep 'consult-buffer)
+        (set-face-attribute 'consult-buffer nil :weight wb))
       (dolist (face '(magit-item-highlight
                       magit-section-highlight
                       magit-diff-added-highlight
@@ -668,7 +753,7 @@
                       magit-diff-file-heading-selection
                       magit-diff-hunk-heading-selection))
         (when (facep face)
-          (set-face-attribute face nil :weight w)))))
+          (set-face-attribute face nil :weight wb)))))
 
   (defvar hyalo-profiles
     '((focus . (:appearance light :theme modus-operandi :vibrancy "none"      :opacity 1.0))
@@ -677,24 +762,30 @@
     "Alist of Hyalo appearance profiles.")
 
   (defun hyalo-load-profile (name)
-    "Load the profile NAME."
+    "Load the profile NAME and persist settings to custom.el."
     (let ((profile (alist-get name hyalo-profiles)))
       (when profile
         (let ((appearance (plist-get profile :appearance))
               (theme (plist-get profile :theme))
               (vibrancy (plist-get profile :vibrancy))
               (opacity (plist-get profile :opacity)))
+          ;; Apply appearance mode with persistence
           (when appearance
-            (hyalo-module-appearance-set appearance))
+            (hyalo-module-appearance-set appearance t))
+          ;; Load and save theme
           (when theme
             (mapc #'disable-theme custom-enabled-themes)
             (load-theme theme t)
-            (hyalo-set-highlights))
+            (hyalo-set-highlights)
+            ;; Persist theme as current-theme
+            (customize-save-variable 'hyalo-module-appearance-current-theme theme))
+          ;; Apply vibrancy with persistence (set-vibrancy already saves)
           (when vibrancy
             (hyalo-module-appearance-set-vibrancy vibrancy))
+          ;; Apply opacity with persistence (set-opacity already saves)
           (when opacity
             (hyalo-module-appearance-set-opacity opacity))
-          (message "Loaded profile: %s" name)))))
+          (message "Loaded and saved profile: %s" name)))))
 
   (defun hyalo-switch-profile ()
     "Switch to a defined profile."
@@ -714,7 +805,12 @@
   (leader-def
     "l v" '(hyalo-module-appearance-set-vibrancy :wk "vibrancy")
     "l o" '(hyalo-module-appearance-set-opacity :wk "opacity")
-    "l p" '(hyalo-module-appearance-set :wk "appearance mode")
+    "l p" '((lambda () (interactive)
+              (call-interactively 'hyalo-module-appearance-set)
+              (customize-save-variable 'hyalo-module-appearance-mode-setting
+                                       hyalo-module-appearance-mode-setting)
+              (message "Appearance mode saved: %s" hyalo-module-appearance-mode-setting))
+            :wk "appearance mode")
     "l P" '(hyalo-module-appearance-show-panel :wk "panel")
     "l ." '(hyalo-switch-profile :wk "profile"))
   :config
@@ -801,12 +897,56 @@
     "l s" '(hyalo-module-share :wk "share")
     "l e" '(hyalo-module-show-emoji-picker :wk "emoji")))
 
-(use-package hyalo-module-minibuffer
+(use-package hyalo-module-footer
   :if (eq window-system 'ns)
   :after hyalo-module
   :load-path emacs-config-dir
   :config
-  (hyalo-module-minibuffer-mode 1))
+  (defun hyalo-module-footer-random-pattern ()
+    "Set a random footer pattern."
+	(interactive)
+	(let* ((patterns '("hideout" "hexagons" "death-star" "bathroom-floor"
+					   "tiny-checkers" "plus" "cage" "diagonal-stripes"
+					   "stripes" "diagonal-lines" "polka-dots" "signal"
+					   "wallpaper"))
+		   (choice (nth (random (length patterns)) patterns)))
+	  (hyalo-module-footer-set-pattern choice)
+	  (message "Footer pattern set to: %s" choice)))
+
+  (hyalo-module-footer-mode 1)
+  (hyalo-module-footer-set-pattern "signal")
+  (hyalo-module-footer-set-background-alpha 0.2)
+  (hyalo-module-footer-set-pattern-alpha 0.025))
+
+(use-package hyalo-module-minibuffer
+  :disabled t
+  :if (eq window-system 'ns)
+  :after hyalo-module
+  :load-path emacs-config-dir
+  :config
+  (hyalo-module-minibuffer-mode 1)
+
+  (use-package mini-frame
+    :custom
+    ;; Prevent resize-related freezes (see vertico#446, debbugs#69140)
+    (mini-frame-resize nil)
+    (mini-frame-resize-min-height 20)
+    (mini-frame-show-parameters
+     '(;; Position is handled by Swift (hyalo-minibuffer-enable)
+       (width . 0.7)
+       (height . 20)  ; Fixed height in lines
+       (left . 0.5)
+       (top . 100)    ; Initial top, Swift will reposition
+       ;; Fully transparent - Swift provides glass + content container
+       (background-color . "white")
+       (alpha-background . 0)
+       (ns-alpha-elements . (ns-alpha-all))
+       ;; No internal border - Swift handles margins
+       (internal-border-width . 0)
+       (left-fringe . 0)
+       (right-fringe . 0)))
+    :config
+    (mini-frame-mode 1)))
 
 ;;;; Hyalo Debug
 
@@ -912,7 +1052,7 @@
   (treemacs-indentation-string " ")
   :general
   (leader-def
-    "t f" '(treemacs-toggle-focus :wk "focus toggle")
+;;  "t f" '(treemacs-toggle-focus :wk "focus toggle")
     "t n" '(treemacs-next-project :wk "next project")
     "t p" '(treemacs-previous-project :wk "previous project")
     "t s" '(treemacs-select-window :wk "select window"))
@@ -934,14 +1074,22 @@
   :config
   (hyalo-explorer-icons-config))
 
-(use-package hyalo-explorer
+(use-package hyalo-module-sidebar
   :load-path emacs-config-dir
-  :after (hyalo-module nerd-icons)
-  :commands (hyalo-explorer-toggle hyalo-explorer-show hyalo-explorer-hide hyalo-explorer-refresh)
+  :after hyalo-module
+  :demand t
+  :custom
+  ;; Font for sidebar buffers (nil = use default frame font)
+  ;; Example: "SF Pro-12" or "SF Mono-11"
+  (hyalo-sidebar-font nil)
+  ;; Internal border width for embedded frames (12 = standard SwiftUI margin)
+  (hyalo-sidebar-internal-border-width 12)
   :general
   (leader-def
-    "t e" '(hyalo-explorer-toggle :wk "explorer")
-    "t E" '(hyalo-explorer-refresh :wk "refresh explorer")))
+    "t e" '(hyalo-sidebar-toggle-left :wk "sidebar (left)")
+    "t i" '(hyalo-sidebar-toggle-right :wk "inspector (right)")
+    "t E" '(hyalo-sidebar-focus-left :wk "focus sidebar")))
+    "t I" '(hyalo-sidebar-focus-right :wk "focus inspector")
 
 (emacs-section-end)
 
@@ -1003,18 +1151,80 @@
     "a c" '(agent-shell-anthropic-start-claude-code :wk "claude")
     "a g" '(agent-shell-google-start-gemini :wk "gemini")
     "a s" '(agent-shell-sidebar-toggle :wk "sidebar toggle")
-    "a f" '(agent-shell-sidebar-toggle-focus :wk "sidebar focus")))
+    "a f" '(agent-shell-sidebar-toggle-focus :wk "sidebar focus"))
+  (:keymaps 'agent-shell-mode-map
+   "C-p" 'agent-shell-previous-input
+   "C-n" 'agent-shell-next-input))
 
 (use-package agent-shell-sidebar
   :vc (:url "https://github.com/cmacrae/agent-shell-sidebar"
             :rev :newest)
   :after agent-shell)
 
-(use-package mcp-server
-  :vc (:url "https://github.com/rhblind/emacs-mcp-server"
+(use-package agent-shell-manager
+  :vc (:url "https://github.com/jethrokuan/agent-shell-manager"
             :rev :newest)
+  :after agent-shell
+  :general
+  (leader-def
+    "a m" '(agent-shell-manager-toggle :wk "manager")))
+
+;; (use-package mcp-server
+;;   :vc (:url "https://github.com/rhblind/emacs-mcp-server"
+;;             :rev :newest)
+;;   :config
+;;   (add-hook 'emacs-startup-hook #'mcp-server-start-unix))
+
+(emacs-section-end)
+
+;;; ===========================================================================
+;;; Terminal Emulation
+;;; ===========================================================================
+
+(emacs-section-start "Terminal Emulation")
+
+(use-package eat
+  :ensure t
+  :general
+  (:prefix "C-c s"
+   "" '(:ignore t :which-key "shell")
+   "s" 'eat
+   "p" 'eat-project
+   "e" 'eat-eshell-mode
+   "v" 'eat-eshell-visual-command-mode)
+  :custom
+  ;; For `eat-eshell-mode'
+  (eat-enable-directory-tracking t)
+  (eat-enable-shell-prompt-annotation t)
+  ;; Set the correct terminal type
+  (eat-term-name "xterm-256color")
+  ;; Kill the terminal process when the buffer is killed
+  (eat-kill-process-on-exit t)
   :config
-  (add-hook 'emacs-startup-hook #'mcp-server-start-unix))
+  ;; Disable god-mode in eat buffers to prevent keystroke duplication
+  (add-hook 'eat-mode-hook
+            (lambda ()
+              (when (fboundp 'god-local-mode)
+                (god-local-mode -1))))
+
+  ;; Fix backspace in semi-char-mode while keeping Emacs keybindings (C-x, M-x, etc.)
+  ;; Semi-char mode should be the default - it reserves C-x, C-c, M-x for Emacs
+  (with-eval-after-load 'eat
+    ;; Make backspace work in semi-char-mode by binding it explicitly
+    (when (boundp 'eat-semi-char-mode-map)
+      (define-key eat-semi-char-mode-map (kbd "DEL") 'eat-self-input)
+      (define-key eat-semi-char-mode-map (kbd "<backspace>") 'eat-self-input)
+      (define-key eat-semi-char-mode-map (kbd "C-?") 'eat-self-input)
+
+      ;; Mode toggle keybindings
+      (define-key eat-semi-char-mode-map (kbd "C-c C-k") 'eat-char-mode))
+
+    (when (boundp 'eat-mode-map)
+      (define-key eat-mode-map (kbd "C-c C-j") 'eat-semi-char-mode)))
+
+  ;; Enable eat integration with eshell
+  (add-hook 'eshell-load-hook #'eat-eshell-mode)
+  (add-hook 'eshell-load-hook #'eat-eshell-visual-command-mode))
 
 (emacs-section-end)
 

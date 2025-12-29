@@ -237,6 +237,11 @@ Only reacts if appearance mode is `auto'."
   "Handle theme load event for THEME.
 Saves the loaded theme as current-theme and applies tint.
 Does NOT alter vibrancy settings."
+  ;; Debug: log frame size before/after (check Console.app for [THEME-DEBUG])
+  (let ((frame-before (when (frame-live-p (selected-frame))
+                        (frame-parameter (selected-frame) 'width))))
+    (hyalo-module-log "[THEME-DEBUG] on-theme-load START: theme=%s frame-width=%s"
+                      theme frame-before))
   (hyalo-module-appearance--clear-backgrounds)
   (when (hyalo-module-available-p)
     ;; Save the loaded theme as current-theme (if initialized)
@@ -253,19 +258,31 @@ Does NOT alter vibrancy settings."
                         (apply #'format "#%02x%02x%02x"
                                (mapcar (lambda (c) (/ c 256))
                                        (color-values bg))))))
+      (hyalo-module-log "[THEME-DEBUG] on-theme-load: calling set-background-color with %s %.2f"
+                        hex-color hyalo-module-appearance-opacity)
       (when (fboundp 'hyalo-sidebar-set-background-color)
-        (hyalo-sidebar-set-background-color hex-color (float hyalo-module-appearance-opacity))))))
+        (hyalo-sidebar-set-background-color hex-color (float hyalo-module-appearance-opacity)))))
+  ;; Debug: log frame size after
+  (run-at-time 0.2 nil
+               (lambda ()
+                 (when (frame-live-p (selected-frame))
+                   (hyalo-module-log "[THEME-DEBUG] on-theme-load END (200ms): frame-width=%s"
+                                     (frame-parameter (selected-frame) 'width))))))
 
 ;;; Public API
 
-(defun hyalo-module-appearance-set (appearance)
+(defun hyalo-module-appearance-set (appearance &optional save)
   "Set appearance to APPEARANCE globally.
 APPEARANCE should be `light', `dark', or `auto'.
 Only changes window appearance mode. Does NOT change vibrancy/opacity.
-Theme switching only occurs in `auto' mode."
+Theme switching only occurs in `auto' mode.
+If SAVE is non-nil, persist the setting to custom.el."
   (interactive
    (list (intern (completing-read "Appearance: " '("light" "dark" "auto") nil t))))
   (setq hyalo-module-appearance-mode-setting appearance)
+  ;; Persist to custom.el if requested
+  (when save
+    (customize-save-variable 'hyalo-module-appearance-mode-setting appearance))
   ;; Apply frame settings
   (hyalo-module-appearance--apply-frame-settings)
   ;; Get effective appearance
@@ -285,7 +302,7 @@ Theme switching only occurs in `auto' mode."
     ;; Sync appearance mode to Swift panel
     (when (and (hyalo-module-available-p) (fboundp 'hyalo-set-panel-appearance-mode))
       (hyalo-set-panel-appearance-mode (symbol-name appearance))))
-  (hyalo-module-log "Appearance set to %s" appearance))
+  (hyalo-module-log "Appearance set to %s%s" appearance (if save " (saved)" "")))
 
 (defun hyalo-module-appearance-sync-from-panel (&optional save)
   "Sync all appearance settings from Swift panel to Emacs.

@@ -4,14 +4,37 @@
 import AppKit
 import EmacsSwiftModule
 
-/// Helper to find an Emacs window
+/// Helper to find the MAIN Emacs window (not child-frames)
+/// Child-frames are positioned off-screen at x < -5000
 func findEmacsWindow() -> NSWindow? {
-    if let window = NSApp.mainWindow { return window }
-    if let window = NSApp.keyWindow { return window }
-    for window in NSApp.windows where window.isVisible && !window.isMiniaturized {
-        return window
+    // Helper to check if window is on-screen (not a child-frame)
+    func isOnScreen(_ window: NSWindow) -> Bool {
+        return window.frame.origin.x > -5000
     }
-    return NSApp.windows.first
+
+    // Check mainWindow first, but only if it's on-screen
+    if let window = NSApp.mainWindow, isOnScreen(window) { return window }
+
+    // Check keyWindow, but only if it's on-screen
+    if let window = NSApp.keyWindow, isOnScreen(window) { return window }
+
+    // Find any visible, on-screen window
+    for window in NSApp.windows where window.isVisible && !window.isMiniaturized && isOnScreen(window) {
+        let className = String(describing: type(of: window))
+        if className.contains("EmacsWindow") {
+            return window
+        }
+    }
+
+    // Last resort: any on-screen EmacsWindow
+    for window in NSApp.windows where isOnScreen(window) {
+        let className = String(describing: type(of: window))
+        if className.contains("EmacsWindow") {
+            return window
+        }
+    }
+
+    return nil
 }
 
 
@@ -25,46 +48,6 @@ func findEmacsWindow() -> NSWindow? {
 final class HyaloModule: Module {
     let isGPLCompatible = true
     private let version = "1.0.0"
-
-    // MARK: - JSON Parsing Helpers
-
-    @available(macOS 26.0, *)
-    static func parseBuffersJSON(_ json: String) -> [SidebarBuffer]? {
-        guard let data = json.data(using: .utf8) else { return nil }
-        guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
-
-        return array.compactMap { dict -> SidebarBuffer? in
-            guard let name = dict["name"] as? String else { return nil }
-            return SidebarBuffer(
-                id: dict["id"] as? String ?? name,
-                name: name,
-                path: dict["path"] as? String,
-                isModified: dict["modified"] as? Bool ?? false,
-                isCurrent: dict["current"] as? Bool ?? false,
-                icon: dict["icon"] as? String ?? ""
-            )
-        }
-    }
-
-    @available(macOS 26.0, *)
-    static func parseFilesJSON(_ json: String) -> [SidebarFile]? {
-        guard let data = json.data(using: .utf8) else { return nil }
-        guard let array = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else { return nil }
-
-        return array.compactMap { dict -> SidebarFile? in
-            guard let name = dict["name"] as? String,
-                  let path = dict["path"] as? String else { return nil }
-            return SidebarFile(
-                id: dict["id"] as? String ?? path,
-                name: name,
-                path: path,
-                isDirectory: dict["directory"] as? Bool ?? false,
-                isExpanded: dict["expanded"] as? Bool ?? false,
-                depth: dict["depth"] as? Int ?? 0,
-                icon: dict["icon"] as? String ?? ""
-            )
-        }
-    }
 
     func Init(_ env: Environment) throws {
 
@@ -310,6 +293,97 @@ final class HyaloModule: Module {
         }
 
         try env.defun(
+            "hyalo-detail-show",
+            with: """
+            Show the native SwiftUI detail/inspector panel.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.showDetail(for: window)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-detail-hide",
+            with: """
+            Hide the native SwiftUI detail/inspector panel.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.hideDetail(for: window)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-detail-toggle",
+            with: """
+            Toggle the native SwiftUI detail/inspector panel.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.toggleDetail(for: window)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-detail-visible-p",
+            with: """
+            Return t if the detail/inspector panel is visible, nil otherwise.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                guard let window = findEmacsWindow() else { return false }
+                return NavigationSidebarManager.shared.isDetailVisible(for: window)
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-panel-needs-setup",
+            with: """
+            Return which panel needs embedded content setup, or nil if none.
+            Returns "right" if inspector is visible but has no embedded content.
+            Returns "left" if sidebar is visible but has no embedded content.
+            Returns nil if all visible panels have content or are hidden.
+            """
+        ) { (env: Environment) throws -> String? in
+            if #available(macOS 26.0, *) {
+                guard let window = findEmacsWindow() else { return nil }
+                let controller = NavigationSidebarManager.shared.getController(for: window)
+
+                // Check if detail/inspector needs setup
+                if controller.state.detailVisible && controller.state.rightView == nil {
+                    return "right"
+                }
+
+                // Check if sidebar needs setup
+                if controller.state.sidebarVisible &&
+                   controller.state.leftTopView == nil &&
+                   controller.state.leftBottomView == nil {
+                    return "left"
+                }
+
+                return nil
+            }
+            return nil
+        }
+
+        try env.defun(
             "hyalo-restore-focus",
             with: """
             Restore keyboard focus to the Emacs content view.
@@ -363,49 +437,6 @@ final class HyaloModule: Module {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
                     NavigationSidebarManager.shared.setProjectName(for: window, name: name)
-                }
-                return true
-            }
-            return false
-        }
-
-        // Note: Buffer and file updates use JSON strings for complex data
-        // Emacs will encode the data as JSON, Swift will decode it
-
-        try env.defun(
-            "hyalo-sidebar-update-buffers-json",
-            with: """
-            Update the Open Editors section with buffer list.
-            JSON-DATA is a JSON string encoding a list of buffer objects with keys:
-            id, name, path, modified, current, icon
-            """
-        ) { (env: Environment, jsonData: String) throws -> Bool in
-            if #available(macOS 26.0, *) {
-                DispatchQueue.main.async {
-                    guard let window = findEmacsWindow() else { return }
-                    if let buffers = Self.parseBuffersJSON(jsonData) {
-                        NavigationSidebarManager.shared.updateBuffers(for: window, buffers: buffers)
-                    }
-                }
-                return true
-            }
-            return false
-        }
-
-        try env.defun(
-            "hyalo-sidebar-update-files-json",
-            with: """
-            Update the Explorer section with file tree from treemacs.
-            JSON-DATA is a JSON string encoding a list of file objects with keys:
-            id, name, path, directory, expanded, depth, icon
-            """
-        ) { (env: Environment, jsonData: String) throws -> Bool in
-            if #available(macOS 26.0, *) {
-                DispatchQueue.main.async {
-                    guard let window = findEmacsWindow() else { return }
-                    if let files = Self.parseFilesJSON(jsonData) {
-                        NavigationSidebarManager.shared.updateFiles(for: window, files: files)
-                    }
                 }
                 return true
             }
@@ -486,6 +517,94 @@ final class HyaloModule: Module {
                     NavigationSidebarManager.shared.setVibrancyMaterial(
                         for: window,
                         material: material
+                    )
+                }
+                return true
+            }
+            return false
+        }
+
+        // MARK: - Footer Pattern
+
+        try env.defun(
+            "hyalo-set-footer-pattern",
+            with: """
+            Set the footer pattern for the echo area/minibuffer region.
+            PATTERN is one of: "none", "hideout", "hexagons", "death-star",
+            "bathroom-floor", "tiny-checkers", "plus", "cage", "diagonal-stripes",
+            "stripes", "diagonal-lines", "polka-dots", "signal", "wallpaper".
+            The pattern draws a tinted overlay at the bottom of the window.
+            """
+        ) { (env: Environment, pattern: String) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.setFooterPattern(
+                        for: window,
+                        pattern: pattern
+                    )
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-set-footer-height",
+            with: """
+            Set the footer height (echo area/minibuffer height) in pixels.
+            HEIGHT is the height in pixels. Set to 0 to disable the footer.
+            Call this when the echo area size changes (e.g., via hooks/advices).
+            """
+        ) { (env: Environment, height: Int) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.setFooterHeight(
+                        for: window,
+                        height: CGFloat(height)
+                    )
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-set-footer-background-alpha",
+            with: """
+            Set the footer background tint alpha (transparency).
+            ALPHA is a value from 0.0 (invisible) to 1.0 (fully opaque).
+            Default is 0.3. Makes dark themes darker, light themes lighter.
+            """
+        ) { (env: Environment, alpha: Double) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.setFooterBackgroundAlpha(
+                        for: window,
+                        alpha: CGFloat(alpha)
+                    )
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-set-footer-pattern-alpha",
+            with: """
+            Set the footer pattern foreground alpha (transparency).
+            ALPHA is a value from 0.0 (invisible) to 1.0 (fully opaque).
+            Default is 0.15 for subtle pattern visibility.
+            """
+        ) { (env: Environment, alpha: Double) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.setFooterPatternAlpha(
+                        for: window,
+                        alpha: CGFloat(alpha)
                     )
                 }
                 return true
@@ -921,6 +1040,88 @@ final class HyaloModule: Module {
                 NSApp.orderFrontCharacterPalette(nil)
             }
             return true
+        }
+
+        // MARK: - Embedded Sidebar
+
+        try env.defun(
+            "hyalo-sidebar-register-frame",
+            with: """
+            Register a child-frame for embedding in the sidebar.
+            SLOT is the slot identifier: "left-top", "left-bottom", or "right".
+            WINDOW-ID is the frame's window-id (from frame-parameter).
+            """
+        ) { (env: Environment, slot: String, windowId: String) throws -> Bool in
+            NSLog("HYALO: hyalo-sidebar-register-frame ENTER slot=\(slot) windowId=\(windowId)")
+            if #available(macOS 26.0, *) {
+                NSLog("HYALO: macOS 26 check passed")
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else {
+                        NSLog("hyalo-sidebar-register-frame: No Emacs window found")
+                        return
+                    }
+                    EmbeddedFrameManager.shared.registerFrame(slot: slot, windowId: windowId, parentWindow: window)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-sidebar-embed-frames",
+            with: """
+            Embed registered child-frames for the specified panel.
+            PANEL is "left" or "right".
+            """
+        ) { (env: Environment, panel: String) throws -> Bool in
+            NSLog("HYALO: hyalo-sidebar-embed-frames ENTER panel=\(panel)")
+            if #available(macOS 26.0, *) {
+                NSLog("HYALO: embed macOS 26 check passed")
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else {
+                        NSLog("hyalo-sidebar-embed-frames: No Emacs window found")
+                        return
+                    }
+                    let result = EmbeddedFrameManager.shared.embedFrames(for: panel, parentWindow: window)
+                    NSLog("hyalo-sidebar-embed-frames result: \(result)")
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-sidebar-detach-frames",
+            with: """
+            Detach embedded frames and return them to their original windows.
+            PANEL is "left" or "right".
+            """
+        ) { (env: Environment, panel: String) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                NSLog("hyalo-sidebar-detach-frames called for panel: \(panel)")
+                DispatchQueue.main.async {
+                    EmbeddedFrameManager.shared.detachFrames(for: panel)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-sidebar-clear-registration",
+            with: """
+            Clear frame registration for a panel before re-setup.
+            PANEL is "left" or "right".
+            """
+        ) { (env: Environment, panel: String) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                NSLog("hyalo-sidebar-clear-registration called for panel: \(panel)")
+                DispatchQueue.main.async {
+                    EmbeddedFrameManager.shared.clearRegistration(for: panel)
+                }
+                return true
+            }
+            return false
         }
     }
 }

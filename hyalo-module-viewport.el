@@ -62,7 +62,7 @@
   "Map from window to its last known window-start position.
 Used to avoid redundant overlay updates.")
 
-(defvar hyalo-module-viewport--margin 12
+(defvar hyalo-module-viewport--margin 6
   "Margin in pixels added to header height for offset calculation.")
 
 ;;; Header Height
@@ -90,6 +90,7 @@ Queries the Swift module for the authoritative value."
 (defun hyalo-module-viewport--window-sidebar-p (window)
   "Return non-nil if WINDOW is a sidebar window (treemacs, hyalo-explorer, etc.)."
   (or (window-parameter window 'window-side)
+      (frame-parameter (window-frame window) 'hyalo-embedded)
       (and (fboundp 'hyalo-explorer-sidebar-window-p)
            (hyalo-explorer-sidebar-window-p window))))
 

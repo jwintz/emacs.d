@@ -100,9 +100,13 @@
 
 (defun hyalo-module-header--update ()
   "Send current buffer info to Swift header view and toolbar.
-Called from post-command-hook and window-configuration-change-hook."
+Called from post-command-hook and window-configuration-change-hook.
+Skips updates from embedded child-frames (hyalo-embedded parameter)."
   (when (and (hyalo-module-available-p)
-             (display-graphic-p))
+             (display-graphic-p)
+             ;; Skip updates from embedded child-frames (sidebars)
+             ;; The toolbar modeline should only reflect main content
+             (not (frame-parameter nil 'hyalo-embedded)))
     ;; Enforce hidden mode-line/header-line if they reappeared
     (when (or mode-line-format header-line-format)
       (hyalo-module-header--enforce-hidden))
