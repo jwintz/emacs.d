@@ -106,6 +106,7 @@
   (which-key-idle-delay 0.3)
   (which-key-separator " -> ")
   (which-key-prefix-prefix "")
+  (which-key-inhibit-regexps '("^ESC"))
   :config
   (which-key-mode 1))
 
@@ -453,18 +454,23 @@
 
 (use-package mini-frame
   :custom
+  ;; Prevent resize-related freezes (see vertico#446, debbugs#69140)
+  (mini-frame-resize nil)
+  (mini-frame-resize-min-height 20)
   (mini-frame-show-parameters
-   '((top . 10)
+   '(;; Position is handled by Swift (hyalo-minibuffer-enable)
      (width . 0.7)
+     (height . 20)  ; Fixed height in lines
      (left . 0.5)
-     ;; Transparency for glass effect (requires patched Emacs)
-     ;; MUST include background-color to prevent mini-frame from calculating opaque one
-     (background-color . "white")  ; Color doesn't matter with alpha-background 0
+     (top . 100)    ; Initial top, Swift will reposition
+     ;; Fully transparent - Swift provides glass + content container
+     (background-color . "white")
      (alpha-background . 0)
      (ns-alpha-elements . (ns-alpha-all))
+     ;; No internal border - Swift handles margins
      (internal-border-width . 0)
-     (left-fringe . 10)
-     (right-fringe . 10)))
+     (left-fringe . 0)
+     (right-fringe . 0)))
   :config
   (mini-frame-mode 1))
 

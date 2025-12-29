@@ -23,112 +23,29 @@
   :group 'hyalo-module
   :prefix "hyalo-module-minibuffer-")
 
+(defun hyalo-module-minibuffer--get-theme-bg ()
+  "Get the current theme's background color."
+  (or (face-background 'default)
+      "#1a1a2e"))  ; Fallback dark color
+
 (defun hyalo-module-minibuffer--strip-faces (frame)
-  "Strip background faces from FRAME to allow glass effect to show."
-  ;; 1. Set frame parameters for transparency and clean layout
-  ;; ns-alpha-elements controls which elements are rendered with transparency:
-  ;; - ns-alpha-default: default face/background
-  ;; - ns-alpha-fringe: fringes + internal border clears
-  ;; - ns-alpha-box: boxed face outlines
-  ;; - ns-alpha-stipple: stipple mask background clears
-  ;; - ns-alpha-relief: 3D relief/shadow lines
-  ;; - ns-alpha-glyphs: glyph background fills (hl-line, region, vertico-current, etc.)
+  "Set up FRAME for glass effect - fully transparent, Swift provides container."
+  ;; Set frame parameters for full transparency
   (modify-frame-parameters
    frame
-   '((background-color . "white")  ; Prevent mini-frame from calculating opaque color
-     (alpha-background . 0)  ; Fully transparent background
+   `((background-color . "white")  ; Prevent mini-frame color calculation
+     (alpha-background . 0)  ; Fully transparent - glass shows through
      (ns-alpha-elements . (ns-alpha-all))  ; All elements transparent
      (ns-background-blur . 0)  ; No blur (NSGlassEffectView provides glass)
-     ;; Internal padding around content
-     (internal-border-width . 12)
+     ;; No internal border - Swift handles all margins
+     (internal-border-width . 0)
      (child-frame-border-width . 0)
-     (left-fringe . 8)
-     (right-fringe . 8)
+     (left-fringe . 0)
+     (right-fringe . 0)
      (undecorated . t)
      (ns-appearance . nil)))
   
-  ;; 2. Clear face backgrounds specifically for this frame
-  ;; Include completion framework faces (vertico, marginalia, orderless, consult)
-  (let ((faces '(default
-                  fringe
-                  internal-border
-                  child-frame-border
-                  window-divider
-                  vertical-border
-                  minibuffer-prompt
-                  ;; Echo area
-                  echo-area
-                  ;; Header/mode line
-                  header-line
-                  mode-line
-                  mode-line-inactive
-                  ;; Basic highlighting faces
-                  highlight
-                  region
-                  secondary-selection
-                  shadow
-                  match
-                  lazy-highlight
-                  ;; Completion framework faces
-                  completions-annotations
-                  completions-common-part
-                  completions-first-difference
-                  completions-highlight
-                  ;; Vertico faces
-                  vertico-current
-                  vertico-group-title
-                  vertico-group-separator
-                  vertico-multiline
-                  ;; Marginalia faces
-                  marginalia-key
-                  marginalia-documentation
-                  marginalia-value
-                  marginalia-size
-                  marginalia-date
-                  marginalia-file-priv-dir
-                  marginalia-file-priv-exec
-                  marginalia-file-priv-link
-                  marginalia-file-priv-read
-                  marginalia-file-priv-write
-                  marginalia-file-priv-other
-                  marginalia-type
-                  marginalia-char
-                  marginalia-list
-                  marginalia-mode
-                  marginalia-on
-                  marginalia-off
-                  marginalia-number
-                  marginalia-null
-                  marginalia-string
-                  marginalia-symbol
-                  marginalia-modified
-                  marginalia-file-name
-                  marginalia-file-owner
-                  marginalia-lighter
-                  marginalia-installed
-                  marginalia-archive
-                  marginalia-version
-                  ;; Orderless faces
-                  orderless-match-face-0
-                  orderless-match-face-1
-                  orderless-match-face-2
-                  orderless-match-face-3
-                  ;; Consult faces
-                  consult-preview-match
-                  consult-preview-cursor
-                  consult-preview-line
-                  consult-highlight-match
-                  consult-highlight-mark
-                  consult-file
-                  consult-buffer
-                  consult-line-number
-                  consult-line-number-prefix)))
-    (dolist (face faces)
-      (when (facep face)
-        ;; Use 'unspecified to inherit transparency from frame
-        (set-face-attribute face frame :background 'unspecified :box nil))))
-  
-  ;; 3. Force frame redisplay to apply transparency
+  ;; Force frame redisplay
   (force-mode-line-update t)
   (redisplay t))
 
@@ -167,6 +84,9 @@
   :group 'hyalo-module-minibuffer
   (if hyalo-module-minibuffer-mode
       (progn
+        ;; Enable pixel-wise resizing globally to avoid character-cell snapping
+        ;; This helps Swift container sizing work correctly
+        (setq frame-resize-pixelwise t)
         (add-hook 'after-make-frame-functions #'hyalo-module-minibuffer-setup)
         (add-hook 'minibuffer-setup-hook #'hyalo-module-minibuffer-ensure-focus)
         ;; Deactivate modal tracking when minibuffer exits

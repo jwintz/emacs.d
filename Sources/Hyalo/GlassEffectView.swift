@@ -2,6 +2,10 @@
 // Copyright (C) 2025
 
 import AppKit
+import SwiftUI
+import Carbon.HIToolbox
+
+// MARK: - Mini-Frame Tracker
 
 /// Tracks active mini-frame for modal behavior enforcement
 enum MiniFrameTracker {
@@ -93,50 +97,129 @@ final class GlassEffectView: NSVisualEffectView {
             window.titleVisibility = .hidden
         }
 
-        // 2. Identify the Emacs view (current content view)
-        guard let emacsView = window.contentView else {
+        // 2. Identify the current content view
+        guard let contentView = window.contentView else {
             return
         }
 
-        // If we already swapped, don't do it again
-        if emacsView is GlassEffectView {
+        // If we already have glass applied, just update appearance and return
+        if contentView.identifier?.rawValue == "HyaloGlassEffect" {
+            updateAppearance(for: window)
             return
         }
-        if emacsView.identifier?.rawValue == "HyaloGlassEffect" {
+        if contentView is GlassEffectView {
             return
         }
+        // Check if it's already an NSGlassEffectView
+        if #available(macOS 26.0, *) {
+            if contentView is NSGlassEffectView {
+                return
+            }
+        }
+        
+        // The emacsView is the current content view
+        let emacsView = contentView
 
-        // 3. True Liquid Glass: Use NSGlassEffectView.contentView as per WWDC2025-310
-        // "avoid placing the NSGlassEffectView behind your content as a sibling view"
+        // Mark the glass ID for detection
         let glassId = NSUserInterfaceItemIdentifier("HyaloGlassEffect")
 
         // Inherit appearance from parent window (for light/dark mode)
         let parentAppearance = window.parent?.effectiveAppearance ?? window.effectiveAppearance
 
         if #available(macOS 26.0, *) {
-            // True Liquid Glass: set emacsView as contentView
-            let glassView = NSGlassEffectView(frame: emacsView.frame)
-            glassView.identifier = glassId
-            glassView.cornerRadius = 12
+            let windowFrame = NSRect(origin: .zero, size: window.frame.size)
+            
+            // Design constants - beautiful consistent spacing
+            let outerPadding: CGFloat = 16      // Glass edge to content
+            let headerHeight: CGFloat = 32      // Header bar height
+            let headerPadding: CGFloat = 12     // Padding inside header area
+            let contentPadding: CGFloat = 8     // Gap between header and content
+            let cornerRadius: CGFloat = 14      // Content container corner radius
+            let glassCornerRadius: CGFloat = 18 // Outer glass corner radius
+            
+            // Guard: ensure window has minimum valid size
+            guard windowFrame.width >= 150 && windowFrame.height >= 100 else {
+                return
+            }
+            
+            // Create outer container to hold glass + content
+            let outerContainer = NSView(frame: windowFrame)
+            outerContainer.identifier = glassId
+            outerContainer.wantsLayer = true
+            outerContainer.autoresizingMask = [.width, .height]
+            
+            // 1. Glass effect view as background (fills entire container)
+            let glassView = NSGlassEffectView(frame: windowFrame)
+            glassView.cornerRadius = glassCornerRadius
             glassView.appearance = parentAppearance
             glassView.autoresizingMask = [.width, .height]
-
-            // Use .clear style for less vibrancy/more transparency
-            glassView.style = .clear // .clear or .regular
-
-            // Apply tint color from theme (via NavigationSidebarController state)
+            glassView.style = .clear
+            
+            // Apply tint color from theme
             if let parentWindow = window.parent ?? findEmacsWindow() {
                 let controller = NavigationSidebarManager.shared.getController(for: parentWindow)
                 let tintColor = controller.state.backgroundColor.withAlphaComponent(controller.state.backgroundAlpha * 0.3)
                 glassView.tintColor = tintColor
             }
-
-            // IMPORTANT: Set emacsView as contentView for proper Liquid Glass effect
-            // The glass material shows through transparent areas of the content
+            outerContainer.addSubview(glassView)
+            
+            // 2. Header - positioned at top with proper alignment
+            // Header sits inside the outer padding, aligned with content container
+            let headerY = windowFrame.height - outerPadding - headerHeight
+            let headerView = NSTextField(labelWithString: "⌘ Command")
+            headerView.identifier = NSUserInterfaceItemIdentifier("HyaloGlassHeader")
+            headerView.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+            headerView.appearance = parentAppearance
+            headerView.textColor = NSColor.labelColor
+            // Header text aligned with content container's left edge + internal padding
+            headerView.frame = NSRect(
+                x: outerPadding + headerPadding,
+                y: headerY + (headerHeight - 16) / 2,  // Vertically centered
+                width: windowFrame.width - (outerPadding * 2) - (headerPadding * 2),
+                height: 16
+            )
+            headerView.autoresizingMask = [.width, .minYMargin]
+            outerContainer.addSubview(headerView)
+            
+            // 3. Content container with theme background (rounded rect)
+            // Positioned below header with consistent padding
+            let contentX = outerPadding
+            let contentY = outerPadding
+            let contentWidth = windowFrame.width - (outerPadding * 2)
+            let contentHeight = windowFrame.height - outerPadding - headerHeight - contentPadding - outerPadding
+            
+            // Ensure valid dimensions
+            guard contentWidth >= 100 && contentHeight >= 30 else {
+                return
+            }
+            
+            let contentFrame = NSRect(x: contentX, y: contentY, width: contentWidth, height: contentHeight)
+            let contentContainer = NSView(frame: contentFrame)
+            contentContainer.identifier = NSUserInterfaceItemIdentifier("HyaloGlassContent")
+            contentContainer.wantsLayer = true
+            contentContainer.layer?.cornerRadius = cornerRadius
+            contentContainer.layer?.masksToBounds = true
+            contentContainer.autoresizingMask = [.width, .height]
+            
+            // Get background color from theme
+            if let parentWindow = window.parent ?? findEmacsWindow() {
+                let controller = NavigationSidebarManager.shared.getController(for: parentWindow)
+                contentContainer.layer?.backgroundColor = controller.state.backgroundColor.cgColor
+            } else {
+                contentContainer.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+            }
+            outerContainer.addSubview(contentContainer)
+            
+            // 4. Emacs view fills content container
+            let emacsFrame = NSRect(origin: .zero, size: CGSize(width: contentWidth, height: contentHeight))
+            emacsView.frame = emacsFrame
             emacsView.autoresizingMask = [.width, .height]
-            glassView.contentView = emacsView
-
-            window.contentView = glassView
+            contentContainer.addSubview(emacsView)
+            
+            // Set minimum window size to prevent IOSurface errors
+            window.minSize = NSSize(width: 300, height: 150)
+            
+            window.contentView = outerContainer
         } else {
             // Fallback: NSVisualEffectView for older macOS
             let container = NSView(frame: emacsView.frame)
@@ -164,13 +247,12 @@ final class GlassEffectView: NSVisualEffectView {
 
     /// Update appearance on an existing glass-enabled window
     static func updateAppearance(for window: NSWindow) {
-        guard let glassContainer = window.contentView,
-              glassContainer.identifier?.rawValue == "HyaloGlassEffect" else {
+        guard let outerContainer = window.contentView,
+              outerContainer.identifier?.rawValue == "HyaloGlassEffect" else {
             return
         }
 
         // Get appearance from NavigationSidebarController state (source of truth)
-        // This ensures we match what the AppearancePanel set
         var newAppearance: NSAppearance?
         if #available(macOS 26.0, *), let parentWindow = window.parent ?? findEmacsWindow() {
             let controller = NavigationSidebarManager.shared.getController(for: parentWindow)
@@ -181,7 +263,6 @@ final class GlassEffectView: NSVisualEffectView {
             case "dark":
                 newAppearance = NSAppearance(named: .darkAqua)
             default:
-                // "auto" - use system appearance
                 newAppearance = NSApp.effectiveAppearance
             }
         } else {
@@ -192,32 +273,47 @@ final class GlassEffectView: NSVisualEffectView {
             return
         }
 
-        // Update the glass view's appearance
-        glassContainer.appearance = appearance
+        // Update the outer container's appearance
+        outerContainer.appearance = appearance
 
-        // If it's an NSGlassEffectView (macOS 26+), update directly
+        // macOS 26+: Update glass view, header, and content container
         if #available(macOS 26.0, *) {
-            if let glassView = glassContainer as? NSGlassEffectView {
+            // Glass view is first subview
+            if let glassView = outerContainer.subviews.first as? NSGlassEffectView {
                 glassView.appearance = appearance
 
-                // Also update tint color from controller state
+                // Update tint color
                 if let parentWindow = window.parent ?? findEmacsWindow() {
                     let controller = NavigationSidebarManager.shared.getController(for: parentWindow)
                     let tintColor = controller.state.backgroundColor.withAlphaComponent(controller.state.backgroundAlpha * 0.3)
                     glassView.tintColor = tintColor
                 }
             }
+            
+            // Header is the view with identifier "HyaloGlassHeader"
+            if let headerView = outerContainer.subviews.first(where: { $0.identifier?.rawValue == "HyaloGlassHeader" }) as? NSTextField {
+                headerView.appearance = appearance
+                // Force text color update by re-setting it
+                headerView.textColor = NSColor.labelColor
+            }
+            
+            // Content container has identifier "HyaloGlassContent"
+            if let contentContainer = outerContainer.subviews.first(where: { $0.identifier?.rawValue == "HyaloGlassContent" }),
+               let parentWindow = window.parent ?? findEmacsWindow() {
+                let controller = NavigationSidebarManager.shared.getController(for: parentWindow)
+                contentContainer.layer?.backgroundColor = controller.state.backgroundColor.cgColor
+            }
         }
 
         // For fallback container, update visual effect view
-        if let visualEffect = glassContainer.subviews.first as? NSVisualEffectView {
+        if let visualEffect = outerContainer.subviews.first as? NSVisualEffectView {
             visualEffect.appearance = appearance
             visualEffect.state = .inactive
             visualEffect.state = .active
         }
 
         // Force redraw
-        glassContainer.needsDisplay = true
+        outerContainer.needsDisplay = true
         window.display()
     }
 }

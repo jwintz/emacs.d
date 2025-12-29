@@ -528,19 +528,30 @@ final class HyaloModule: Module {
                 
                 if let window = miniFrame {
                     if #available(macOS 10.14, *) {
-                        GlassEffectView.attach(to: window)
+                        // Check if glass is already attached (don't resize again)
+                        let glassAlreadyAttached = window.contentView?.identifier?.rawValue == "HyaloGlassEffect"
                         
-                        // Position the mini-frame RELATIVE TO ROOT WINDOW
-                        // Width: 75% of root, Y position: 25% from top
+                        // Position the mini-frame RELATIVE TO ROOT WINDOW (screen coordinates)
+                        // Width: 75% of root (min 500px), Y position: 25% from top
                         let rootFrame = root.frame
                         let widthRatio: CGFloat = 0.75
                         let yRatio: CGFloat = 0.25
+                        let minWidth: CGFloat = 500
                         
-                        let newWidth = rootFrame.width * widthRatio
+                        let newWidth = max(rootFrame.width * widthRatio, minWidth)
+                        // Keep existing height - don't accumulate
+                        let currentHeight = window.frame.height
                         let newX = rootFrame.origin.x + (rootFrame.width - newWidth) / 2
-                        let newY = rootFrame.origin.y + rootFrame.height * (1 - yRatio) - window.frame.height
+                        // Position from top of root window (screen coordinates)
+                        let newY = rootFrame.origin.y + rootFrame.height * (1 - yRatio) - currentHeight
                         
-                        window.setFrame(NSRect(x: newX, y: newY, width: newWidth, height: window.frame.height), display: true)
+                        // Set frame position and width (without display to minimize flicker)
+                        window.setFrame(NSRect(x: newX, y: newY, width: newWidth, height: currentHeight), display: false, animate: false)
+                        
+                        // Attach the glass effect (only if not already attached)
+                        if !glassAlreadyAttached {
+                            GlassEffectView.attach(to: window)
+                        }
                         
                         // Make mini-frame modal-like: higher window level prevents interaction with parent
                         window.level = .modalPanel
