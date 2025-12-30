@@ -119,12 +119,33 @@ final class ModeLineToolbarItemView: NSView {
 struct SidebarSectionHeader: View {
     let title: String
     let systemImage: String
+    var isBusy: Bool = false
+
+    @State private var rotation: Double = 0
 
     var body: some View {
+        let _ = print("[SidebarSectionHeader] Rendering. Title: \(title), Busy: \(isBusy), Rotation: \(rotation)")
         HStack(spacing: 6) {
             Image(systemName: systemImage)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
+                .symbolEffect(.pulse, isActive: isBusy)
+                .rotationEffect(.degrees(rotation))
+                .onChange(of: isBusy, initial: true) { _, busy in
+                    print("[SidebarSectionHeader] onChange(isBusy): \(busy)")
+                    if busy {
+                        // Continuous rotation
+                        rotation = 0
+                        withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
+                            rotation = 360
+                        }
+                    } else {
+                        // Reset rotation
+                        withAnimation(.default) {
+                            rotation = 0
+                        }
+                    }
+                }
             Text(title)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(.secondary)
@@ -219,31 +240,40 @@ final class CustomDividerSplitView: NSSplitView {
 }
 
 /// NSViewRepresentable wrapper for embedded Emacs child-frame NSView
+/// Uses EmacsEventForwardingContainer to forward events to the original hidden window
 @available(macOS 26.0, *)
 struct EmbeddedEmacsView: NSViewRepresentable {
     let embeddedView: NSView
+    let originalWindow: NSWindow?
     let slot: String
     var onResize: ((String, CGFloat, CGFloat) -> Void)?
 
-    func makeNSView(context: Context) -> NSView {
-        let container = NSView()
-        container.wantsLayer = true
-        container.layer?.backgroundColor = .clear
+    func makeNSView(context: Context) -> EmacsEventForwardingContainer {
+        let container = EmacsEventForwardingContainer()
 
-        embeddedView.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(embeddedView)
+        if let originalWindow = originalWindow {
+            // Use event forwarding to route events back to the original Emacs window
+            container.configure(embeddedView: embeddedView, originalWindow: originalWindow)
+        } else {
+            // Fallback without forwarding (shouldn't happen but handles edge cases)
+            container.wantsLayer = true
+            container.layer?.backgroundColor = .clear
 
-        NSLayoutConstraint.activate([
-            embeddedView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            embeddedView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            embeddedView.topAnchor.constraint(equalTo: container.topAnchor),
-            embeddedView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
-        ])
+            embeddedView.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(embeddedView)
+
+            NSLayoutConstraint.activate([
+                embeddedView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+                embeddedView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+                embeddedView.topAnchor.constraint(equalTo: container.topAnchor),
+                embeddedView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+            ])
+        }
 
         return container
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
+    func updateNSView(_ nsView: EmacsEventForwardingContainer, context: Context) {
         // Notify Elisp of size changes
         let size = nsView.bounds.size
         if size.width > 0 && size.height > 0 {
@@ -271,7 +301,7 @@ struct SidebarContentView: View {
                 top: {
                     VStack(spacing: 0) {
                         SidebarSectionHeader(title: "OPEN BUFFERS", systemImage: "doc.on.doc")
-                        EmbeddedEmacsView(embeddedView: topView, slot: "left-top", onResize: onResize)
+                        EmbeddedEmacsView(embeddedView: topView, originalWindow: state.leftTopWindow, slot: "left-top", onResize: onResize)
                             .padding(.horizontal, embeddedMargin)
                             .padding(.bottom, embeddedMargin)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -280,7 +310,7 @@ struct SidebarContentView: View {
                 bottom: {
                     VStack(spacing: 0) {
                         SidebarSectionHeader(title: "WORKSPACE", systemImage: "folder")
-                        EmbeddedEmacsView(embeddedView: bottomView, slot: "left-bottom", onResize: onResize)
+                        EmbeddedEmacsView(embeddedView: bottomView, originalWindow: state.leftBottomWindow, slot: "left-bottom", onResize: onResize)
                             .padding(.horizontal, embeddedMargin)
                             .padding(.bottom, embeddedMargin)
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -297,7 +327,7 @@ struct SidebarContentView: View {
             // Only top view available
             VStack(spacing: 0) {
                 SidebarSectionHeader(title: "OPEN BUFFERS", systemImage: "doc.on.doc")
-                EmbeddedEmacsView(embeddedView: topView, slot: "left-top", onResize: onResize)
+                EmbeddedEmacsView(embeddedView: topView, originalWindow: state.leftTopWindow, slot: "left-top", onResize: onResize)
                     .padding(.horizontal, embeddedMargin)
                     .padding(.bottom, embeddedMargin)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -312,7 +342,7 @@ struct SidebarContentView: View {
             // Only bottom view available
             VStack(spacing: 0) {
                 SidebarSectionHeader(title: "WORKSPACE", systemImage: "folder")
-                EmbeddedEmacsView(embeddedView: bottomView, slot: "left-bottom", onResize: onResize)
+                EmbeddedEmacsView(embeddedView: bottomView, originalWindow: state.leftBottomWindow, slot: "left-bottom", onResize: onResize)
                     .padding(.horizontal, embeddedMargin)
                     .padding(.bottom, embeddedMargin)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -920,8 +950,12 @@ struct DetailPlaceholderView: View {
             // Show embedded agent-shell or placeholder
             if let rightView = state.rightView {
                 VStack(spacing: 0) {
-                    SidebarSectionHeader(title: "AGENT SHELL", systemImage: "sparkles")
-                    EmbeddedEmacsView(embeddedView: rightView, slot: "right", onResize: onResize)
+                    SidebarSectionHeader(
+                        title: state.inspectorTitle,
+                        systemImage: state.inspectorIcon,
+                        isBusy: state.inspectorBusy
+                    )
+                    EmbeddedEmacsView(embeddedView: rightView, originalWindow: state.rightWindow, slot: "right", onResize: onResize)
                         .padding(.horizontal, 12)
                         .padding(.bottom, 12)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1289,7 +1323,7 @@ struct HyaloNavigationLayout: View {
                     onResize: onEmbeddedResize
                 )
                 .navigationSplitViewColumnWidth(min: 200, ideal: 280, max: 400)
-                .transaction { $0.animation = nil }  // Disable sidebar animation
+                //.transaction { $0.animation = nil }  // Removed to allow content animations
                 .background {
                     // Track sidebar width for modeline calculation
                     GeometryReader { sidebarGeometry in
@@ -1299,6 +1333,7 @@ struct HyaloNavigationLayout: View {
                             }
                             .onChange(of: sidebarGeometry.size.width) { _, newWidth in
                                 state.sidebarWidth = newWidth
+                                onGeometryUpdate?()  // Update toolbar when splitter moves
                             }
                     }
                 }
@@ -1318,6 +1353,7 @@ struct HyaloNavigationLayout: View {
                             }
                             .onChange(of: contentGeometry.size.width) { _, newWidth in
                                 state.contentWidth = newWidth
+                                onGeometryUpdate?()  // Update toolbar when splitter moves
                             }
                     }
                 }
@@ -1326,7 +1362,7 @@ struct HyaloNavigationLayout: View {
                 .inspector(isPresented: inspectorVisibleBinding) {
                     DetailPlaceholderView(state: state, onResize: onEmbeddedResize)
                         .inspectorColumnWidth(min: 200, ideal: 300, max: 500)
-                        .transaction { $0.animation = nil }  // Disable inspector animation
+                        //.transaction { $0.animation = nil }  // Removed to allow content animations
                         .background {
                             // Track inspector width
                             GeometryReader { inspectorGeometry in
@@ -1336,6 +1372,7 @@ struct HyaloNavigationLayout: View {
                                     }
                                     .onChange(of: inspectorGeometry.size.width) { _, newWidth in
                                         state.detailWidth = newWidth
+                                        onGeometryUpdate?()  // Update toolbar when splitter moves
                                     }
                             }
                         }
@@ -1521,7 +1558,6 @@ struct FooterPatternLayer: View {
     var isDarkMode: Bool
 
     var body: some View {
-        let _ = NSLog("[FOOTER-VIEW] FooterPatternLayer body: pattern=\(pattern), height=\(height), bgAlpha=\(backgroundAlpha), patternAlpha=\(patternAlpha), isDarkMode=\(isDarkMode)")
         if height > 0 {
             VStack(spacing: 0) {
                 Spacer()
@@ -1532,7 +1568,6 @@ struct FooterPatternLayer: View {
 
                     // Pattern layer on top (only if pattern is not none)
                     if pattern != .none {
-                        let _ = NSLog("[FOOTER-VIEW] Rendering pattern with height=\(height)")
                         PatternTileView(
                             pattern: pattern,
                             tintColor: tintColor,
@@ -1547,7 +1582,6 @@ struct FooterPatternLayer: View {
             }
             .allowsHitTesting(false)  // Don't intercept mouse events
         } else {
-            let _ = NSLog("[FOOTER-VIEW] NOT rendering: height=\(height)")
         }
     }
 }
@@ -1605,7 +1639,6 @@ final class PatternTileNSView: NSView {
 
         guard let context = NSGraphicsContext.current?.cgContext else { return }
 
-        NSLog("[FOOTER-DRAW] bounds=\(bounds), dirtyRect=\(dirtyRect), pattern=\(pattern)")
 
         // Calculate pattern color:
         // For dark mode: use lighter color on dark background
@@ -1624,7 +1657,6 @@ final class PatternTileNSView: NSView {
         let tileWidth = svgData.width
         let tileHeight = svgData.height
 
-        NSLog("[FOOTER-DRAW] tileWidth=\(tileWidth), tileHeight=\(tileHeight)")
 
         // Draw tiled pattern across the entire bounds
         context.saveGState()
@@ -1637,7 +1669,6 @@ final class PatternTileNSView: NSView {
         let cols = Int(ceil(bounds.width / tileWidth)) + 1
         let rows = Int(ceil(bounds.height / tileHeight)) + 1
 
-        NSLog("[FOOTER-DRAW] cols=\(cols), rows=\(rows)")
 
         for row in 0..<rows {
             for col in 0..<cols {
@@ -1887,6 +1918,12 @@ final class NavigationSidebarState {
     var vibrancyMaterial: VibrancyMaterial = .ultraThin
     /// Whether decorations (toolbar and traffic lights) are visible
     var decorationsVisible: Bool = true
+    
+    // Inspector Header
+    var inspectorTitle: String = "AGENT SHELL"
+    var inspectorIcon: String = "sparkles"
+    var inspectorBusy: Bool = false
+
     /// Available toolbar width (calculated from window geometry)
     var toolbarWidth: CGFloat = 600
     /// Toolbar/titlebar height (calculated from window geometry)
@@ -1916,10 +1953,16 @@ final class NavigationSidebarState {
 
     /// Embedded view for left sidebar top (ibuffer)
     var leftTopView: NSView?
-    /// Embedded view for left sidebar bottom (treemacs)
+    /// Original window for left-top (for event forwarding)
+    weak var leftTopWindow: NSWindow?
+    /// Embedded view for left sidebar bottom (dired-sidebar)
     var leftBottomView: NSView?
+    /// Original window for left-bottom (for event forwarding)
+    weak var leftBottomWindow: NSWindow?
     /// Embedded view for right sidebar (agent-shell)
     var rightView: NSView?
+    /// Original window for right (for event forwarding)
+    weak var rightWindow: NSWindow?
 
     /// Track last resize sizes to avoid duplicate notifications
     var debugLastResizeSize: [String: String] = [:]
@@ -2366,6 +2409,13 @@ final class NavigationSidebarController: NSObject {
         state.sidebarVisible
     }
 
+    func setInspectorHeader(title: String, icon: String, busy: Bool) {
+        print("[NavigationSidebarController] setInspectorHeader. Title: \(title), Busy: \(busy)")
+        state.inspectorTitle = title
+        state.inspectorIcon = icon
+        state.inspectorBusy = busy
+    }
+
     // MARK: - Detail Panel
 
     /// Show the detail column (right panel)
@@ -2532,34 +2582,27 @@ final class NavigationSidebarController: NSObject {
     /// Set the footer pattern type
     /// PATTERN is one of the FooterPattern enum values (e.g., "hideout", "hexagons")
     func setFooterPattern(_ patternName: String) {
-        NSLog("[FOOTER-DEBUG] setFooterPattern called with: '\(patternName)'")
         if let pattern = FooterPattern(rawValue: patternName) {
-            NSLog("[FOOTER-DEBUG] Pattern matched: \(pattern)")
             var transaction = Transaction()
             transaction.disablesAnimations = true
             withTransaction(transaction) {
                 state.footerPattern = pattern
             }
-            NSLog("[FOOTER-DEBUG] State updated: pattern=\(state.footerPattern), height=\(state.footerHeight)")
         } else {
-            NSLog("[FOOTER-DEBUG] Pattern NOT matched for: '\(patternName)'")
         }
     }
 
     /// Set the footer height (echo area/minibuffer height in pixels)
     func setFooterHeight(_ height: CGFloat) {
-        NSLog("[FOOTER-DEBUG] setFooterHeight called with: \(height)")
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
             state.footerHeight = height
         }
-        NSLog("[FOOTER-DEBUG] State after height update: pattern=\(state.footerPattern), height=\(state.footerHeight), bgAlpha=\(state.footerBackgroundAlpha), patternAlpha=\(state.footerPatternAlpha)")
     }
 
     /// Set the footer background alpha (0.0 to 1.0) - tint layer
     func setFooterBackgroundAlpha(_ alpha: CGFloat) {
-        NSLog("[FOOTER-DEBUG] setFooterBackgroundAlpha called with: \(alpha)")
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
@@ -2569,7 +2612,6 @@ final class NavigationSidebarController: NSObject {
 
     /// Set the footer pattern alpha (0.0 to 1.0) - pattern foreground
     func setFooterPatternAlpha(_ alpha: CGFloat) {
-        NSLog("[FOOTER-DEBUG] setFooterPatternAlpha called with: \(alpha)")
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
@@ -2730,6 +2772,10 @@ final class NavigationSidebarManager {
         controllers[window.windowNumber]?.toggleDecorations()
     }
 
+    func setInspectorHeader(for window: NSWindow, title: String, icon: String, busy: Bool) {
+        controllers[window.windowNumber]?.setInspectorHeader(title: title, icon: icon, busy: busy)
+    }
+
     func areDecorationsVisible(for window: NSWindow) -> Bool {
         controllers[window.windowNumber]?.areDecorationsVisible ?? true
     }
@@ -2754,16 +2800,19 @@ final class NavigationSidebarManager {
 
     // MARK: - Embedded View Management
 
-    func setEmbeddedView(view: NSView, slot: String, for window: NSWindow) {
+    func setEmbeddedView(view: NSView, slot: String, for window: NSWindow, originalWindow: NSWindow? = nil) {
         guard let controller = controllers[window.windowNumber] else { return }
 
         switch slot {
         case "left-top":
             controller.state.leftTopView = view
+            controller.state.leftTopWindow = originalWindow
         case "left-bottom":
             controller.state.leftBottomView = view
+            controller.state.leftBottomWindow = originalWindow
         case "right":
             controller.state.rightView = view
+            controller.state.rightWindow = originalWindow
         default:
             break
         }
@@ -2774,10 +2823,13 @@ final class NavigationSidebarManager {
         switch slot {
         case "left-top":
             controller.state.leftTopView = nil
+            controller.state.leftTopWindow = nil
         case "left-bottom":
             controller.state.leftBottomView = nil
+            controller.state.leftBottomWindow = nil
         case "right":
             controller.state.rightView = nil
+            controller.state.rightWindow = nil
         default:
             break
         }

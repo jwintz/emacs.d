@@ -1,5 +1,21 @@
 ;;; init.el -*- lexical-binding: t; no-byte-compile: t -*-
 
+(setq debug-on-error t)
+
+;;; ============================================================================
+;;; Early Protection (must be before any package loads)
+;;; ============================================================================
+
+;; Protect against nerd-icons returning nil (breaks doom-modeline)
+;; Advise doom-modeline directly since nerd-icons advice timing is unreliable
+(with-eval-after-load 'doom-modeline-core
+  (defun hyalo--doom-modeline-safe-icon (orig-fun &rest args)
+    "Wrap doom-modeline icon update to handle nil icons."
+    (condition-case nil
+        (apply orig-fun args)
+      (wrong-type-argument nil)))
+  (advice-add 'doom-modeline-update-buffer-file-icon :around #'hyalo--doom-modeline-safe-icon))
+
 ;;; ============================================================================
 ;;; Bootstrap
 ;;; ============================================================================
@@ -154,7 +170,7 @@
   "Log MSG using elog if available, otherwise use `message'."
   (if (and elog-emacs (fboundp 'elog-info))
       (elog-info elog-emacs msg)
-    (message "[emacs.d/init] %s" msg)))
+    nil))
 
 (defun emacs-section-start (name)
   "Start timing section NAME."
@@ -229,7 +245,7 @@
   (cursor-intangible-mode t)
   (x-stretch-cursor nil)
   ;; Text
-  (text-scale-mode-step 1.05)
+  (text-scale-mode-step 1.1)
   ;; Backups
   (make-backup-files nil)
   ;; Misc
@@ -364,38 +380,26 @@
 ;;;; Icons
 
 (use-package nerd-icons
-  :demand t)
+  :demand t
+  :config
+  ;; Force-require to ensure advice from top of init.el is installed
+  ;; before any other package can autoload nerd-icons
+  (require 'nerd-icons))
 
+(use-package nerd-icons-dired
+  :hook (dired-mode . nerd-icons-dired-mode))
+
+;; Disabled - hyalo-ibuffer provides its own monochromatic icons
 ;; (use-package nerd-icons-ibuffer
-;;   :ensure t
-;;   :hook (ibuffer-mode . nerd-icons-ibuffer-mode)
-;;   :config
-;;   ;; Monkey-patch to fix "Symbol's value as variable is void: icon"
-;;   ;; This redefines the column using 'buf-icon' instead of 'icon'
-;;   (with-eval-after-load 'nerd-icons-ibuffer
-;;     (define-ibuffer-column icon
-;;       (:name "" :inline t)
-;;       (if nerd-icons-ibuffer-icon
-;;           (let ((buf-icon (if (eq major-mode 'dired-mode)
-;;                               (nerd-icons-icon-for-dir (buffer-name)
-;;                                                        :height nerd-icons-ibuffer-icon-size
-;;                                                        :face 'nerd-icons-ibuffer-dir-face)
-;;                             (nerd-icons-icon-for-buffer :height nerd-icons-ibuffer-icon-size))))
-;;             (concat
-;;              (if (or (null buf-icon) (symbolp buf-icon))
-;;                  (nerd-icons-faicon "nf-fa-file_o"
-;;                                     :face (if nerd-icons-ibuffer-color-icon
-;;                                               'nerd-icons-dsilver
-;;                                             'nerd-icons-ibuffer-icon-face)
-;;                                     :height nerd-icons-ibuffer-icon-size)
-;;                (if nerd-icons-ibuffer-color-icon
-;;                    buf-icon
-;;                  (propertize buf-icon
-;;                              'face `(:inherit nerd-icons-ibuffer-icon-face
-;;                                      :family ,(plist-get (get-text-property 0 'face buf-icon)
-;;                                                          :family)))))
-;;              " "))
-;;         ""))))
+;;   :hook (ibuffer-mode . nerd-icons-ibuffer-mode))
+
+;; True monochromatic icons - strips foreground from nerd-icons
+;; Icons inherit color from context, allowing packages to control appearance
+(use-package hyalo-icons
+  :load-path emacs-config-dir
+  :after nerd-icons
+  :custom
+  (hyalo-icons-monochrome t))
 
 ;;;; Highlighting
 
@@ -413,18 +417,20 @@
   (modus-themes-mixed-fonts t)
   (modus-themes-variable-pitch-ui t)
   (modus-themes-italic-constructs t)
-  (modus-themes-bold-constructs t)
-  (modus-themes-completions '((t . (bold))))
-  (modus-themes-prompts '(bold))
+  (modus-themes-bold-constructs nil)
+  (modus-themes-completions '((t . (semibold))))
+  (modus-themes-prompts '(semibold))
   :config
   (defun hyalo-switch-to-dark (&rest _)
     (when (fboundp 'hyalo-module-appearance-set)
-      (hyalo-module-appearance-set 'dark)))
+      (hyalo-module-appearance-set 'dark)
+      (hyalo-module-footer-set-pattern-alpha 0.02)))
   (advice-add 'modus-themes-load-random-dark :after #'hyalo-switch-to-dark)
 
   (defun hyalo-switch-to-light (&rest _)
     (when (fboundp 'hyalo-module-appearance-set)
-      (hyalo-module-appearance-set 'light)))
+      (hyalo-module-appearance-set 'light)
+      (hyalo-module-footer-set-pattern-alpha 0.06)))
   (advice-add 'modus-themes-load-random-light :after #'hyalo-switch-to-light))
 
 (use-package ef-themes
@@ -476,6 +482,21 @@
 
 (defvar rcirc-track-minor-mode nil) ;; Fix doom-modeline error
 
+(use-package keycast
+  :ensure t
+  :config
+  ;; Redefine keycast-mode to work with doom-modeline
+  (define-minor-mode keycast-mode
+    "Show current command and its key binding in the mode line."
+    :global t
+    (if keycast-mode
+        (progn
+          (add-hook 'pre-command-hook 'keycast--update t)
+          (add-to-list 'global-mode-string '("" keycast-mode-line " ")))
+      (progn
+        (remove-hook 'pre-command-hook 'keycast--update)
+        (setq global-mode-string (delete '("" keycast-mode-line " ") global-mode-string))))))
+
 (use-package doom-modeline
   :ensure t
   :after nerd-icons
@@ -502,7 +523,7 @@
   (doom-modeline-modal-modern-icon t)
 
   ;; Buffer display
-  (doom-modeline-buffer-file-name-style 'truncate-upto-project)
+  (doom-modeline-buffer-file-name-style 'file-name-with-project)
 
   ;; Project integration (uses built-in project.el)
   (doom-modeline-project-detection 'project)
@@ -769,9 +790,9 @@
               (theme (plist-get profile :theme))
               (vibrancy (plist-get profile :vibrancy))
               (opacity (plist-get profile :opacity)))
-          ;; Apply appearance mode with persistence
+          ;; Apply appearance mode with persistence (saves by default)
           (when appearance
-            (hyalo-module-appearance-set appearance t))
+            (hyalo-module-appearance-set appearance))
           ;; Load and save theme
           (when theme
             (mapc #'disable-theme custom-enabled-themes)
@@ -914,9 +935,8 @@
 	  (message "Footer pattern set to: %s" choice)))
 
   (hyalo-module-footer-mode 1)
-  (hyalo-module-footer-set-pattern "signal")
-  (hyalo-module-footer-set-background-alpha 0.2)
-  (hyalo-module-footer-set-pattern-alpha 0.025))
+  (hyalo-module-footer-set-pattern "hexagons")
+  (hyalo-module-footer-set-background-alpha 0.1))
 
 (use-package hyalo-module-minibuffer
   :disabled t
@@ -1034,45 +1054,25 @@
 (use-package swift-mode
   :mode "\\.swift\\'")
 
-;;;; Treemacs & Explorer
+;;;; Dired-Sidebar & File Browser
 
-(use-package treemacs
+(use-package nerd-icons-dired
+  :commands (nerd-icons-dired-mode))
+
+(use-package dired-sidebar
   :defer t
+  :commands (dired-sidebar-toggle-sidebar)
   :custom
-  (treemacs-position 'left)
-  (treemacs-width 35)
-  (treemacs-display-in-side-window t)
-  (treemacs-is-never-other-window t)
-  (treemacs-show-hidden-files t)
-  (treemacs-follow-after-init t)
-  (treemacs-expand-after-init t)
-  (treemacs-space-between-root-nodes nil)
-  (treemacs-no-png-images t)
-  (treemacs-indentation 1)
-  (treemacs-indentation-string " ")
-  :general
-  (leader-def
-;;  "t f" '(treemacs-toggle-focus :wk "focus toggle")
-    "t n" '(treemacs-next-project :wk "next project")
-    "t p" '(treemacs-previous-project :wk "previous project")
-    "t s" '(treemacs-select-window :wk "select window"))
+  (dired-sidebar-theme 'nerd-icons)
+  (dired-sidebar-width 35)
+  (dired-sidebar-should-follow-file t)
   :config
-  (treemacs-follow-mode t)
-  (treemacs-filewatch-mode t)
-  (treemacs-fringe-indicator-mode 'always)
+  ;; Enable nerd-icons in dired-sidebar
+  (add-hook 'dired-sidebar-mode-hook #'nerd-icons-dired-mode))
 
-  (defun treemacs-toggle-focus ()
-    "Toggle focus between the Treemacs window and the previously selected window."
-    (interactive)
-    (if (eq (selected-window) (treemacs-get-local-window))
-        (other-window 1)
-      (treemacs-select-window))))
-
-(use-package hyalo-explorer-icons
+(use-package hyalo-dired-sidebar
   :load-path emacs-config-dir
-  :after treemacs
-  :config
-  (hyalo-explorer-icons-config))
+  :after dired-sidebar)
 
 (use-package hyalo-module-sidebar
   :load-path emacs-config-dir
@@ -1088,8 +1088,8 @@
   (leader-def
     "t e" '(hyalo-sidebar-toggle-left :wk "sidebar (left)")
     "t i" '(hyalo-sidebar-toggle-right :wk "inspector (right)")
-    "t E" '(hyalo-sidebar-focus-left :wk "focus sidebar")))
-    "t I" '(hyalo-sidebar-focus-right :wk "focus inspector")
+    "t E" '(hyalo-sidebar-focus-left :wk "focus sidebar")
+    "t I" '(hyalo-sidebar-focus-right :wk "focus inspector")))
 
 (emacs-section-end)
 
@@ -1145,16 +1145,28 @@
             :rev :newest)
   :custom
   (agent-shell-section-functions nil)
+  :hook (agent-shell-mode . (lambda ()
+                              (face-remap-add-relative 'default
+                                                       :family "Monaspace Krypton Frozen"
+                                                       :height 110)))
   :general
   (leader-def
     "a" '(:ignore t :wk "agents")
     "a c" '(agent-shell-anthropic-start-claude-code :wk "claude")
     "a g" '(agent-shell-google-start-gemini :wk "gemini")
     "a s" '(agent-shell-sidebar-toggle :wk "sidebar toggle")
+    "a S" '(agent-shell-send-screenshot :wk "screenshot")
+    "a q" '(agent-shell-queue-request :wk "queue request")
     "a f" '(agent-shell-sidebar-toggle-focus :wk "sidebar focus"))
   (:keymaps 'agent-shell-mode-map
    "C-p" 'agent-shell-previous-input
    "C-n" 'agent-shell-next-input))
+
+(use-package hyalo-agent-extras
+  :load-path emacs-config-dir
+  :after agent-shell
+  :config
+  (hyalo-agent-extras-mode 1))
 
 (use-package agent-shell-sidebar
   :vc (:url "https://github.com/cmacrae/agent-shell-sidebar"

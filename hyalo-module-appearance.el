@@ -271,17 +271,17 @@ Does NOT alter vibrancy settings."
 
 ;;; Public API
 
-(defun hyalo-module-appearance-set (appearance &optional save)
+(defun hyalo-module-appearance-set (appearance &optional no-save)
   "Set appearance to APPEARANCE globally.
 APPEARANCE should be `light', `dark', or `auto'.
 Only changes window appearance mode. Does NOT change vibrancy/opacity.
 Theme switching only occurs in `auto' mode.
-If SAVE is non-nil, persist the setting to custom.el."
+Always saves to custom.el unless NO-SAVE is non-nil."
   (interactive
    (list (intern (completing-read "Appearance: " '("light" "dark" "auto") nil t))))
   (setq hyalo-module-appearance-mode-setting appearance)
-  ;; Persist to custom.el if requested
-  (when save
+  ;; Persist to custom.el by default
+  (unless no-save
     (customize-save-variable 'hyalo-module-appearance-mode-setting appearance))
   ;; Apply frame settings
   (hyalo-module-appearance--apply-frame-settings)
@@ -302,7 +302,7 @@ If SAVE is non-nil, persist the setting to custom.el."
     ;; Sync appearance mode to Swift panel
     (when (and (hyalo-module-available-p) (fboundp 'hyalo-set-panel-appearance-mode))
       (hyalo-set-panel-appearance-mode (symbol-name appearance))))
-  (hyalo-module-log "Appearance set to %s%s" appearance (if save " (saved)" "")))
+  (hyalo-module-log "Appearance set to %s%s" appearance (if no-save "" " (saved)")))
 
 (defun hyalo-module-appearance-sync-from-panel (&optional save)
   "Sync all appearance settings from Swift panel to Emacs.

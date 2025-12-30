@@ -93,7 +93,7 @@
 
 (defun hyalo-module-header--format-header-line ()
   "Get the formatted header-line string for the current buffer."
-  (when-let ((hl (hyalo-module-header--get-buffer-header-line)))
+  (when-let* ((hl (hyalo-module-header--get-buffer-header-line)))
     (format-mode-line hl)))
 
 ;;; Header Update (Hook Function)

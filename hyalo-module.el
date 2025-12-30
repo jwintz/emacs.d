@@ -52,7 +52,7 @@ source file is newer than the built dylib."
   (let ((formatted (apply #'format msg args)))
     (if (and hyalo-module-elog (fboundp 'elog-info))
         (elog-info hyalo-module-elog formatted)
-      (message "[hyalo] %s" formatted))))
+      nil)))
 
 (defun hyalo-module-log-init ()
   "Initialize hyalo-module logger if elog is available."

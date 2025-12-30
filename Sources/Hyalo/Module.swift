@@ -444,6 +444,26 @@ final class HyaloModule: Module {
         }
 
         try env.defun(
+            "hyalo-set-inspector-header",
+            with: """
+            Set the inspector header properties.
+            TITLE: The title string.
+            ICON: The SF Symbols icon name.
+            BUSY: Whether to animate the icon (boolean).
+            """
+        ) { (env: Environment, title: String, icon: String, busy: Bool) throws -> Bool in
+            print("[Hyalo Module] hyalo-set-inspector-header called with title: \(title), busy: \(busy)")
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.setInspectorHeader(for: window, title: title, icon: icon, busy: busy)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
             "hyalo-sidebar-update-mode-line",
             with: """
             Update the mode-line content in the toolbar.
@@ -1052,12 +1072,9 @@ final class HyaloModule: Module {
             WINDOW-ID is the frame's window-id (from frame-parameter).
             """
         ) { (env: Environment, slot: String, windowId: String) throws -> Bool in
-            NSLog("HYALO: hyalo-sidebar-register-frame ENTER slot=\(slot) windowId=\(windowId)")
             if #available(macOS 26.0, *) {
-                NSLog("HYALO: macOS 26 check passed")
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else {
-                        NSLog("hyalo-sidebar-register-frame: No Emacs window found")
                         return
                     }
                     EmbeddedFrameManager.shared.registerFrame(slot: slot, windowId: windowId, parentWindow: window)
@@ -1074,16 +1091,12 @@ final class HyaloModule: Module {
             PANEL is "left" or "right".
             """
         ) { (env: Environment, panel: String) throws -> Bool in
-            NSLog("HYALO: hyalo-sidebar-embed-frames ENTER panel=\(panel)")
             if #available(macOS 26.0, *) {
-                NSLog("HYALO: embed macOS 26 check passed")
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else {
-                        NSLog("hyalo-sidebar-embed-frames: No Emacs window found")
                         return
                     }
                     let result = EmbeddedFrameManager.shared.embedFrames(for: panel, parentWindow: window)
-                    NSLog("hyalo-sidebar-embed-frames result: \(result)")
                 }
                 return true
             }
@@ -1098,7 +1111,6 @@ final class HyaloModule: Module {
             """
         ) { (env: Environment, panel: String) throws -> Bool in
             if #available(macOS 26.0, *) {
-                NSLog("hyalo-sidebar-detach-frames called for panel: \(panel)")
                 DispatchQueue.main.async {
                     EmbeddedFrameManager.shared.detachFrames(for: panel)
                 }
@@ -1115,7 +1127,6 @@ final class HyaloModule: Module {
             """
         ) { (env: Environment, panel: String) throws -> Bool in
             if #available(macOS 26.0, *) {
-                NSLog("hyalo-sidebar-clear-registration called for panel: \(panel)")
                 DispatchQueue.main.async {
                     EmbeddedFrameManager.shared.clearRegistration(for: panel)
                 }

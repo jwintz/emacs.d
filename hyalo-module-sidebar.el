@@ -3,23 +3,24 @@
 ;; Copyright (C) 2025
 ;; Author: Julien Wintz <julien.wintz@inria.fr>
 ;; Version: 1.0.0
-;; Package-Requires: ((emacs "30.1") (treemacs "0.0"))
+;; Package-Requires: ((emacs "30.1") (dired-sidebar "0.0"))
 ;; Keywords: frames, sidebar, macos
 
 ;;; Commentary:
 
 ;; Provides embedded child-frame sidebars for NavigationSplitView.
 ;; This module:
-;; 1. Creates child-frames for treemacs, ibuffer, and agent-shell
+;; 1. Creates child-frames for dired-sidebar, ibuffer, and agent-shell
 ;; 2. Marks frames with (hyalo-embedded . t) for Swift detection
 ;; 3. Handles resize notifications from Swift side
 ;; 4. Manages frame lifecycle and focus
+;; 5. Uses event forwarding to route events back to original Emacs windows
 
 ;;; Code:
 
 (require 'hyalo-module)
 (require 'hyalo-ibuffer)
-(require 'hyalo-treemacs)  ; Required for treemacs sidebar keybindings
+(require 'hyalo-dired-sidebar)  ; Required for dired-sidebar keybindings
 
 (defgroup hyalo-module-sidebar nil
   "Hyalo module for embedded sidebar child-frames."
@@ -62,7 +63,15 @@ When nil, uses the default frame font."
 (defvar hyalo-sidebar--active nil
   "Non-nil when sidebar frames are active.")
 
+(defvar hyalo-sidebar--pending-focus-right nil
+  "Non-nil when we need to focus right sidebar after agent-shell is ready.")
+
 ;;; Child-frame creation
+
+(defun hyalo-sidebar--prevent-split (&rest _)
+  "Prevent window splitting in embedded sidebar frames."
+  (when (frame-parameter (selected-frame) 'hyalo-embedded)
+    (user-error "Cannot split windows in sidebar")))
 
 (defun hyalo-sidebar--make-embedded-frame (buffer slot &optional params)
   "Create a child-frame for BUFFER designed to be embedded in SwiftUI.
@@ -80,6 +89,8 @@ Returns the created frame."
             ;; No decorations
             (undecorated . t)
             (no-accept-focus . nil)  ; Allow focus for editing
+            ;; Prevent window splitting
+            (unsplittable . t)
             ;; Internal border for SwiftUI-style margins
             (internal-border-width . ,hyalo-sidebar-internal-border-width)
             (child-frame-border-width . 0)
@@ -153,15 +164,15 @@ Preserves internal-border-width for SwiftUI-style margins."
   (force-mode-line-update t)
   (redisplay t))
 
-;;; Left sidebar setup (ibuffer + treemacs)
+;;; Left sidebar setup (ibuffer + dired-sidebar)
 
 (defun hyalo-sidebar-left-setup ()
-  "Setup left sidebar with ibuffer (top) and treemacs (bottom)."
+  "Setup left sidebar with ibuffer (top) and dired-sidebar (bottom)."
   (interactive)
   ;; IMPORTANT: Capture the main frame FIRST before any child frames are created
   (let ((main-frame (selected-frame)))
     (hyalo-sidebar--log "Left setup starting, main-frame=%s" main-frame)
-    
+
     ;; Clear any existing registration
     (when (and (hyalo-module-available-p)
                (fboundp 'hyalo-sidebar-clear-registration))
@@ -180,50 +191,50 @@ Preserves internal-border-width for SwiftUI-style margins."
              ibuf-buffer "left-top"))
       (hyalo-sidebar--strip-faces hyalo-sidebar--left-top-frame))
 
-    ;; Create treemacs frame (bottom)
-    (when (require 'treemacs nil t)
-      (hyalo-sidebar--log "Setting up treemacs...")
-      ;; Initialize treemacs if not already done
-      (unless (treemacs-current-workspace)
-        (hyalo-sidebar--log "Initializing treemacs workspace...")
-        (treemacs--init))
-      ;; Try to get or create treemacs buffer
-      (let ((treemacs-buf (or (treemacs-get-local-buffer)
-                              ;; If no local buffer, try to create one
-                              (progn
-                                (hyalo-sidebar--log "No local buffer, calling treemacs...")
-                                (save-window-excursion
-                                  (treemacs)
-                                  (treemacs-get-local-buffer))))))
-        ;; Use main-frame from outer let - this is the REAL parent frame
-        (hyalo-sidebar--log "treemacs-buf = %s, using main-frame = %s" treemacs-buf main-frame)
-        (if treemacs-buf
-            (progn
-              ;; Create the child frame
-              (setq hyalo-sidebar--left-bottom-frame
-                    (hyalo-sidebar--make-embedded-frame
-                     treemacs-buf "left-bottom"))
-              ;; Apply configuration in the child frame context
-              (with-selected-frame hyalo-sidebar--left-bottom-frame
-                (with-current-buffer treemacs-buf
-                  ;; Set the parent frame reference - use main-frame from outer let
-                  (when (boundp 'hyalo-treemacs--parent-frame)
-                    (setq hyalo-treemacs--parent-frame main-frame)
-                    (hyalo-sidebar--log "Set hyalo-treemacs--parent-frame = %s" main-frame))
-                  ;; Apply treemacs display settings
-                  (when (fboundp 'hyalo-treemacs-sidebar-setup)
-                    (hyalo-treemacs-sidebar-setup))
-                  ;; Set keybindings using overriding map for highest priority
-                  (when (and (fboundp 'hyalo-treemacs--visit-in-parent)
-                             (boundp 'hyalo-treemacs--sidebar-mode-map))
-                    (push `(hyalo-treemacs-sidebar . ,hyalo-treemacs--sidebar-mode-map)
-                          minor-mode-overriding-map-alist)
-                    (hyalo-sidebar--log "Treemacs keybindings set via overriding-map-alist"))
-                  ;; Remove mode-line
-                  (setq-local mode-line-format nil)
-                  (setq-local header-line-format nil)))
-              (hyalo-sidebar--strip-faces hyalo-sidebar--left-bottom-frame))
-          (hyalo-sidebar--log "WARNING: Could not get treemacs buffer"))))
+    ;; Create dired-sidebar frame (bottom)
+    (when (require 'dired-sidebar nil t)
+      (hyalo-sidebar--log "Setting up dired-sidebar...")
+      ;; Get project root using hyalo-dired-sidebar function
+      (let* ((project-root (if (fboundp 'hyalo-dired-sidebar--get-root-directory)
+                               (hyalo-dired-sidebar--get-root-directory)
+                             (expand-file-name default-directory))))
+        (hyalo-sidebar--log "Creating dired-sidebar for: %s" project-root)
+        ;; Create dired-sidebar buffer using proper API
+        (let ((dired-buf (save-window-excursion
+                           (dired-sidebar-get-or-create-buffer project-root))))
+          (hyalo-sidebar--log "dired-buf = %s, using main-frame = %s" dired-buf main-frame)
+          (if dired-buf
+              (progn
+                ;; Ensure dired-sidebar-mode is active
+                (with-current-buffer dired-buf
+                  (unless (derived-mode-p 'dired-sidebar-mode)
+                    (dired-sidebar-mode)))
+                ;; Create the child frame
+                (setq hyalo-sidebar--left-bottom-frame
+                      (hyalo-sidebar--make-embedded-frame
+                       dired-buf "left-bottom"))
+                ;; Apply configuration in the child frame context
+                (with-selected-frame hyalo-sidebar--left-bottom-frame
+                  (with-current-buffer dired-buf
+                    ;; Set the parent frame reference
+                    (when (boundp 'hyalo-dired-sidebar--parent-frame)
+                      (setq hyalo-dired-sidebar--parent-frame main-frame)
+                      (hyalo-sidebar--log "Set hyalo-dired-sidebar--parent-frame = %s" main-frame))
+                    ;; Apply dired-sidebar display settings
+                    (when (fboundp 'hyalo-dired-sidebar-setup)
+                      (hyalo-dired-sidebar-setup))
+                    ;; Set keybindings using overriding map for highest priority
+                    ;; MUST set the variable to t for the keymap to be active
+                    (setq-local hyalo-dired-sidebar-embedded t)
+                    (when (boundp 'hyalo-dired-sidebar--keymap)
+                      (push `(hyalo-dired-sidebar-embedded . ,hyalo-dired-sidebar--keymap)
+                            minor-mode-overriding-map-alist)
+                      (hyalo-sidebar--log "Dired-sidebar keybindings set via overriding-map-alist"))
+                    ;; Remove mode-line
+                    (setq-local mode-line-format nil)
+                    (setq-local header-line-format nil)))
+                (hyalo-sidebar--strip-faces hyalo-sidebar--left-bottom-frame))
+            (hyalo-sidebar--log "WARNING: Could not get dired-sidebar buffer")))))
 
     ;; Notify Swift to embed these frames
     (hyalo-sidebar--log "Calling embed-frames for 'left'")
@@ -291,7 +302,12 @@ Preserves internal-border-width for SwiftUI-style margins."
                            (fboundp 'hyalo-sidebar-embed-frames))
                       (progn
                         (hyalo-sidebar-embed-frames "right")
-                        (hyalo-sidebar--log "embed-frames 'right' complete"))
+                        (hyalo-sidebar--log "embed-frames 'right' complete")
+                        ;; If buffer already existed, hook won't fire - use fallback timer
+                        (when (and existing-buf hyalo-sidebar--pending-focus-right)
+                          (hyalo-sidebar--log "Buffer existed, using fallback focus timer")
+                          (setq hyalo-sidebar--pending-focus-right nil)
+                          (run-at-time 0.4 nil #'hyalo-sidebar--do-focus-right)))
                     (hyalo-sidebar--log "WARNING: embed-frames not available")))
               (hyalo-sidebar--log "ERROR: agent-buf is nil after creation attempt")))))
     (hyalo-sidebar--log "WARNING: agent-shell not available")))
@@ -433,29 +449,51 @@ Used by sidebar buffers to open files in the correct frame.")
              (fboundp 'hyalo-detail-hide))
     (hyalo-detail-hide)))
 
+(defun hyalo-sidebar--do-focus-left ()
+  "Internal: Actually focus the left sidebar frame."
+  (when (and hyalo-sidebar--left-bottom-frame
+             (frame-live-p hyalo-sidebar--left-bottom-frame))
+    (select-frame-set-input-focus hyalo-sidebar--left-bottom-frame)
+    (let ((win (frame-first-window hyalo-sidebar--left-bottom-frame)))
+      (when win
+        (select-window win)))
+    (hyalo-sidebar--log "Focused left frame")))
+
+(defun hyalo-sidebar--do-focus-right ()
+  "Internal: Actually focus the right sidebar frame."
+  (when (and hyalo-sidebar--right-frame
+             (frame-live-p hyalo-sidebar--right-frame))
+    (select-frame-set-input-focus hyalo-sidebar--right-frame)
+    (let ((win (frame-first-window hyalo-sidebar--right-frame)))
+      (when win
+        (select-window win)))
+    (hyalo-sidebar--log "Focused right frame")))
+
 (defun hyalo-sidebar-toggle-left ()
-  "Toggle the left sidebar."
+  "Toggle the left sidebar. Focuses after initial setup."
   (interactive)
   (if hyalo-sidebar--left-top-frame
       ;; Frame exists - just toggle visibility
       (when (and (hyalo-module-available-p)
                  (fboundp 'hyalo-sidebar-toggle))
         (hyalo-sidebar-toggle))
-    ;; Frame doesn't exist - show panel first, then setup with delay
+    ;; Frame doesn't exist - show panel, setup, then focus
     (when (and (hyalo-module-available-p)
                (fboundp 'hyalo-sidebar-show))
       (hyalo-sidebar-show))
-    (run-at-time 0.1 nil #'hyalo-sidebar-left-setup)))
+    (run-at-time 0.1 nil #'hyalo-sidebar-left-setup)
+    (run-at-time 0.5 nil #'hyalo-sidebar--do-focus-left)))
 
 (defun hyalo-sidebar-toggle-right ()
-  "Toggle the right sidebar (inspector)."
+  "Toggle the right sidebar (inspector). Focuses after initial setup."
   (interactive)
   (if hyalo-sidebar--right-frame
       ;; Frame exists - just toggle visibility
       (when (and (hyalo-module-available-p)
                  (fboundp 'hyalo-detail-toggle))
         (hyalo-detail-toggle))
-    ;; Frame doesn't exist - show panel first, then setup with delay
+    ;; Frame doesn't exist - show panel, setup, then focus via hook
+    (setq hyalo-sidebar--pending-focus-right t)  ; Hook will focus after mode init
     (when (and (hyalo-module-available-p)
                (fboundp 'hyalo-detail-show))
       (hyalo-detail-show))
@@ -472,39 +510,44 @@ Used by sidebar buffers to open files in the correct frame.")
    ;; Frame exists and is live - focus it
    ((and hyalo-sidebar--right-frame
          (frame-live-p hyalo-sidebar--right-frame))
-    (select-frame-set-input-focus hyalo-sidebar--right-frame)
-    (let ((win (frame-first-window hyalo-sidebar--right-frame)))
-      (when win
-        (select-window win)))
-    (hyalo-sidebar--log "Focused right frame"))
-   ;; Inspector not visible - show it first, then setup and focus
+    (hyalo-sidebar--do-focus-right))
+   ;; Inspector not visible - show it first, then setup and focus via hook
    ((and (hyalo-module-available-p)
          (fboundp 'hyalo-detail-visible-p)
          (not (hyalo-detail-visible-p)))
     (hyalo-sidebar--log "Inspector not visible, showing first")
+    (setq hyalo-sidebar--pending-focus-right t)  ; Hook will focus after mode init
     (when (fboundp 'hyalo-detail-show)
       (hyalo-detail-show))
-    (run-at-time 0.2 nil #'hyalo-sidebar-right-setup)
-    (run-at-time 0.5 nil #'hyalo-sidebar-focus-right))
-   ;; Frame doesn't exist but inspector is visible - create it
+    (run-at-time 0.2 nil #'hyalo-sidebar-right-setup))
+   ;; Frame doesn't exist but inspector is visible - create it, focus via hook
    (t
     (hyalo-sidebar--log "Frame doesn't exist, creating...")
-    (hyalo-sidebar-right-setup)
-    (run-at-time 0.3 nil #'hyalo-sidebar-focus-right))))
+    (setq hyalo-sidebar--pending-focus-right t)  ; Hook will focus after mode init
+    (hyalo-sidebar-right-setup))))
 
 (defun hyalo-sidebar-focus-left ()
-  "Focus the left sidebar (treemacs) frame."
+  "Focus the left sidebar (dired-sidebar) frame."
   (interactive)
-  (if (and hyalo-sidebar--left-bottom-frame
-           (frame-live-p hyalo-sidebar--left-bottom-frame))
-      (progn
-        (select-frame-set-input-focus hyalo-sidebar--left-bottom-frame)
-        (let ((win (frame-first-window hyalo-sidebar--left-bottom-frame)))
-          (when win
-            (select-window win))))
-    ;; Frame doesn't exist - create it first, then focus
-    (hyalo-sidebar-toggle-left)
-    (run-at-time 0.3 nil #'hyalo-sidebar-focus-left)))
+  (cond
+   ;; Frame exists and is live - focus it
+   ((and hyalo-sidebar--left-bottom-frame
+         (frame-live-p hyalo-sidebar--left-bottom-frame))
+    (hyalo-sidebar--do-focus-left))
+   ;; Sidebar not visible - show it first, then setup and focus
+   ((and (hyalo-module-available-p)
+         (fboundp 'hyalo-sidebar-visible-p)
+         (not (hyalo-sidebar-visible-p)))
+    (hyalo-sidebar--log "Sidebar not visible, showing first")
+    (when (fboundp 'hyalo-sidebar-show)
+      (hyalo-sidebar-show))
+    (run-at-time 0.2 nil #'hyalo-sidebar-left-setup)
+    (run-at-time 0.5 nil #'hyalo-sidebar--do-focus-left))
+   ;; Frame doesn't exist but sidebar is visible - create it
+   (t
+    (hyalo-sidebar--log "Frame doesn't exist, creating...")
+    (hyalo-sidebar-left-setup)
+    (run-at-time 0.3 nil #'hyalo-sidebar--do-focus-left))))
 
 ;;; Panel visibility watcher (for toolbar button integration)
 
@@ -548,6 +591,20 @@ Called periodically when sidebar mode is active."
     (cancel-timer hyalo-sidebar--visibility-timer)
     (setq hyalo-sidebar--visibility-timer nil)
     (hyalo-sidebar--log "Visibility watcher stopped")))
+
+;;; Agent-shell focus hook
+
+(defun hyalo-sidebar--agent-shell-mode-hook ()
+  "Hook to focus agent-shell after it's ready."
+  (when hyalo-sidebar--pending-focus-right
+    (setq hyalo-sidebar--pending-focus-right nil)
+    (hyalo-sidebar--log "agent-shell-mode-hook: focusing right sidebar")
+    ;; Small delay to ensure embedding is complete
+    (run-at-time 0.3 nil #'hyalo-sidebar--do-focus-right)))
+
+;; Add hook for agent-shell focus
+(with-eval-after-load 'agent-shell
+  (add-hook 'agent-shell-mode-hook #'hyalo-sidebar--agent-shell-mode-hook))
 
 ;; Start watcher when mode is enabled
 (add-hook 'hyalo-module-sidebar-mode-hook

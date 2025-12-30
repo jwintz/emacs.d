@@ -14,6 +14,7 @@
 ;;; Code:
 
 (require 'ibuffer)
+(require 'hyalo-icons)
 
 (defgroup hyalo-ibuffer nil
   "Hyalo sidebar ibuffer configuration."
@@ -44,72 +45,25 @@ Patterns starting with space match hidden buffers."
   :type 'boolean
   :group 'hyalo-ibuffer)
 
-(defcustom hyalo-ibuffer-auto-refresh-interval 2.0
-  "Interval in seconds for auto-refreshing sidebar ibuffer.
-Set to nil to disable auto-refresh."
-  :type '(choice (const nil) number)
-  :group 'hyalo-ibuffer)
-
-(defvar hyalo-ibuffer--auto-refresh-timer nil
-  "Timer for auto-refreshing sidebar ibuffer.")
-
 ;;; Icon support
 
 (defvar hyalo-ibuffer--icon-cache (make-hash-table :test 'equal)
   "Cache for buffer icons.")
 
 (defun hyalo-ibuffer--get-icon (mode)
-  "Get icon for major MODE."
+  "Get icon for major MODE.
+Icon inherits its color from context (no face applied)."
   (or (gethash mode hyalo-ibuffer--icon-cache)
-      (let ((icon (hyalo-ibuffer--compute-icon mode)))
-        (puthash mode icon hyalo-ibuffer--icon-cache)
-        icon)))
+      (let ((computed (hyalo-ibuffer--compute-icon mode)))
+        (puthash mode computed hyalo-ibuffer--icon-cache)
+        computed)))
 
 (defun hyalo-ibuffer--compute-icon (mode)
-  "Compute icon string for major MODE."
-  (cond
-   ;; Programming modes
-   ((memq mode '(emacs-lisp-mode lisp-interaction-mode)) "")
-   ((memq mode '(python-mode python-ts-mode)) "")
-   ((memq mode '(js-mode js2-mode javascript-mode js-ts-mode)) "")
-   ((memq mode '(typescript-mode typescript-ts-mode)) "")
-   ((memq mode '(rust-mode rust-ts-mode)) "")
-   ((memq mode '(go-mode go-ts-mode)) "")
-   ((memq mode '(c-mode c-ts-mode)) "")
-   ((memq mode '(c++-mode c++-ts-mode)) "")
-   ((memq mode '(java-mode java-ts-mode)) "")
-   ((memq mode '(ruby-mode ruby-ts-mode)) "")
-   ((memq mode '(swift-mode)) "")
-   ((memq mode '(shell-script-mode sh-mode bash-ts-mode)) "")
-   ((memq mode '(sql-mode)) "")
-
-   ;; Web/markup
-   ((memq mode '(html-mode mhtml-mode html-ts-mode)) "")
-   ((memq mode '(css-mode css-ts-mode)) "")
-   ((memq mode '(json-mode json-ts-mode)) "")
-   ((memq mode '(yaml-mode yaml-ts-mode)) "")
-   ((memq mode '(xml-mode nxml-mode)) "")
-   ((memq mode '(markdown-mode gfm-mode)) "")
-
-   ;; Config/data
-   ((memq mode '(conf-mode conf-unix-mode conf-toml-mode)) "")
-   ((memq mode '(makefile-mode makefile-gmake-mode)) "")
-   ((memq mode '(dockerfile-mode dockerfile-ts-mode)) "")
-
-   ;; Org/text
-   ((memq mode '(org-mode)) "")
-   ((memq mode '(text-mode)) "")
-
-   ;; Version control
-   ((memq mode '(magit-status-mode magit-log-mode)) "")
-   ((memq mode '(diff-mode)) "")
-
-   ;; Shell/terminal
-   ((memq mode '(term-mode vterm-mode eshell-mode shell-mode)) "")
-   ((memq mode '(agent-shell-mode)) "")
-
-   ;; Default
-   (t "")))
+  "Compute icon string for major MODE using hyalo-icons wrapper.
+Returns icon with face stripped - color inherited from context."
+  (if (fboundp 'hyalo-icons-for-mode)
+      (hyalo-icons-for-mode mode)
+    ""))
 
 ;;; Filter predicates
 
@@ -144,7 +98,7 @@ Shows icon, name, and modified indicator only.")
 
 (define-ibuffer-column icon
   (:name "" :inline t)  ; Empty name = no header
-  (hyalo-ibuffer--get-icon major-mode))
+  (or (hyalo-ibuffer--get-icon major-mode) ""))
 
 (define-ibuffer-column modified
   (:name "" :inline t)
@@ -167,27 +121,79 @@ First tries frame parameter, then falls back to stored value."
   (or (frame-parameter (selected-frame) 'parent-frame)
       hyalo-ibuffer--parent-frame))
 
-;;; Setup function
+;;; Hook-based refresh (must be defined before setup function)
+
+(defun hyalo-ibuffer--cleanup-display (&rest _)
+  "Clean up ibuffer display: hide header-line and trim trailing empty lines."
+  (when (string= (buffer-name) "*Hyalo-Ibuffer*")
+    (setq header-line-format nil)
+    ;; Remove trailing empty lines
+    (save-excursion
+      (goto-char (point-max))
+      (let ((inhibit-read-only t))
+        (while (and (> (point) (point-min))
+                    (looking-back "^[ \t]*\n" nil))
+          (delete-char -1))))))
+
+(advice-add 'ibuffer-update :after #'hyalo-ibuffer--cleanup-display)
+
+(defvar hyalo-ibuffer--refreshing nil
+  "Non-nil when refresh is in progress, to prevent recursion.")
+
+(defun hyalo-ibuffer--refresh ()
+  "Refresh the sidebar ibuffer if it exists."
+  (unless hyalo-ibuffer--refreshing
+    (let ((buf (get-buffer "*Hyalo-Ibuffer*")))
+      (when (and buf
+                 (buffer-live-p buf)
+                 ;; Don't refresh if we're in the ibuffer itself
+                 (not (eq (current-buffer) buf)))
+        (let ((hyalo-ibuffer--refreshing t))
+          (with-current-buffer buf
+            (when (eq major-mode 'ibuffer-mode)
+              (let ((inhibit-message t))
+                (ibuffer-update nil t)))))))))
+
+(defvar hyalo-ibuffer--refresh-hook-installed nil
+  "Non-nil when buffer-list-update-hook is installed.")
+
+(defun hyalo-ibuffer--install-refresh-hook ()
+  "Install hook to refresh ibuffer on buffer list changes."
+  (unless hyalo-ibuffer--refresh-hook-installed
+    (add-hook 'buffer-list-update-hook #'hyalo-ibuffer--refresh)
+    (setq hyalo-ibuffer--refresh-hook-installed t)))
+
+(defun hyalo-ibuffer--remove-refresh-hook ()
+  "Remove the buffer list update hook."
+  (when hyalo-ibuffer--refresh-hook-installed
+    (remove-hook 'buffer-list-update-hook #'hyalo-ibuffer--refresh)
+    (setq hyalo-ibuffer--refresh-hook-installed nil)))
+
+;;; Visit buffer in parent frame
 
 (defun hyalo-ibuffer--visit-buffer-in-parent (&optional noselect)
   "Visit the buffer on this line in the parent frame.
 If NOSELECT is non-nil, don't select the buffer."
   (interactive "P")
-  (let ((buf (ibuffer-current-buffer t)))
-    (when buf
-      ;; Find the parent frame
-      (let ((parent (hyalo-ibuffer--get-parent-frame)))
-        (if parent
-            (progn
-              ;; Select parent frame and display buffer there
-              (select-frame-set-input-focus parent)
+  (condition-case nil
+      (let ((buf (ibuffer-current-buffer t)))
+        (when buf
+          ;; Find the parent frame
+          (let ((parent (hyalo-ibuffer--get-parent-frame)))
+            (if parent
+                (progn
+                  ;; Select parent frame and display buffer there
+                  (select-frame-set-input-focus parent)
+                  (if noselect
+                      (display-buffer buf)
+                    (switch-to-buffer buf)))
+              ;; No parent frame, just switch buffer normally
               (if noselect
                   (display-buffer buf)
-                (switch-to-buffer buf)))
-          ;; No parent frame, just switch buffer normally
-          (if noselect
-              (display-buffer buf)
-            (switch-to-buffer buf)))))))
+                (switch-to-buffer buf))))))
+    (error nil)))  ; Silently ignore "No buffer on this line"
+
+;;; Setup function
 
 (defun hyalo-ibuffer-sidebar-setup ()
   "Configure ibuffer for sidebar display."
@@ -234,40 +240,10 @@ If NOSELECT is non-nil, don't select the buffer."
   ;; Move to first buffer line (skip any headers)
   (goto-char (point-min))
   (forward-line 0)
-  (ibuffer-forward-line 0 t))
+  (ibuffer-forward-line 0 t)
 
-;;; Auto-refresh
-
-(defun hyalo-ibuffer--suppress-header-line (&rest _)
-  "Ensure header-line is hidden in Hyalo sidebar buffer."
-  (when (string= (buffer-name) "*Hyalo-Ibuffer*")
-    (setq header-line-format nil)))
-
-(advice-add 'ibuffer-update :after #'hyalo-ibuffer--suppress-header-line)
-
-(defun hyalo-ibuffer--refresh ()
-  "Refresh the sidebar ibuffer if it exists."
-  (let ((buf (get-buffer "*Hyalo-Ibuffer*")))
-    (when (and buf (buffer-live-p buf))
-      (with-current-buffer buf
-        (when (eq major-mode 'ibuffer-mode)
-          (ibuffer-update nil t))))))
-
-(defun hyalo-ibuffer--start-auto-refresh ()
-  "Start auto-refresh timer for sidebar ibuffer."
-  (when (and hyalo-ibuffer-auto-refresh-interval
-             (not hyalo-ibuffer--auto-refresh-timer))
-    (setq hyalo-ibuffer--auto-refresh-timer
-          (run-with-timer
-           hyalo-ibuffer-auto-refresh-interval
-           hyalo-ibuffer-auto-refresh-interval
-           #'hyalo-ibuffer--refresh))))
-
-(defun hyalo-ibuffer--stop-auto-refresh ()
-  "Stop auto-refresh timer for sidebar ibuffer."
-  (when hyalo-ibuffer--auto-refresh-timer
-    (cancel-timer hyalo-ibuffer--auto-refresh-timer)
-    (setq hyalo-ibuffer--auto-refresh-timer nil)))
+  ;; Install refresh hook
+  (hyalo-ibuffer--install-refresh-hook))
 
 ;;; Mode hook
 
@@ -277,17 +253,15 @@ If NOSELECT is non-nil, don't select the buffer."
     ;; Store parent frame reference globally for visit function to use
     (setq hyalo-ibuffer--parent-frame
           (frame-parameter (selected-frame) 'parent-frame))
-    (hyalo-ibuffer-sidebar-setup)
-    ;; Start auto-refresh
-    (hyalo-ibuffer--start-auto-refresh)))
+    (hyalo-ibuffer-sidebar-setup)))
 
 (add-hook 'ibuffer-mode-hook #'hyalo-ibuffer--setup-if-sidebar)
 
-;; Stop auto-refresh when ibuffer is killed
+;; Remove hook when ibuffer is killed
 (add-hook 'kill-buffer-hook
           (lambda ()
             (when (string= (buffer-name) "*Hyalo-Ibuffer*")
-              (hyalo-ibuffer--stop-auto-refresh))))
+              (hyalo-ibuffer--remove-refresh-hook))))
 
 (provide 'hyalo-ibuffer)
 ;;; hyalo-ibuffer.el ends here
