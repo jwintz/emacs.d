@@ -383,6 +383,39 @@ final class HyaloModule: Module {
             return nil
         }
 
+        // MARK: - Visibility Change Callbacks
+        
+        try env.defun(
+            "hyalo-setup-visibility-callbacks",
+            with: """
+            Setup callbacks for sidebar/inspector visibility changes.
+            This enables Swift to notify Elisp when toolbar buttons toggle panels.
+            The callbacks call `hyalo-on-sidebar-visibility-changed' and
+            `hyalo-on-detail-visibility-changed' hooks respectively.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                // Open a channel for async callbacks from Swift to Elisp
+                let channel = try env.openChannel(name: "hyalo-visibility")
+                
+                // Create callback for sidebar visibility changes
+                let sidebarCallback: (String, Bool) -> Void = channel.hook("hyalo-on-sidebar-visibility-changed")
+                
+                // Create callback for detail visibility changes  
+                let detailCallback: (String, Bool) -> Void = channel.hook("hyalo-on-detail-visibility-changed")
+                
+                // Set the callbacks on the manager
+                DispatchQueue.main.async {
+                    NavigationSidebarManager.shared.onSidebarVisibilityChanged = sidebarCallback
+                    NavigationSidebarManager.shared.onDetailVisibilityChanged = detailCallback
+                }
+
+                return true
+            }
+            return false
+        }
+
+
         try env.defun(
             "hyalo-restore-focus",
             with: """

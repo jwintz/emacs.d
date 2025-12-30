@@ -49,6 +49,44 @@ When nil, uses the default frame font."
   (when hyalo-sidebar-debug
     (apply #'message (concat "[hyalo-sidebar] " format-string) args)))
 
+;;; Visibility change hooks (called by Swift via Channel)
+
+(defvar hyalo-on-sidebar-visibility-changed nil
+  "Hook run when the sidebar visibility changes.
+Each function is called with two arguments:
+SIDE - a string, \"left\" for the sidebar
+VISIBLE - a boolean, t if the panel became visible, nil if hidden")
+
+(defvar hyalo-on-detail-visibility-changed nil
+  "Hook run when the inspector (detail) visibility changes.
+Each function is called with two arguments:
+SIDE - a string, \"right\" for the inspector
+VISIBLE - a boolean, t if the panel became visible, nil if hidden")
+
+(defun hyalo-sidebar--on-sidebar-visibility-changed (side visible)
+  "Handle sidebar visibility change from Swift.
+SIDE is \"left\", VISIBLE is t if now visible.
+This is added to `hyalo-on-sidebar-visibility-changed-functions'."
+  (hyalo-sidebar--log "Sidebar visibility changed: side=%s visible=%s" side visible)
+  (when (and visible (string= side "left"))
+    ;; Only setup if frames don't exist
+    (unless (or hyalo-sidebar--left-top-frame
+                hyalo-sidebar--left-bottom-frame)
+      (hyalo-sidebar--log "Triggering left-setup from callback")
+      (hyalo-sidebar-left-setup))))
+
+(defun hyalo-sidebar--on-detail-visibility-changed (side visible)
+  "Handle inspector/detail visibility change from Swift.
+SIDE is \"right\", VISIBLE is t if now visible.
+This is added to `hyalo-on-detail-visibility-changed-functions'."
+  (hyalo-sidebar--log "Detail visibility changed: side=%s visible=%s" side visible)
+  (when (and visible (string= side "right"))
+    ;; Only setup if frame doesn't exist
+    (unless hyalo-sidebar--right-frame
+      (hyalo-sidebar--log "Triggering right-setup from callback")
+      (hyalo-sidebar-right-setup))))
+
+
 ;;; Frame storage
 
 (defvar hyalo-sidebar--left-top-frame nil
@@ -559,24 +597,26 @@ Used by sidebar buffers to open files in the correct frame.")
 
 (defun hyalo-sidebar--check-visibility ()
   "Check if any panel needs embedded content setup.
-Called periodically when sidebar mode is active."
+Called periodically when sidebar mode is active.
+This is called from the Swift side via `hyalo-panel-needs-setup'."
   (when (and (hyalo-module-available-p)
              (fboundp 'hyalo-panel-needs-setup))
     (let ((needs-setup (hyalo-panel-needs-setup)))
-      (when (and needs-setup
-                 (not (equal needs-setup hyalo-sidebar--last-checked)))
-        (setq hyalo-sidebar--last-checked needs-setup)
-        (hyalo-sidebar--log "Panel needs setup: %s" needs-setup)
+      (when needs-setup
+        (hyalo-sidebar--log "Panel needs setup: %s (last-checked: %s)"
+                            needs-setup hyalo-sidebar--last-checked)
+        ;; Always try to setup if needed, but avoid rapid re-setup of same panel
+        ;; by checking if frames are already pending creation
         (cond
-         ((equal needs-setup "right")
-          (unless hyalo-sidebar--right-frame
-            (hyalo-sidebar-right-setup)))
-         ((equal needs-setup "left")
-          (unless (or hyalo-sidebar--left-top-frame
-                      hyalo-sidebar--left-bottom-frame)
-            (hyalo-sidebar-left-setup))))
-        ;; Clear the check after a delay to allow re-triggering
-        (run-at-time 1.0 nil (lambda () (setq hyalo-sidebar--last-checked nil)))))))
+         ((and (equal needs-setup "right")
+               (not hyalo-sidebar--right-frame))
+          (hyalo-sidebar--log "Starting right-setup from visibility watcher")
+          (hyalo-sidebar-right-setup))
+         ((and (equal needs-setup "left")
+               (not hyalo-sidebar--left-top-frame)
+               (not hyalo-sidebar--left-bottom-frame))
+          (hyalo-sidebar--log "Starting left-setup from visibility watcher")
+          (hyalo-sidebar-left-setup)))))))
 
 (defun hyalo-sidebar--start-visibility-watcher ()
   "Start the visibility watcher timer."
@@ -606,12 +646,48 @@ Called periodically when sidebar mode is active."
 (with-eval-after-load 'agent-shell
   (add-hook 'agent-shell-mode-hook #'hyalo-sidebar--agent-shell-mode-hook))
 
-;; Start watcher when mode is enabled
+(defvar hyalo-sidebar--callbacks-installed nil
+  "Non-nil when Swift visibility callbacks have been installed.")
+
+(defun hyalo-sidebar--setup-visibility-callbacks ()
+  "Setup Swift-to-Elisp visibility callbacks.
+This enables immediate response to toolbar button clicks."
+  (when (and (hyalo-module-available-p)
+             (not hyalo-sidebar--callbacks-installed))
+    (add-hook 'hyalo-on-sidebar-visibility-changed
+              #'hyalo-sidebar--on-sidebar-visibility-changed)
+    (add-hook 'hyalo-on-detail-visibility-changed
+              #'hyalo-sidebar--on-detail-visibility-changed)
+    (if (fboundp 'hyalo-setup-visibility-callbacks)
+        (condition-case err
+            (progn
+              (hyalo-setup-visibility-callbacks)
+              (setq hyalo-sidebar--callbacks-installed t)
+              (hyalo-sidebar--log "Visibility callbacks installed"))
+          (error
+           (hyalo-sidebar--log "Failed to install callbacks: %s" err)
+           (hyalo-sidebar--start-visibility-watcher)))
+      (hyalo-sidebar--start-visibility-watcher))))
+
+
+
+(defun hyalo-sidebar--teardown-visibility-callbacks ()
+  "Teardown Swift-to-Elisp visibility callbacks."
+  (remove-hook 'hyalo-on-sidebar-visibility-changed
+               #'hyalo-sidebar--on-sidebar-visibility-changed)
+  (remove-hook 'hyalo-on-detail-visibility-changed
+               #'hyalo-sidebar--on-detail-visibility-changed)
+  (setq hyalo-sidebar--callbacks-installed nil))
+
+;; Setup callbacks when mode is enabled
 (add-hook 'hyalo-module-sidebar-mode-hook
           (lambda ()
             (if hyalo-module-sidebar-mode
-                (hyalo-sidebar--start-visibility-watcher)
-              (hyalo-sidebar--stop-visibility-watcher))))
+                (hyalo-sidebar--setup-visibility-callbacks)
+              (progn
+                (hyalo-sidebar--teardown-visibility-callbacks)
+                (hyalo-sidebar--stop-visibility-watcher)))))
+
 
 (provide 'hyalo-module-sidebar)
 ;;; hyalo-module-sidebar.el ends here

@@ -296,7 +296,7 @@ struct SidebarContentView: View {
         // If embedded views are available, use custom StyledSplitView with Emacs frames
         if let topView = state.leftTopView, let bottomView = state.leftBottomView {
             StyledSplitView(
-                dividerColor: .clear,  // Invisible divider - section headers provide separation
+              dividerColor: .separatorColor,
                 dividerThickness: 1,
                 top: {
                     VStack(spacing: 0) {
@@ -960,7 +960,7 @@ struct DetailPlaceholderView: View {
                         .padding(.bottom, 12)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .padding(.top, 6)  // Small top padding - toolbar alignment handled by safeArea
+                  .padding(.top, 12)  // Increased from 6 to 16 for more padding before the header view
             } else {
                 // Placeholder content
                 VStack(spacing: 16) {
@@ -1168,8 +1168,11 @@ struct HyaloNavigationLayout: View {
 
     var onGeometryUpdate: (() -> Void)?  // Called when sidebar/inspector visibility changes
     var onEmbeddedResize: ((String, CGFloat, CGFloat) -> Void)?  // Called when embedded view resizes
+    var onSidebarVisibilityChanged: ((Bool, Bool) -> Void)?  // Called when sidebar toggles (visible, needsSetup)
+    var onDetailVisibilityChanged: ((Bool, Bool) -> Void)?  // Called when inspector toggles (visible, needsSetup)
 
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+
 
     /// Binding for inspector (right panel) visibility
     /// Uses withTransaction to disable animation and prevent window resize flicker
@@ -1361,7 +1364,7 @@ struct HyaloNavigationLayout: View {
                 // System automatically adds inspector toggle button and tracking separator
                 .inspector(isPresented: inspectorVisibleBinding) {
                     DetailPlaceholderView(state: state, onResize: onEmbeddedResize)
-                        .inspectorColumnWidth(min: 200, ideal: 300, max: 500)
+                        .inspectorColumnWidth(min: 300, ideal: 400, max: 500)
                         //.transaction { $0.animation = nil }  // Removed to allow content animations
                         .background {
                             // Track inspector width
@@ -1419,6 +1422,9 @@ struct HyaloNavigationLayout: View {
                 withAnimation {
                     columnVisibility = newValue ? .all : .detailOnly
                 }
+                // Notify Elisp about visibility change - check if setup is needed
+                let needsSetup = newValue && (state.leftTopView == nil || state.leftBottomView == nil)
+                onSidebarVisibilityChanged?(newValue, needsSetup)
                 // Trigger geometry update after animation completes
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     onGeometryUpdate?()
@@ -1429,6 +1435,9 @@ struct HyaloNavigationLayout: View {
                 let isSidebarNowVisible = (newValue == .all || newValue == .doubleColumn)
                 if state.sidebarVisible != isSidebarNowVisible {
                     state.sidebarVisible = isSidebarNowVisible
+                    // Notify Elisp about visibility change - check if setup is needed
+                    let needsSetup = isSidebarNowVisible && (state.leftTopView == nil || state.leftBottomView == nil)
+                    onSidebarVisibilityChanged?(isSidebarNowVisible, needsSetup)
                 }
                 // Trigger geometry update after animation completes
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
@@ -1436,6 +1445,9 @@ struct HyaloNavigationLayout: View {
                 }
             }
             .onChange(of: state.detailVisible) { _, newValue in
+                // Notify Elisp about visibility change - check if setup is needed
+                let needsSetup = newValue && state.rightView == nil
+                onDetailVisibilityChanged?(newValue, needsSetup)
                 // Trigger geometry update after animation completes
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     onGeometryUpdate?()
@@ -1918,7 +1930,7 @@ final class NavigationSidebarState {
     var vibrancyMaterial: VibrancyMaterial = .ultraThin
     /// Whether decorations (toolbar and traffic lights) are visible
     var decorationsVisible: Bool = true
-    
+
     // Inspector Header
     var inspectorTitle: String = "AGENT SHELL"
     var inspectorIcon: String = "sparkles"
@@ -2655,9 +2667,16 @@ final class NavigationSidebarController: NSObject {
             onGeometryUpdate: { [weak self] in self?.updateModeLineGeometry() },
             onEmbeddedResize: { [weak self] slot, width, height in
                 self?.handleEmbeddedResize(slot: slot, width: width, height: height)
+            },
+            onSidebarVisibilityChanged: { visible, needsSetup in
+                NavigationSidebarManager.shared.notifySidebarVisibilityChanged(visible: visible, needsSetup: needsSetup)
+            },
+            onDetailVisibilityChanged: { visible, needsSetup in
+                NavigationSidebarManager.shared.notifyDetailVisibilityChanged(visible: visible, needsSetup: needsSetup)
             }
         )
     }
+
 
     /// Handle resize of embedded child-frame views
     /// Calls Elisp hyalo-sidebar-resize-slot to update frame size
@@ -2685,7 +2704,30 @@ final class NavigationSidebarManager {
 
     private var controllers: [Int: NavigationSidebarController] = [:]
 
+    /// Callback when sidebar visibility changes (called with "left" or nil)
+    var onSidebarVisibilityChanged: ((String, Bool) -> Void)?
+
+    /// Callback when detail visibility changes (called with "right" or nil)
+    var onDetailVisibilityChanged: ((String, Bool) -> Void)?
+
+    /// Notify about sidebar visibility change
+    func notifySidebarVisibilityChanged(visible: Bool, needsSetup: Bool) {
+        if needsSetup {
+            onSidebarVisibilityChanged?("left", visible)
+        }
+    }
+
+    /// Notify about detail visibility change
+    func notifyDetailVisibilityChanged(visible: Bool, needsSetup: Bool) {
+        if needsSetup {
+            onDetailVisibilityChanged?("right", visible)
+        }
+    }
+
+
+
     private init() {}
+
 
     func getController(for window: NSWindow) -> NavigationSidebarController {
         let key = window.windowNumber

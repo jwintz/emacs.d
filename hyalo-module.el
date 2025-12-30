@@ -49,10 +49,11 @@ source file is newer than the built dylib."
 
 (defun hyalo-module-log (msg &rest args)
   "Log MSG with ARGS using elog if available, otherwise `message'."
-  (let ((formatted (apply #'format msg args)))
+  (let ((formatted (apply #'format (concat "[hyalo] " msg) args)))
     (if (and hyalo-module-elog (fboundp 'elog-info))
         (elog-info hyalo-module-elog formatted)
-      nil)))
+      (message "%s" formatted))))
+
 
 (defun hyalo-module-log-init ()
   "Initialize hyalo-module logger if elog is available."

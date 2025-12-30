@@ -194,33 +194,37 @@ Called by hooks to override modes that set mode-line-format buffer-locally."
 (defun hyalo-module-header--magit-setup-advice (buffer)
   "Advice to enforce hidden mode-line after Magit setup.
 Run as :filter-return on `magit-setup-buffer-internal'."
-  (when hyalo-module-viewport-debug
-    (hyalo-module-log "Magit Setup Advice: buf=%s" buffer))
   (when (buffer-live-p buffer)
     (with-current-buffer buffer
       (hyalo-module-header--enforce-hidden)
       (when (and (boundp 'hyalo-module-viewport-mode)
-                 hyalo-module-viewport-mode)
-        ;; Update all windows displaying this buffer
-        (dolist (win (get-buffer-window-list buffer nil t))
-          (when hyalo-module-viewport-debug
-            (hyalo-module-log "Magit Setup: Updating window %s" win))
-          (hyalo-module-viewport--update-window win)))))
+                 hyalo-module-viewport-mode
+                 (fboundp 'hyalo-module-viewport--update-window))
+        ;; Update viewport with a delay to ensure window is displayed
+        (run-at-time 2.5 nil
+                     (lambda (buf)
+                       (when (buffer-live-p buf)
+                         (let ((wins (get-buffer-window-list buf nil t)))
+                           (dolist (w wins)
+                             (with-selected-window w
+                               (hyalo-module-log "Magit Setup (delayed): Updating window %s" w)
+                               (goto-char (point-min))
+                               (hyalo-module-viewport--update-window w))))))
+                     buffer))))
   buffer)
+
 
 (defun hyalo-module-header--magit-refresh-advice (&rest _)
   "Advice to enforce hidden mode-line after Magit refresh.
 Run as :after on `magit-refresh-buffer'."
-  (when hyalo-module-viewport-debug
-    (hyalo-module-log "Magit Refresh Advice: buf=%s" (current-buffer)))
   (hyalo-module-header--enforce-hidden)
   (when (and (boundp 'hyalo-module-viewport-mode)
-             hyalo-module-viewport-mode)
-    ;; Update all windows displaying this buffer
+             hyalo-module-viewport-mode
+             (fboundp 'hyalo-module-viewport--update-window))
     (dolist (win (get-buffer-window-list (current-buffer) nil t))
-      (when hyalo-module-viewport-debug
-        (hyalo-module-log "Magit Refresh: Updating window %s" win))
       (hyalo-module-viewport--update-window win))))
+
+
 
 (defun hyalo-module-header--setup-magit ()
   "Setup Magit integration using Advice."

@@ -90,12 +90,12 @@
 
 ;;;; Core Packages
 
-(use-package exec-path-from-shell
-  :ensure t
-  :demand t
-  :config
-  (when (memq window-system '(mac ns x))
-    (exec-path-from-shell-initialize)))
+;; (use-package exec-path-from-shell
+;;   :ensure t
+;;   :demand t
+;;   :config
+;;   (when (memq window-system '(mac ns x))
+;;     (exec-path-from-shell-initialize)))
 
 (use-package diminish
   :demand t)
@@ -361,6 +361,7 @@
   :if (display-graphic-p)
   :config
   (set-face-attribute 'default nil
+                      ;; :font "Monaspace Neon Frozen"
                       :font "Monaspace Neon Frozen"
                       :height 110
                       :weight 'thin)
@@ -617,7 +618,9 @@
 (use-package move-dup
   :general
   ("M-<up>"   'move-dup-move-lines-up)
-  ("M-<down>" 'move-dup-move-lines-down))
+  ("M-<down>" 'move-dup-move-lines-down)
+  ("M-s-<up>"   'move-dup-duplicate-up)
+  ("M-s-<down>" 'move-dup-duplicate-down))
 
 (use-package windmove
   :ensure nil
@@ -733,7 +736,7 @@
   ;; * `ultra-bold` (or heavy, black)
   (defun hyalo-set-highlights (&rest _)
     (let ((w 'bold)
-          (wb 'ultra-bold))
+          (wb 'ultra-bold)) ;;(wb 'ultra-bold))
       ;; Only enforce weight for standard highlights to preserve theme colors
       (set-face-attribute 'region nil :weight w)
       (set-face-attribute 'isearch nil :weight w)
@@ -1054,6 +1057,17 @@
 (use-package swift-mode
   :mode "\\.swift\\'")
 
+(use-package eglot
+  :ensure nil
+  :hook (swift-mode . eglot-ensure)
+  :config
+  ;; Special care for Swift: use xcrun to find sourcekit-lsp
+  (add-to-list 'eglot-server-programs
+               '(swift-mode . ("xcrun" "sourcekit-lsp")))
+  :custom
+  (eglot-autoshutdown t)
+  (eglot-events-buffer-size 0))
+
 ;;;; Dired-Sidebar & File Browser
 
 (use-package nerd-icons-dired
@@ -1084,12 +1098,16 @@
   (hyalo-sidebar-font nil)
   ;; Internal border width for embedded frames (12 = standard SwiftUI margin)
   (hyalo-sidebar-internal-border-width 12)
+  :config
+  ;; Enable the sidebar mode - this installs the visibility callbacks
+  (hyalo-module-sidebar-mode 1)
   :general
   (leader-def
     "t e" '(hyalo-sidebar-toggle-left :wk "sidebar (left)")
     "t i" '(hyalo-sidebar-toggle-right :wk "inspector (right)")
     "t E" '(hyalo-sidebar-focus-left :wk "focus sidebar")
     "t I" '(hyalo-sidebar-focus-right :wk "focus inspector")))
+
 
 (emacs-section-end)
 
@@ -1145,10 +1163,12 @@
             :rev :newest)
   :custom
   (agent-shell-section-functions nil)
-  :hook (agent-shell-mode . (lambda ()
-                              (face-remap-add-relative 'default
-                                                       :family "Monaspace Krypton Frozen"
-                                                       :height 110)))
+  :hook ((agent-shell-mode . (lambda ()
+                               (face-remap-add-relative 'default
+                                                        :family "Monaspace Krypton Frozen"
+                                                        :height 110)))
+         ;; Enable @ file completion and / command completion
+         (agent-shell-mode . agent-shell-completion-mode))
   :general
   (leader-def
     "a" '(:ignore t :wk "agents")
