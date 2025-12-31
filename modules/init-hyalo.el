@@ -61,19 +61,20 @@
 
   (defun hyalo-set-highlights (&rest _)
     "Set highlight faces using weight differentiation."
-    (let ((w 'bold)
+    (let ((m 'medium)
+          (b 'bold)
           (wb 'ultra-bold))
-      (set-face-attribute 'region nil :weight w)
-      (set-face-attribute 'isearch nil :weight w)
-      (set-face-attribute 'lazy-highlight nil :weight w)
-      (set-face-attribute 'match nil :weight w)
-      (set-face-attribute 'show-paren-match nil :weight w)
+      (set-face-attribute 'region nil :weight b)
+      (set-face-attribute 'isearch nil :weight wb :box '(:line-width -1 :style released-button))
+      (set-face-attribute 'lazy-highlight nil :weight b)
+      (set-face-attribute 'match nil :weight b)
+      (set-face-attribute 'show-paren-match nil :weight b)
       (when (facep 'hl-line)
-        (set-face-attribute 'hl-line nil :weight w))
+        (set-face-attribute 'hl-line nil :weight m))
       (when (facep 'highlight)
-        (set-face-attribute 'highlight nil :weight w))
+        (set-face-attribute 'highlight nil :weight m))
       (when (facep 'vertico-current)
-        (set-face-attribute 'vertico-current nil :weight w))
+        (set-face-attribute 'vertico-current nil :weight b))
       (dolist (face '(orderless-match-face-0
                       orderless-match-face-1
                       orderless-match-face-2
@@ -143,7 +144,9 @@
     (hyalo-set-highlights))
 
   ;; Hyalo Appearance menu
-  (easy-menu-define hyalo-appearance-menu global-map
+  ;; Pass nil to easy-menu-define map arg so it doesn't auto-install.
+  ;; We verify installation with easy-menu-add-item below.
+  (easy-menu-define hyalo-appearance-menu nil
     "Hyalo Appearance Menu"
     '("Hyalo"
       ["Appearance Panel..." hyalo-module-appearance-show-panel
@@ -165,7 +168,7 @@
         :style radio :selected (eq hyalo-module-appearance-mode-setting 'light)]
        ["Dark" (hyalo-module-appearance-set 'dark)
         :style radio :selected (eq hyalo-module-appearance-mode-setting 'dark)])))
-  (easy-menu-add-item global-map '(menu-bar) hyalo-appearance-menu "tools")
+  (easy-menu-add-item global-map '(menu-bar) hyalo-appearance-menu)
   (add-hook 'hyalo-module-appearance-mode-hook
             #'hyalo-module-appearance--apply-vibrancy))
 
