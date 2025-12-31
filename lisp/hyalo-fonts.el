@@ -106,6 +106,10 @@
   "Set Info buffers to use Monaspace Xenon."
   (face-remap-add-relative 'default :family "Monaspace Xenon Var"))
 
+(defun hyalo-fonts--magit-fonts ()
+  "Set Magit buffers to use Monaspace Neon for italics (avoiding Radon)."
+  (face-remap-add-relative 'italic :family "Monaspace Neon Var" :slant 'italic))
+
 (defun hyalo-fonts--terminal-fonts ()
   "Set terminal buffers to use Monaspace Argon."
   (face-remap-add-relative 'default :family "Monaspace Argon Var"))
@@ -116,6 +120,12 @@
 
 (add-hook 'markdown-mode-hook #'hyalo-fonts--markdown-fonts)
 (add-hook 'Info-mode-hook #'hyalo-fonts--info-fonts)
+(add-hook 'magit-mode-hook #'hyalo-fonts--magit-fonts)
+(add-hook 'magit-status-mode-hook #'hyalo-fonts--magit-fonts)
+(add-hook 'magit-log-mode-hook #'hyalo-fonts--magit-fonts)
+(add-hook 'magit-diff-mode-hook #'hyalo-fonts--magit-fonts)
+(add-hook 'git-commit-mode-hook #'hyalo-fonts--magit-fonts)
+(add-hook 'git-rebase-mode-hook #'hyalo-fonts--magit-fonts)
 (add-hook 'eshell-mode-hook #'hyalo-fonts--terminal-fonts)
 (add-hook 'eat-mode-hook #'hyalo-fonts--terminal-fonts)
 (add-hook 'term-mode-hook #'hyalo-fonts--terminal-fonts)
