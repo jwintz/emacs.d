@@ -30,6 +30,7 @@ Uses [Fontaine](https://protesilaos.com/emacs/fontaine) with [Monaspace](https:/
 | Context | Font |
 |---------|------|
 | Default code | Monaspace Neon Var |
+| Markdown, Info | Monaspace Xenon Var |
 | Comments, italics | Monaspace Radon Var |
 | Terminals (eshell, eat) | Monaspace Argon Var |
 | Agent-shell prose | Hubot Sans |

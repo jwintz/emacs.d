@@ -138,6 +138,7 @@
 
   :config
   (hyalo-appearance-mode 1)
+  (add-hook 'fontaine-set-preset-hook #'hyalo-set-highlights)
   (add-hook 'enable-theme-functions #'hyalo-set-highlights)
   (hyalo-set-highlights)
   (with-eval-after-load 'magit

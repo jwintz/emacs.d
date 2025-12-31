@@ -55,6 +55,36 @@ falls back to `default-directory'."
            default-directory)
      default-directory)))
 
+;;; Display in Child Frame
+
+(defun hyalo-sidebar-display-in-child-frame (buffer _alist)
+  "Display BUFFER in a hidden child frame for embedding.
+Sets `hyalo-embedded' parameter and positions off-screen."
+  (let* ((parent (selected-frame))
+         (frame (make-frame
+                 `((parent-frame . ,parent)
+                   (window-system . ns)
+                   (hyalo-embedded . t)
+                   (name . "Hyalo Sidebar")
+                   (minibuffer . nil)
+                   (undecorated . t)
+                   (internal-border-width . 0)
+                   (left-fringe . 0)
+                   (right-fringe . 0)
+                   (tool-bar-lines . 0)
+                   (menu-bar-lines . 0)
+                   (vertical-scroll-bars . nil)
+                   (width . 40)
+                   (height . 50)
+                   (left . -10000)  ; Off-screen for Swift detection
+                   (top . -10000)
+                   (visibility . t)))))  ; Must be visible (but off-screen)
+    (let ((window (frame-selected-window frame)))
+      (display-buffer-record-window 'frame window buffer)
+      (set-window-buffer window buffer)
+      (set-window-dedicated-p window t)
+      window)))
+
 ;;; Setup function
 
 (defun hyalo-sidebar-setup ()
@@ -312,6 +342,28 @@ Call this after switching projects."
 (with-eval-after-load 'project
   (advice-add 'project-switch-project :after #'hyalo-sidebar--after-project-switch))
 
+;;; Visibility Callbacks
+
+(defun hyalo-on-sidebar-visibility-changed (panel visible)
+  "Callback from Swift when sidebar visibility changes.
+PANEL is 'left' or 'right'. VISIBLE is a boolean."
+  (hyalo-log "Sidebar: Visibility changed: %s %s" panel visible)
+  (when (string= panel "left")
+    (let ((dired-open (and (featurep 'dired-sidebar)
+                           (dired-sidebar-showing-sidebar-p))))
+      (cond
+       ;; Swift says show, but dired closed -> open dired
+       ((and visible (not dired-open))
+        (dired-sidebar-toggle-sidebar))
+       ;; Swift says hide, but dired open -> close dired
+       ((and (not visible) dired-open)
+        (dired-sidebar-toggle-sidebar))))))
+
+(defun hyalo-on-detail-visibility-changed (panel visible)
+  "Callback from Swift when inspector visibility changes.
+PANEL is 'right'. VISIBLE is a boolean."
+  (hyalo-log "Sidebar: Detail visibility changed: %s %s" panel visible))
+
 ;;; Mode Definition
 
 (defvar hyalo-sidebar-mode-map
@@ -327,17 +379,38 @@ Call this after switching projects."
   (if hyalo-sidebar-mode
       (progn
         (hyalo-log "Sidebar: Enabled")
+        ;; Force dired-sidebar to use our child frame
+        (add-to-list 'display-buffer-alist
+                     '("^\\*dired-sidebar.*" . (hyalo-sidebar-display-in-child-frame)))
+        
+        ;; Setup Swift visibility callbacks
+        (when (and (hyalo-available-p)
+                   (fboundp 'hyalo-setup-visibility-callbacks))
+          (hyalo-setup-visibility-callbacks))
+
         ;; Ensure dired-sidebar is configured
         (when (featurep 'dired-sidebar)
           (hyalo-sidebar-setup)))
-    (hyalo-log "Sidebar: Disabled")))
+    (progn
+      (hyalo-log "Sidebar: Disabled")
+      ;; Remove display buffer configuration
+      (setq display-buffer-alist
+            (cl-remove-if (lambda (x) (string-match-p "dired-sidebar" (car x)))
+                          display-buffer-alist)))))
 
 ;;; Interactive Commands
 
 ;;;###autoload
 (defun hyalo-sidebar-toggle-left ()
-  "Toggle the sidebar (using dired-sidebar)."
+  "Toggle the sidebar (using dired-sidebar) and sync with Swift."
   (interactive)
+  ;; 1. Toggle Swift sidebar
+  (when (and (hyalo-available-p) (fboundp 'hyalo-sidebar-toggle))
+    (hyalo-sidebar-toggle))
+  ;; 2. Toggle Elisp sidebar (only if we need to sync state immediately)
+  ;; Note: The callback will also fire, but standard toggling here ensures responsiveness
+  ;; and handles cases where Swift might be slow or disabled.
+  ;; We check if the state is already consistent to avoid double-toggling in the callback.
   (if (fboundp 'dired-sidebar-toggle-sidebar)
       (dired-sidebar-toggle-sidebar)
     (user-error "dired-sidebar not available")))
@@ -347,13 +420,16 @@ Call this after switching projects."
   "Focus the sidebar window."
   (interactive)
   (when-let* ((buf (hyalo-sidebar--find-sidebar-buffer))
-              (win (get-buffer-window buf)))
+              (win (get-buffer-window buf t))) ; Search all frames
+    (select-frame-set-input-focus (window-frame win))
     (select-window win)))
 
 ;;;###autoload
 (defun hyalo-sidebar-toggle-right ()
   "Toggle the inspector/right sidebar (placeholder)."
   (interactive)
+  (when (and (hyalo-available-p) (fboundp 'hyalo-detail-toggle))
+    (hyalo-detail-toggle))
   (message "Inspector sidebar not implemented"))
 
 ;;;###autoload

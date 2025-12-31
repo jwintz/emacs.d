@@ -68,9 +68,7 @@
            :fixed-pitch-family "SF Mono"
            :variable-pitch-family "SF Pro Text")))
 
-  (fontaine-mode 1)
-
-  ;; Explicitly apply Monaspace Radon to comment faces
+;; Explicitly apply Monaspace Radon to comment faces
   ;; (fontaine's :italic-family doesn't auto-apply to font-lock-comment-face)
   (defun hyalo-fonts--apply-comment-font ()
     "Apply Monaspace Radon to comment faces."
@@ -82,7 +80,13 @@
                           :family "Monaspace Radon Var"
                           :slant 'normal)))
   (add-hook 'fontaine-set-preset-hook #'hyalo-fonts--apply-comment-font)
-  (add-hook 'after-init-hook #'hyalo-fonts--apply-comment-font))
+  (add-hook 'after-init-hook #'hyalo-fonts--apply-comment-font)
+  (add-hook 'enable-theme-functions (lambda (&rest _) (hyalo-fonts--apply-comment-font)))
+
+  (fontaine-mode 1)
+  
+  ;; Apply once immediately in case we are reloading
+  (hyalo-fonts--apply-comment-font))
 
 ;; -----------------------------------------------------------------------------
 ;; Mode-Specific Font Hooks
@@ -94,6 +98,14 @@
   (face-remap-add-relative 'markdown-code-face :family "Monaspace Krypton Var")
   (face-remap-add-relative 'markdown-inline-code-face :family "Monaspace Krypton Var"))
 
+(defun hyalo-fonts--markdown-fonts ()
+  "Set markdown buffers to use Monaspace Xenon."
+  (face-remap-add-relative 'default :family "Monaspace Xenon Var"))
+
+(defun hyalo-fonts--info-fonts ()
+  "Set Info buffers to use Monaspace Xenon."
+  (face-remap-add-relative 'default :family "Monaspace Xenon Var"))
+
 (defun hyalo-fonts--terminal-fonts ()
   "Set terminal buffers to use Monaspace Argon."
   (face-remap-add-relative 'default :family "Monaspace Argon Var"))
@@ -102,6 +114,8 @@
 (with-eval-after-load 'agent-shell
   (add-hook 'agent-shell-mode-hook #'hyalo-fonts--agent-shell-fonts))
 
+(add-hook 'markdown-mode-hook #'hyalo-fonts--markdown-fonts)
+(add-hook 'Info-mode-hook #'hyalo-fonts--info-fonts)
 (add-hook 'eshell-mode-hook #'hyalo-fonts--terminal-fonts)
 (add-hook 'eat-mode-hook #'hyalo-fonts--terminal-fonts)
 (add-hook 'term-mode-hook #'hyalo-fonts--terminal-fonts)
