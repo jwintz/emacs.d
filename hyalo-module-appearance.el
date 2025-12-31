@@ -108,8 +108,7 @@ Available elements:
 - `ns-alpha-glyphs': Glyph background fills (hl-line, region, etc.)
 - `ns-alpha-all': All elements (shortcut for all above)
 
-Default is `ns-alpha-all' for full transparency.
-diff-hl uses margin mode (not fringe) so indicators remain visible."
+Default is `ns-alpha-all' for full transparency."
   :type '(repeat symbol)
   :group 'hyalo-module-appearance
   :set (lambda (sym val)

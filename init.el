@@ -624,6 +624,42 @@
   (display-line-numbers-grow-only t))
 ;;(display-line-numbers-type 'relative))
 
+(use-package god-mode
+  :ensure t
+  :bind
+  (("C-x C-1" . delete-other-windows)
+   ("C-x C-2" . split-window-below)
+   ("C-x C-3" . split-window-right)
+   ("C-x C-0" . delete-window)
+   ("C-x C-o" . other-window))
+  :config
+  ;; (god-mode-all)
+
+  (defun iota/god-mode-update-cursor-type ()
+    "Change cursor shape based on god-mode state."
+    (let ((new-cursor (if god-local-mode
+                          'box
+                        '(hbar . 2))))
+      (setq cursor-type new-cursor)
+      ;; Force redisplay in terminal (with timer to avoid ESC key interference)
+      (when (not (display-graphic-p))
+        (run-with-idle-timer 0.01 nil
+          (lambda ()
+            (let ((escape-seq (if (eq new-cursor 'box)
+                                  "\033[2 q"  ;; steady block cursor
+                                "\033[4 q")))  ;; steady underline cursor
+              (send-string-to-terminal escape-seq)))))))
+
+  (defun iota/god-mode-restore-cursor ()
+    "Restore cursor to underline on exit."
+    (when (not (display-graphic-p))
+      (send-string-to-terminal "\033[4 q")))
+
+  (add-hook 'post-command-hook #'iota/god-mode-update-cursor-type)
+  (add-hook 'buffer-list-update-hook #'iota/god-mode-update-cursor-type)
+  (add-hook 'window-configuration-change-hook #'iota/god-mode-update-cursor-type)
+  (add-hook 'kill-emacs-hook #'iota/god-mode-restore-cursor))
+
 (use-package move-dup
   :general
   ("M-<up>"   'move-dup-move-lines-up)
@@ -1071,48 +1107,28 @@
 
 (use-package diff-hl
   :custom
-  ;; Use right side for diff indicators
   (diff-hl-side 'right)
-  ;; Margin mode uses text chars instead of fringe bitmaps
-  ;; This allows fringe to be transparent while indicators remain visible
-  (diff-hl-margin-symbols-alist '((insert . "┃")
-                                   (delete . "┃")
-                                   (change . "┃")))
+  (diff-hl-margin-symbols-alist '((insert . "┃") (delete . "┃") (change . "┃")))
   :config
-  (defun hyalo-diff-hl--get-face-color (face attr)
-    "Get ATTR (foreground/background) from FACE, resolving inheritance."
-    (let ((color (face-attribute face attr nil t)))
-      (when (and color (not (eq color 'unspecified)))
-        color)))
-
   (defun hyalo-diff-hl--update-faces (&rest _)
-    "Update diff-hl face foregrounds from theme faces.
-Inherits from standard faces: success, error, warning.
-Falls back to diff-added/removed/changed, then to sensible defaults."
-    (let ((insert-color (or (hyalo-diff-hl--get-face-color 'success :foreground)
-                            (hyalo-diff-hl--get-face-color 'diff-added :foreground)
-                            "#50a14f"))
-          (delete-color (or (hyalo-diff-hl--get-face-color 'error :foreground)
-                            (hyalo-diff-hl--get-face-color 'diff-removed :foreground)
-                            "#e45649"))
-          (change-color (or (hyalo-diff-hl--get-face-color 'warning :foreground)
-                            (hyalo-diff-hl--get-face-color 'diff-changed :foreground)
-                            "#c18401")))
-      (set-face-attribute 'diff-hl-insert nil :foreground insert-color :background nil)
-      (set-face-attribute 'diff-hl-delete nil :foreground delete-color :background nil)
-      (set-face-attribute 'diff-hl-change nil :foreground change-color :background nil)))
-
-  ;; Update faces on theme change
+    "Update diff-hl margin colors from theme."
+    (let ((insert-fg (or (face-foreground 'success nil t)
+                         (face-foreground 'diff-added nil t)
+                         "#50a14f"))
+          (delete-fg (or (face-foreground 'error nil t)
+                         (face-foreground 'diff-removed nil t)
+                         "#e45649"))
+          (change-fg (or (face-foreground 'warning nil t)
+                         (face-foreground 'diff-changed nil t)
+                         "#c18401")))
+      (set-face-attribute 'diff-hl-insert nil :foreground insert-fg :background nil)
+      (set-face-attribute 'diff-hl-delete nil :foreground delete-fg :background nil)
+      (set-face-attribute 'diff-hl-change nil :foreground change-fg :background nil)))
   (add-hook 'enable-theme-functions #'hyalo-diff-hl--update-faces)
-  ;; Initial setup
   (hyalo-diff-hl--update-faces)
-  ;; Enable globally
   (global-diff-hl-mode 1)
-  ;; Use margin instead of fringe (works with transparent fringes)
   (diff-hl-margin-mode 1)
-  ;; Show changes for unsaved buffers
   (diff-hl-flydiff-mode 1)
-  ;; Update diff-hl after magit operations
   (add-hook 'magit-post-refresh-hook 'diff-hl-magit-post-refresh))
 
 (use-package swift-mode
@@ -1339,10 +1355,46 @@ Falls back to diff-added/removed/changed, then to sensible defaults."
 
 (emacs-section-start "Knowledge Management")
 
+(use-package svg-lib
+  :ensure t)
+
+(use-package hyalo-markdown-tags
+  :load-path emacs-config-dir
+  :commands (hyalo-markdown-tags-mode))
+
 (use-package markdown-mode
   :mode (("README\\.md\\'" . markdown-mode)
          ("\\.md\\'" . markdown-mode)
          ("\\.markdown\\'" . markdown-mode))
+  :init
+  (defvar-local hyalo-markdown--code-face-cookies nil
+    "Face remap cookies for markdown code faces.")
+
+  (defun hyalo-markdown--update-code-scale ()
+    "Update markdown code face scaling to match text-scale."
+    (when (derived-mode-p 'markdown-mode 'gfm-mode)
+      ;; Remove old remappings
+      (dolist (cookie hyalo-markdown--code-face-cookies)
+        (face-remap-remove-relative cookie))
+      (setq hyalo-markdown--code-face-cookies nil)
+      ;; Add new remappings with current scale
+      (let ((scale (if (and (boundp 'text-scale-mode-amount)
+                            (boundp 'text-scale-mode-step)
+                            text-scale-mode-amount)
+                       (expt text-scale-mode-step text-scale-mode-amount)
+                     1.0)))
+        (push (face-remap-add-relative 'markdown-code-face :height scale)
+              hyalo-markdown--code-face-cookies)
+        (push (face-remap-add-relative 'markdown-inline-code-face :height scale)
+              hyalo-markdown--code-face-cookies))))
+
+  (defun hyalo-markdown--setup-code-scaling ()
+    "Set up code face scaling for markdown buffers."
+    (add-hook 'text-scale-mode-hook #'hyalo-markdown--update-code-scale nil t)
+    (hyalo-markdown--update-code-scale))
+
+  :hook ((markdown-mode . hyalo-markdown-tags-mode)
+         (markdown-mode . hyalo-markdown--setup-code-scaling))
   :general
   (:keymaps 'markdown-mode-map
    :prefix "C-c m"
