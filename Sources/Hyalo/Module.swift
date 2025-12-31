@@ -48,6 +48,9 @@ func findEmacsWindow() -> NSWindow? {
 final class HyaloModule: Module {
     let isGPLCompatible = true
     private let version = "1.0.0"
+    
+    // Static reference to keep channel alive
+    static var visibilityChannel: Any?
 
     func Init(_ env: Environment) throws {
 
@@ -398,11 +401,22 @@ final class HyaloModule: Module {
                 // Open a channel for async callbacks from Swift to Elisp
                 let channel = try env.openChannel(name: "hyalo-visibility")
                 
+                // RETAIN the channel to prevent deallocation
+                HyaloModule.visibilityChannel = channel
+                
                 // Create callback for sidebar visibility changes
-                let sidebarCallback: (String, Bool) -> Void = channel.hook("hyalo-on-sidebar-visibility-changed")
+                let sidebarCallback: (String, Bool) -> Void = { slot, visible in
+                    print("[Hyalo] Module: sidebarCallback triggered (slot: \(slot), visible: \(visible))")
+                    let hook: (String, Bool) -> Void = channel.hook("hyalo-on-sidebar-visibility-changed")
+                    hook(slot, visible)
+                }
                 
                 // Create callback for detail visibility changes  
-                let detailCallback: (String, Bool) -> Void = channel.hook("hyalo-on-detail-visibility-changed")
+                let detailCallback: (String, Bool) -> Void = { slot, visible in
+                    print("[Hyalo] Module: detailCallback triggered")
+                    let hook: (String, Bool) -> Void = channel.hook("hyalo-on-detail-visibility-changed")
+                    hook(slot, visible)
+                }
                 
                 // Set the callbacks on the manager
                 DispatchQueue.main.async {
@@ -841,6 +855,94 @@ final class HyaloModule: Module {
         // Note: Treemacs runs inside Emacs (detail area), not managed by Swift sidebar
 
         // MARK: - Appearance Panel
+
+        try env.defun(
+            "hyalo-set-available-themes",
+            with: "Set the list of available themes in the appearance panel."
+        ) { (env: Environment, themes: [String]) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    AppearanceSettings.shared.availableThemes = themes.sorted()
+                    // Refresh panel if visible
+                    if AppearancePanelController.shared.isVisible() {
+                        AppearancePanelController.shared.refreshPanel()
+                    }
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-set-current-theme",
+            with: "Set the currently selected theme in the appearance panel."
+        ) { (env: Environment, theme: String) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    AppearanceSettings.shared.currentTheme = theme
+                    // Refresh panel if visible
+                    if AppearancePanelController.shared.isVisible() {
+                        AppearancePanelController.shared.refreshPanel()
+                    }
+                }
+                return true
+            }
+            return false
+        }
+        
+        try env.defun(
+            "hyalo-get-current-theme",
+            with: "Get the currently selected theme from the appearance panel."
+        ) { () -> String in
+            if #available(macOS 26.0, *) {
+                return AppearanceSettings.shared.currentTheme
+            }
+            return ""
+        }
+
+        try env.defun(
+            "hyalo-setup-theme-callbacks",
+            with: """
+            Setup callbacks for theme changes from the appearance panel.
+            Callbacks:
+            - hyalo-on-theme-changed-from-panel (theme-name)
+            - hyalo-on-random-light ()
+            - hyalo-on-random-dark ()
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                // Open a channel for theme callbacks
+                let channel = try env.openChannel(name: "hyalo-theme")
+                
+                // Create callbacks
+                let themeChangedCallback: (String) -> Void = { theme in
+                    print("[Module] Theme changed callback triggered: \(theme)")
+                    let callback: (String) -> Void = channel.hook("hyalo-on-theme-changed-from-panel")
+                    callback(theme)
+                }
+                
+                let randomLightCallback: () -> Void = {
+                    print("[Module] Random light callback triggered")
+                    let callback: () -> Void = channel.hook("hyalo-on-random-light")
+                    callback()
+                }
+                
+                let randomDarkCallback: () -> Void = {
+                    print("[Module] Random dark callback triggered")
+                    let callback: () -> Void = channel.hook("hyalo-on-random-dark")
+                    callback()
+                }
+                
+                // Set the callbacks on the controller
+                DispatchQueue.main.async {
+                    AppearancePanelController.shared.onThemeChanged = themeChangedCallback
+                    AppearancePanelController.shared.onRandomLight = randomLightCallback
+                    AppearancePanelController.shared.onRandomDark = randomDarkCallback
+                }
+                return true
+            }
+            return false
+        }
 
         try env.defun(
             "hyalo-show-appearance-panel",

@@ -2016,6 +2016,10 @@ final class NavigationSidebarController: NSObject {
         super.init()
     }
 
+    /// Callbacks for visibility changes (visible, needsSetup)
+    var onSidebarVisibilityChanged: ((Bool, Bool) -> Void)?
+    var onDetailVisibilityChanged: ((Bool, Bool) -> Void)?
+
     /// Setup the NavigationSplitView (called at Hyalo initialization)
     /// Sidebar starts collapsed, toolbar is immediately visible
     func setup() {
@@ -2712,16 +2716,21 @@ final class NavigationSidebarManager {
 
     /// Notify about sidebar visibility change
     func notifySidebarVisibilityChanged(visible: Bool, needsSetup: Bool) {
-        if needsSetup {
-            onSidebarVisibilityChanged?("left", visible)
+        print("[Hyalo] NavigationSidebarManager: notifySidebarVisibilityChanged(visible: \(visible))")
+        // Always notify Lisp so it can sync its internal state (e.g. dired buffer visibility)
+        if let callback = onSidebarVisibilityChanged {
+            print("[Hyalo] NavigationSidebarManager: invoking callback")
+            callback("left", visible)
+        } else {
+            print("[Hyalo] NavigationSidebarManager: onSidebarVisibilityChanged is nil")
         }
     }
 
     /// Notify about detail visibility change
     func notifyDetailVisibilityChanged(visible: Bool, needsSetup: Bool) {
-        if needsSetup {
-            onDetailVisibilityChanged?("right", visible)
-        }
+        print("[Hyalo] NavigationSidebarManager: notifyDetailVisibilityChanged(visible: \(visible))")
+        // Always notify Lisp
+        onDetailVisibilityChanged?("right", visible)
     }
 
 
@@ -2735,6 +2744,15 @@ final class NavigationSidebarManager {
             return existing
         }
         let controller = NavigationSidebarController(window: window)
+        
+        // Connect callbacks
+        controller.onSidebarVisibilityChanged = { [weak self] visible, needsSetup in
+            self?.notifySidebarVisibilityChanged(visible: visible, needsSetup: needsSetup)
+        }
+        controller.onDetailVisibilityChanged = { [weak self] visible, needsSetup in
+            self?.notifyDetailVisibilityChanged(visible: visible, needsSetup: needsSetup)
+        }
+        
         controllers[key] = controller
         return controller
     }

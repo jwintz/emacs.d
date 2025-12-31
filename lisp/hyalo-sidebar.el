@@ -34,10 +34,46 @@ Falls back to `default-directory' if no project is found."
   :type 'boolean
   :group 'hyalo-sidebar)
 
-;;; Parent frame reference
+(defcustom hyalo-sidebar-internal-border-width 12
+  "Internal border width for embedded sidebar frames.
+This provides margin matching SwiftUI design guidelines.
+Set to 0 for no margin, 8 for compact, 12 for standard, 16 for spacious."
+  :type 'integer
+  :group 'hyalo-sidebar)
+
+(defcustom hyalo-sidebar-font nil
+  "Font to use for sidebar buffers.
+When non-nil, should be a font spec string like \"SF Pro-12\".
+When nil, uses the default frame font."
+  :type '(choice (const nil) string)
+  :group 'hyalo-sidebar)
+
+;;; Frame tracking
 
 (defvar hyalo-sidebar--parent-frame nil
   "The parent frame for the embedded sidebar child-frame.")
+
+(defvar hyalo-sidebar--left-top-frame nil
+  "Reference to the left sidebar top frame (ibuffer).")
+
+(defvar hyalo-sidebar--left-bottom-frame nil
+  "Reference to the left sidebar bottom frame (dired-sidebar).")
+
+(defvar hyalo-sidebar--right-frame nil
+  "Reference to the right sidebar frame (agent-shell).")
+
+(defvar hyalo-sidebar--main-frame nil
+  "The main Emacs frame (parent of all embedded sidebars).
+Used by sidebar buffers to open files in the correct frame.")
+
+(defvar hyalo-sidebar--pending-focus-right nil
+  "Non-nil when we need to focus right sidebar after agent-shell is ready.")
+
+(defvar hyalo-sidebar--visibility-timer nil
+  "Timer for checking panel visibility changes.")
+
+(defvar hyalo-sidebar--callbacks-installed nil
+  "Non-nil when Swift visibility callbacks have been installed.")
 
 ;;; Project.el integration
 
@@ -55,35 +91,115 @@ falls back to `default-directory'."
            default-directory)
      default-directory)))
 
+;;; Appearance for embedded frames
+
+(defun hyalo-sidebar--strip-faces (frame)
+  "Set up FRAME for glass effect - fully transparent.
+Preserves internal-border-width for SwiftUI-style margins."
+  (modify-frame-parameters
+   frame
+   `((background-color . "white")
+     (alpha-background . 0)
+     (ns-alpha-elements . (ns-alpha-all))
+     (ns-background-blur . 0)
+     (child-frame-border-width . 0)
+     (left-fringe . 0)
+     (right-fringe . 0)
+     (undecorated . t)
+     (ns-appearance . nil)))
+  (force-mode-line-update t)
+  (redisplay t))
+
 ;;; Display in Child Frame
+
+(defun hyalo-sidebar--make-embedded-frame (buffer slot &optional params)
+  "Create a child-frame for BUFFER to be embedded in SLOT.
+SLOT is the embed slot identifier (\"left\", \"left-top\", \"left-bottom\", \"right\").
+PARAMS are additional frame parameters.
+Returns the created frame."
+  (hyalo-log "Sidebar: Creating embedded frame for slot %s" slot)
+  (let* ((parent (selected-frame))
+         (frame-params
+          `((parent-frame . ,parent)
+            (window-system . ns)
+            (hyalo-embedded . t)
+            (hyalo-embed-slot . ,slot)
+            (name . ,(format "Hyalo Sidebar %s" slot))
+            (minibuffer . nil)
+            (undecorated . t)
+            (alpha-background . 0)
+            (internal-border-width . ,hyalo-sidebar-internal-border-width)
+            (child-frame-border-width . 0)
+            (left-fringe . 0)
+            (right-fringe . 0)
+            (tool-bar-lines . 0)
+            (menu-bar-lines . 0)
+            (vertical-scroll-bars . nil)
+            (unsplittable . t)
+            (no-accept-focus . nil)
+            (width . 40)
+            (height . 20)
+            (left . -10000)
+            (top . -10000)
+            (visibility . t)
+            ,@(when hyalo-sidebar-font
+                `((font . ,hyalo-sidebar-font)))
+            ,@params))
+         (frame (make-frame frame-params)))
+    ;; Display buffer in the frame
+    (with-selected-frame frame
+      (switch-to-buffer buffer)
+      (setq-local mode-line-format nil)
+      (setq-local header-line-format nil)
+      ;; Set font if configured
+      (when hyalo-sidebar-font
+        (set-frame-font hyalo-sidebar-font nil (list frame))))
+    ;; Force a redisplay to ensure the frame is fully created
+    (redisplay t)
+    ;; Small delay to ensure NSWindow is created before registration
+    (sit-for 0.05)
+    ;; Get the window-id for this frame and register with Swift
+    (let* ((window-id (frame-parameter frame 'window-id))
+           (outer-window-id (frame-parameter frame 'outer-window-id)))
+      (hyalo-log "Sidebar: Frame window-id: %s, outer-window-id: %s" window-id outer-window-id)
+      ;; On NS, outer-window-id is the NSWindow number
+      (setq window-id (or outer-window-id window-id))
+      ;; Register with Swift for embedding (pass window-id)
+      (if (and (hyalo-available-p)
+               (fboundp 'hyalo-sidebar-register-frame)
+               window-id)
+          (progn
+            (hyalo-log "Sidebar: Registering frame for '%s' with window-id '%s'" slot window-id)
+            (hyalo-sidebar-register-frame slot window-id)
+            (hyalo-log "Sidebar: Registration complete for '%s'" slot))
+        (hyalo-log "Sidebar: WARNING - Swift functions not available or no window-id!")))
+    ;; Store frame reference for right sidebar
+    (when (string= slot "right")
+      (setq hyalo-sidebar--right-frame frame))
+    frame))
 
 (defun hyalo-sidebar-display-in-child-frame (buffer _alist)
   "Display BUFFER in a hidden child frame for embedding.
 Sets `hyalo-embedded' parameter and positions off-screen."
-  (let* ((parent (selected-frame))
-         (frame (make-frame
-                 `((parent-frame . ,parent)
-                   (window-system . ns)
-                   (hyalo-embedded . t)
-                   (name . "Hyalo Sidebar")
-                   (minibuffer . nil)
-                   (undecorated . t)
-                   (internal-border-width . 0)
-                   (left-fringe . 0)
-                   (right-fringe . 0)
-                   (tool-bar-lines . 0)
-                   (menu-bar-lines . 0)
-                   (vertical-scroll-bars . nil)
-                   (width . 40)
-                   (height . 50)
-                   (left . -10000)  ; Off-screen for Swift detection
-                   (top . -10000)
-                   (visibility . t)))))  ; Must be visible (but off-screen)
-    (let ((window (frame-selected-window frame)))
-      (display-buffer-record-window 'frame window buffer)
-      (set-window-buffer window buffer)
-      (set-window-dedicated-p window t)
-      window)))
+  (let* ((frame (hyalo-sidebar--make-embedded-frame buffer "left")))
+    ;; Store frame reference
+    (setq hyalo-sidebar--left-frame frame)
+    ;; Store main frame reference if not set
+    (unless hyalo-sidebar--main-frame
+      (setq hyalo-sidebar--main-frame
+            (or (frame-parameter frame 'parent-frame)
+                (car (filtered-frame-list
+                      (lambda (f) (not (frame-parameter f 'hyalo-embedded))))))))
+    ;; Configure dired-sidebar specifically
+    (with-selected-frame frame
+      (with-current-buffer buffer
+        (hyalo-sidebar--configure-embedded)))
+    ;; Trigger embedding after registration
+    (when (and (hyalo-available-p)
+               (fboundp 'hyalo-sidebar-embed-frames))
+      (hyalo-log "Sidebar: Scheduling embed-frames for left")
+      (run-with-timer 0.1 nil #'hyalo-sidebar-embed-frames "left"))
+    (frame-selected-window frame)))
 
 ;;; Setup function
 
@@ -103,6 +219,63 @@ Sets `hyalo-embedded' parameter and positions off-screen."
     (setq dired-sidebar-should-follow-file t)
     ;; Subtree indentation
     (setq dired-sidebar-subtree-indent 2)))
+
+(defun hyalo-sidebar-setup-left ()
+  "Setup the left sidebar (dired-sidebar).
+Restored for compatibility."
+  (interactive)
+  (hyalo-sidebar-toggle-left))
+
+(defun hyalo-sidebar-setup-right ()
+  "Setup the right sidebar with agent-shell."
+  (interactive)
+  (hyalo-log "Sidebar: Setting up right sidebar (agent-shell)...")
+  ;; Clear any existing registration
+  (when (and (hyalo-available-p)
+             (fboundp 'hyalo-sidebar-clear-registration))
+    (hyalo-sidebar-clear-registration "right"))
+  (if (require 'agent-shell nil t)
+      (let ((existing-buf (cl-find-if (lambda (buf)
+                                        (with-current-buffer buf
+                                          (derived-mode-p 'agent-shell-mode)))
+                                      (buffer-list))))
+        ;; Create buffer if needed
+        (unless existing-buf
+          (hyalo-log "Sidebar: Creating new agent-shell...")
+          (save-window-excursion
+            (condition-case err
+                (agent-shell)
+              (error (hyalo-log "Sidebar: ERROR creating agent-shell: %s" err)))))
+        ;; Find agent-shell buffer
+        (let ((agent-buf (or existing-buf
+                             (cl-find-if (lambda (buf)
+                                           (with-current-buffer buf
+                                             (derived-mode-p 'agent-shell-mode)))
+                                         (buffer-list)))))
+          (when (and agent-buf (buffer-live-p agent-buf))
+            ;; Ensure cursor visibility for embedded frame
+            (with-current-buffer agent-buf
+              (setq-local cursor-type '(bar . 2))
+              (setq-local cursor-in-non-selected-windows t))
+            ;; Create the child frame
+            (setq hyalo-sidebar--right-frame
+                  (hyalo-sidebar--make-embedded-frame agent-buf "right"
+                                                      '((cursor-type . (bar . 2))
+                                                        (cursor-in-non-selected-windows . t))))
+            ;; Apply glass effect appearance
+            (hyalo-sidebar--strip-faces hyalo-sidebar--right-frame)
+            ;; Trigger embedding
+            (when (and (hyalo-available-p)
+                       (fboundp 'hyalo-sidebar-embed-frames))
+              (hyalo-log "Sidebar: Calling embed-frames for right")
+              (hyalo-sidebar-embed-frames "right"))
+            ;; Focus if buffer already existed (hook won't fire)
+            (when (and existing-buf hyalo-sidebar--pending-focus-right)
+              (hyalo-log "Sidebar: Buffer existed, using fallback focus timer")
+              (setq hyalo-sidebar--pending-focus-right nil)
+              (run-at-time 0.4 nil #'hyalo-sidebar--do-focus-right))
+            (hyalo-log "Sidebar: Right sidebar setup complete."))))
+    (hyalo-log "Sidebar: agent-shell not available")))
 
 ;;; Get parent frame helper
 
@@ -149,10 +322,7 @@ Files open in parent frame's other window (if possible), directories toggle expa
      ((and file parent (file-regular-p file))
       (let ((buf (find-file-noselect file)))
         (select-frame-set-input-focus parent)
-        ;; Try other window, fall back to current if splitting fails
-        (condition-case nil
-            (switch-to-buffer-other-window buf)
-          (error (switch-to-buffer buf)))))
+        (switch-to-buffer buf)))
      ;; Directory - toggle subtree if dired-subtree available, else enter
      ((and file (file-directory-p file))
       (if (and (featurep 'dired-subtree)
@@ -228,24 +398,28 @@ In non-embedded frames, returns original result unchanged."
 
 ;;; Mode hook for sidebar
 
+(defun hyalo-sidebar--configure-embedded ()
+  "Apply configuration for embedded sidebar buffers."
+  ;; Store parent frame reference if valid
+  (when-let* ((parent (frame-parameter (selected-frame) 'parent-frame)))
+    (setq hyalo-sidebar--parent-frame parent))
+  ;; Configure display
+  (hyalo-sidebar-setup)
+  ;; Enable monochrome icons
+  (hyalo-sidebar--enable-monochrome)
+  ;; Remove mode-line in sidebar
+  (setq-local mode-line-format nil)
+  (setq-local header-line-format nil)
+  ;; Enable our keymap override - MUST set the variable to t for the keymap to be active
+  (setq-local hyalo-sidebar-embedded t)
+  (push `(hyalo-sidebar-embedded . ,hyalo-sidebar--keymap)
+        minor-mode-overriding-map-alist))
+
 (defun hyalo-sidebar--setup-if-embedded ()
   "Set up dired-sidebar for sidebar if this is an embedded frame."
   (when (and (derived-mode-p 'dired-sidebar-mode)
              (frame-parameter (selected-frame) 'hyalo-embedded))
-    ;; Store parent frame reference
-    (setq hyalo-sidebar--parent-frame
-          (frame-parameter (selected-frame) 'parent-frame))
-    ;; Configure display
-    (hyalo-sidebar-setup)
-    ;; Enable monochrome icons
-    (hyalo-sidebar--enable-monochrome)
-    ;; Remove mode-line in sidebar
-    (setq-local mode-line-format nil)
-    (setq-local header-line-format nil)
-    ;; Enable our keymap override - MUST set the variable to t for the keymap to be active
-    (setq-local hyalo-sidebar-embedded t)
-    (push `(hyalo-sidebar-embedded . ,hyalo-sidebar--keymap)
-          minor-mode-overriding-map-alist)))
+    (hyalo-sidebar--configure-embedded)))
 
 ;;; Project switching support
 
@@ -298,9 +472,7 @@ Call this after switching projects."
               ;; Restore parent frame reference
               (setq hyalo-sidebar--parent-frame parent-frame)
               ;; Apply sidebar setup
-              (hyalo-sidebar-setup)
-              ;; Enable monochrome advice (global but frame-aware)
-              (hyalo-sidebar--enable-monochrome)
+              (hyalo-sidebar--configure-embedded)
               ;; Ensure nerd-icons-dired mode is active
               (when (and (fboundp 'nerd-icons-dired-mode)
                          (not nerd-icons-dired-mode))
@@ -349,20 +521,114 @@ Call this after switching projects."
 PANEL is 'left' or 'right'. VISIBLE is a boolean."
   (hyalo-log "Sidebar: Visibility changed: %s %s" panel visible)
   (when (string= panel "left")
-    (let ((dired-open (and (featurep 'dired-sidebar)
-                           (dired-sidebar-showing-sidebar-p))))
-      (cond
-       ;; Swift says show, but dired closed -> open dired
-       ((and visible (not dired-open))
-        (dired-sidebar-toggle-sidebar))
-       ;; Swift says hide, but dired open -> close dired
-       ((and (not visible) dired-open)
-        (dired-sidebar-toggle-sidebar))))))
+    (if visible
+        ;; Panel visible - setup frames if they don't exist
+        (unless (and hyalo-sidebar--left-top-frame
+                     (frame-live-p hyalo-sidebar--left-top-frame))
+          (hyalo-log "Sidebar: Triggering left-setup from callback")
+          (hyalo-sidebar--do-left-setup))
+      ;; Panel hidden - delete frames
+      (when (and hyalo-sidebar--left-top-frame
+                 (frame-live-p hyalo-sidebar--left-top-frame))
+        (delete-frame hyalo-sidebar--left-top-frame)
+        (setq hyalo-sidebar--left-top-frame nil))
+      (when (and hyalo-sidebar--left-bottom-frame
+                 (frame-live-p hyalo-sidebar--left-bottom-frame))
+        (delete-frame hyalo-sidebar--left-bottom-frame)
+        (setq hyalo-sidebar--left-bottom-frame nil)))))
 
 (defun hyalo-on-detail-visibility-changed (panel visible)
   "Callback from Swift when inspector visibility changes.
 PANEL is 'right'. VISIBLE is a boolean."
-  (hyalo-log "Sidebar: Detail visibility changed: %s %s" panel visible))
+  (hyalo-log "Sidebar: Detail visibility changed: %s %s" panel visible)
+  (when (string= panel "right")
+    (if visible
+        ;; Panel visible - setup frames if they don't exist
+        (unless (and hyalo-sidebar--right-frame
+                     (frame-live-p hyalo-sidebar--right-frame))
+          (hyalo-log "Sidebar: Triggering right-setup from callback")
+          (hyalo-sidebar-setup-right))
+      ;; Panel hidden - delete frames
+      (when (and hyalo-sidebar--right-frame
+                 (frame-live-p hyalo-sidebar--right-frame))
+        (delete-frame hyalo-sidebar--right-frame)
+        (setq hyalo-sidebar--right-frame nil)))))
+
+;;; Visibility Watcher (for toolbar button integration)
+
+(defun hyalo-sidebar--check-visibility ()
+  "Check if any panel needs embedded content setup.
+Called periodically when sidebar mode is active.
+This handles toolbar button clicks that show panels."
+  (when (and (hyalo-available-p)
+             (fboundp 'hyalo-panel-needs-setup))
+    (let ((needs-setup (hyalo-panel-needs-setup)))
+      (when needs-setup
+        (hyalo-log "Sidebar: Panel needs setup: %s" needs-setup)
+        (cond
+         ((and (equal needs-setup "right")
+               (not (and hyalo-sidebar--right-frame
+                         (frame-live-p hyalo-sidebar--right-frame))))
+          (hyalo-log "Sidebar: Starting right-setup from visibility watcher")
+          (hyalo-sidebar-setup-right))
+         ((and (equal needs-setup "left")
+               (not (and hyalo-sidebar--left-top-frame
+                         (frame-live-p hyalo-sidebar--left-top-frame)))
+               (not (and hyalo-sidebar--left-bottom-frame
+                         (frame-live-p hyalo-sidebar--left-bottom-frame))))
+          (hyalo-log "Sidebar: Starting left-setup from visibility watcher")
+          (hyalo-sidebar--do-left-setup)))))))
+
+(defun hyalo-sidebar--start-visibility-watcher ()
+  "Start the visibility watcher timer."
+  (unless hyalo-sidebar--visibility-timer
+    (setq hyalo-sidebar--visibility-timer
+          (run-with-timer 0.5 0.5 #'hyalo-sidebar--check-visibility))
+    (hyalo-log "Sidebar: Visibility watcher started")))
+
+(defun hyalo-sidebar--stop-visibility-watcher ()
+  "Stop the visibility watcher timer."
+  (when hyalo-sidebar--visibility-timer
+    (cancel-timer hyalo-sidebar--visibility-timer)
+    (setq hyalo-sidebar--visibility-timer nil)
+    (hyalo-log "Sidebar: Visibility watcher stopped")))
+
+;;; Agent-shell focus hook
+
+(defun hyalo-sidebar--agent-shell-mode-hook ()
+  "Hook to focus agent-shell after it's ready."
+  (when hyalo-sidebar--pending-focus-right
+    (setq hyalo-sidebar--pending-focus-right nil)
+    (hyalo-log "Sidebar: agent-shell-mode-hook: focusing right sidebar")
+    ;; Small delay to ensure embedding is complete
+    (run-at-time 0.3 nil #'hyalo-sidebar--do-focus-right)))
+
+;; Add hook for agent-shell focus
+(with-eval-after-load 'agent-shell
+  (add-hook 'agent-shell-mode-hook #'hyalo-sidebar--agent-shell-mode-hook))
+
+;;; Callback Setup
+
+(defun hyalo-sidebar--setup-visibility-callbacks ()
+  "Setup Swift-to-Elisp visibility callbacks.
+This enables immediate response to toolbar button clicks."
+  (when (and (hyalo-available-p)
+             (not hyalo-sidebar--callbacks-installed))
+    (when (fboundp 'hyalo-setup-visibility-callbacks)
+      (condition-case err
+          (progn
+            (hyalo-setup-visibility-callbacks)
+            (setq hyalo-sidebar--callbacks-installed t)
+            (hyalo-log "Sidebar: Visibility callbacks installed"))
+        (error
+         (hyalo-log "Sidebar: Failed to install callbacks: %s" err))))
+    ;; ALWAYS start the watcher as a backup - callbacks may not be reliable
+    (hyalo-sidebar--start-visibility-watcher)))
+
+(defun hyalo-sidebar--teardown-visibility-callbacks ()
+  "Teardown Swift-to-Elisp visibility callbacks."
+  (setq hyalo-sidebar--callbacks-installed nil)
+  (hyalo-sidebar--stop-visibility-watcher))
 
 ;;; Mode Definition
 
@@ -379,41 +645,182 @@ PANEL is 'right'. VISIBLE is a boolean."
   (if hyalo-sidebar-mode
       (progn
         (hyalo-log "Sidebar: Enabled")
+        ;; Ensure Hyalo module is loaded (handles init order issues)
+        (ignore-errors (hyalo-ensure))
+        ;; Store main frame reference
+        (setq hyalo-sidebar--main-frame (selected-frame))
         ;; Force dired-sidebar to use our child frame
         (add-to-list 'display-buffer-alist
                      '("^\\*dired-sidebar.*" . (hyalo-sidebar-display-in-child-frame)))
-        
-        ;; Setup Swift visibility callbacks
-        (when (and (hyalo-available-p)
-                   (fboundp 'hyalo-setup-visibility-callbacks))
-          (hyalo-setup-visibility-callbacks))
-
+        ;; Setup Swift visibility callbacks (or fallback to watcher)
+        (hyalo-sidebar--setup-visibility-callbacks)
         ;; Ensure dired-sidebar is configured
         (when (featurep 'dired-sidebar)
           (hyalo-sidebar-setup)))
     (progn
       (hyalo-log "Sidebar: Disabled")
+      ;; Teardown callbacks and watcher
+      (hyalo-sidebar--teardown-visibility-callbacks)
       ;; Remove display buffer configuration
       (setq display-buffer-alist
             (cl-remove-if (lambda (x) (string-match-p "dired-sidebar" (car x)))
-                          display-buffer-alist)))))
+                          display-buffer-alist))
+      ;; Clean up frames
+      (hyalo-sidebar-teardown))))
+
+;;; Resize handling (called from Swift)
+
+(defun hyalo-sidebar-resize-slot (slot width height)
+  "Resize the frame in SLOT to WIDTH x HEIGHT pixels.
+Called from Swift when sidebar geometry changes."
+  (let ((frame (pcase slot
+                 ("left" hyalo-sidebar--left-bottom-frame)
+                 ("left-top" hyalo-sidebar--left-top-frame)
+                 ("left-bottom" hyalo-sidebar--left-bottom-frame)
+                 ("right" hyalo-sidebar--right-frame))))
+    (when (and frame (frame-live-p frame))
+      (let* ((char-width (frame-char-width frame))
+             (char-height (frame-char-height frame))
+             (cols (max 10 (/ width char-width)))
+             (rows (max 3 (/ height char-height))))
+        (set-frame-size frame cols rows)))))
+
+;;; Frame slot query (called from Swift)
+
+(defun hyalo-sidebar-get-frame-slot (window-id)
+  "Get the embed slot for frame with WINDOW-ID.
+Returns the slot string or nil if not an embedded frame."
+  (catch 'found
+    (dolist (frame (frame-list))
+      (when (and (frame-parameter frame 'hyalo-embedded)
+                 (equal (frame-parameter frame 'outer-window-id) window-id))
+        (throw 'found (frame-parameter frame 'hyalo-embed-slot))))
+    nil))
+
+;;; Teardown
+
+(defun hyalo-sidebar-teardown ()
+  "Clean up all sidebar frames."
+  (interactive)
+  ;; Stop visibility watcher
+  (hyalo-sidebar--stop-visibility-watcher)
+  ;; Notify Swift to detach
+  (when (and (hyalo-available-p)
+             (fboundp 'hyalo-sidebar-detach-frames))
+    (hyalo-sidebar-detach-frames "left")
+    (hyalo-sidebar-detach-frames "right"))
+  ;; Delete tracked frames
+  (when (and hyalo-sidebar--left-top-frame
+             (frame-live-p hyalo-sidebar--left-top-frame))
+    (delete-frame hyalo-sidebar--left-top-frame))
+  (when (and hyalo-sidebar--left-bottom-frame
+             (frame-live-p hyalo-sidebar--left-bottom-frame))
+    (delete-frame hyalo-sidebar--left-bottom-frame))
+  (when (and hyalo-sidebar--right-frame
+             (frame-live-p hyalo-sidebar--right-frame))
+    (delete-frame hyalo-sidebar--right-frame))
+  ;; Clear references
+  (setq hyalo-sidebar--left-top-frame nil
+        hyalo-sidebar--left-bottom-frame nil
+        hyalo-sidebar--right-frame nil))
 
 ;;; Interactive Commands
 
 ;;;###autoload
 (defun hyalo-sidebar-toggle-left ()
-  "Toggle the sidebar (using dired-sidebar) and sync with Swift."
+  "Toggle the left sidebar. Sets up frames on first use."
   (interactive)
-  ;; 1. Toggle Swift sidebar
-  (when (and (hyalo-available-p) (fboundp 'hyalo-sidebar-toggle))
-    (hyalo-sidebar-toggle))
-  ;; 2. Toggle Elisp sidebar (only if we need to sync state immediately)
-  ;; Note: The callback will also fire, but standard toggling here ensures responsiveness
-  ;; and handles cases where Swift might be slow or disabled.
-  ;; We check if the state is already consistent to avoid double-toggling in the callback.
-  (if (fboundp 'dired-sidebar-toggle-sidebar)
-      (dired-sidebar-toggle-sidebar)
-    (user-error "dired-sidebar not available")))
+  (if (and hyalo-sidebar--left-top-frame
+           (frame-live-p hyalo-sidebar--left-top-frame))
+      ;; Frames exist - just toggle Swift visibility
+      (when (and (hyalo-available-p) (fboundp 'hyalo-sidebar-toggle))
+        (hyalo-sidebar-toggle))
+    ;; Frames don't exist - show panel, setup, then focus
+    (when (and (hyalo-available-p) (fboundp 'hyalo-sidebar-show))
+      (hyalo-sidebar-show))
+    (run-at-time 0.1 nil #'hyalo-sidebar--do-left-setup)
+    (run-at-time 0.5 nil #'hyalo-sidebar--do-focus-left)))
+
+(defun hyalo-sidebar--do-left-setup ()
+  "Internal: Set up the left sidebar frames (ibuffer + dired-sidebar)."
+  (hyalo-log "Sidebar: Setting up left sidebar...")
+  ;; IMPORTANT: Capture the main frame FIRST before any child frames are created
+  (let ((main-frame (selected-frame)))
+    (setq hyalo-sidebar--main-frame main-frame)
+    (hyalo-log "Sidebar: Left setup starting, main-frame=%s" main-frame)
+
+    ;; Clear any existing registration
+    (when (and (hyalo-available-p)
+               (fboundp 'hyalo-sidebar-clear-registration))
+      (hyalo-sidebar-clear-registration "left"))
+
+    ;; Create ibuffer frame (top)
+    (require 'ibuffer)
+    (require 'hyalo-ibuffer)
+    (let ((ibuf-buffer (get-buffer-create "*Hyalo-Ibuffer*")))
+      (with-current-buffer ibuf-buffer
+        (unless (eq major-mode 'ibuffer-mode)
+          (ibuffer-mode))
+        ;; Apply sidebar-specific configuration
+        (when (fboundp 'hyalo-ibuffer-sidebar-setup)
+          (hyalo-ibuffer-sidebar-setup)))
+      (setq hyalo-sidebar--left-top-frame
+            (hyalo-sidebar--make-embedded-frame ibuf-buffer "left-top"))
+      (hyalo-sidebar--strip-faces hyalo-sidebar--left-top-frame)
+      (hyalo-log "Sidebar: Created ibuffer frame"))
+
+    ;; Create dired-sidebar frame (bottom)
+    (when (require 'dired-sidebar nil t)
+      (hyalo-log "Sidebar: Setting up dired-sidebar...")
+      (let* ((project-root (hyalo-sidebar--get-root-directory)))
+        (hyalo-log "Sidebar: Creating dired-sidebar for: %s" project-root)
+        (let ((dired-buf (save-window-excursion
+                           (dired-sidebar-get-or-create-buffer project-root))))
+          (hyalo-log "Sidebar: dired-buf = %s" dired-buf)
+          (if dired-buf
+              (progn
+                ;; Ensure dired-sidebar-mode is active
+                (with-current-buffer dired-buf
+                  (unless (derived-mode-p 'dired-sidebar-mode)
+                    (dired-sidebar-mode)))
+                ;; Create the child frame
+                (setq hyalo-sidebar--left-bottom-frame
+                      (hyalo-sidebar--make-embedded-frame dired-buf "left-bottom"))
+                ;; Apply configuration in the child frame context
+                (with-selected-frame hyalo-sidebar--left-bottom-frame
+                  (with-current-buffer dired-buf
+                    ;; Set the parent frame reference
+                    (setq hyalo-sidebar--parent-frame main-frame)
+                    ;; Apply dired-sidebar display settings
+                    (hyalo-sidebar-setup)
+                    ;; Set keybindings using overriding map
+                    (setq-local hyalo-sidebar-embedded t)
+                    (push `(hyalo-sidebar-embedded . ,hyalo-sidebar--keymap)
+                          minor-mode-overriding-map-alist)
+                    ;; Remove mode-line
+                    (setq-local mode-line-format nil)
+                    (setq-local header-line-format nil)))
+                (hyalo-sidebar--strip-faces hyalo-sidebar--left-bottom-frame)
+                (hyalo-log "Sidebar: Created dired-sidebar frame"))
+            (hyalo-log "Sidebar: WARNING - Could not get dired-sidebar buffer")))))
+
+    ;; Notify Swift to embed these frames
+    (hyalo-log "Sidebar: Calling embed-frames for 'left'")
+    (when (and (hyalo-available-p)
+               (fboundp 'hyalo-sidebar-embed-frames))
+      (hyalo-sidebar-embed-frames "left")
+      (hyalo-log "Sidebar: embed-frames 'left' complete")))
+  (hyalo-log "Sidebar: Left setup complete"))
+
+(defun hyalo-sidebar--do-focus-left ()
+  "Internal: Focus the left sidebar frame (dired-sidebar)."
+  (when (and hyalo-sidebar--left-bottom-frame
+             (frame-live-p hyalo-sidebar--left-bottom-frame))
+    (select-frame-set-input-focus hyalo-sidebar--left-bottom-frame)
+    (let ((win (frame-first-window hyalo-sidebar--left-bottom-frame)))
+      (when win
+        (select-window win)))
+    (hyalo-log "Sidebar: Focused left frame")))
 
 ;;;###autoload
 (defun hyalo-sidebar-focus-left ()
@@ -426,17 +833,52 @@ PANEL is 'right'. VISIBLE is a boolean."
 
 ;;;###autoload
 (defun hyalo-sidebar-toggle-right ()
-  "Toggle the inspector/right sidebar (placeholder)."
+  "Toggle the right sidebar (inspector). Sets up frames on first use."
   (interactive)
-  (when (and (hyalo-available-p) (fboundp 'hyalo-detail-toggle))
-    (hyalo-detail-toggle))
-  (message "Inspector sidebar not implemented"))
+  (if (and hyalo-sidebar--right-frame
+           (frame-live-p hyalo-sidebar--right-frame))
+      ;; Frame exists - just toggle Swift visibility
+      (when (and (hyalo-available-p) (fboundp 'hyalo-detail-toggle))
+        (hyalo-detail-toggle))
+    ;; Frame doesn't exist - show panel, setup, then focus
+    (when (and (hyalo-available-p) (fboundp 'hyalo-detail-show))
+      (hyalo-detail-show))
+    (run-at-time 0.1 nil #'hyalo-sidebar-setup-right)
+    (run-at-time 0.5 nil #'hyalo-sidebar--do-focus-right)))
+
+(defun hyalo-sidebar--do-focus-right ()
+  "Internal: Focus the right sidebar frame."
+  (when (and hyalo-sidebar--right-frame
+             (frame-live-p hyalo-sidebar--right-frame))
+    (select-frame-set-input-focus hyalo-sidebar--right-frame)
+    (let ((win (frame-first-window hyalo-sidebar--right-frame)))
+      (when win
+        (select-window win)))
+    (hyalo-log "Sidebar: Focused right frame")))
 
 ;;;###autoload
 (defun hyalo-sidebar-focus-right ()
-  "Focus the inspector/right sidebar (placeholder)."
+  "Focus the inspector/right sidebar."
   (interactive)
-  (message "Inspector sidebar not implemented"))
+  (cond
+   ;; Frame exists and is live - focus it
+   ((and hyalo-sidebar--right-frame
+         (frame-live-p hyalo-sidebar--right-frame))
+    (hyalo-sidebar--do-focus-right))
+   ;; Inspector not visible - show it first, then setup and focus
+   ((and (hyalo-available-p)
+         (fboundp 'hyalo-detail-visible-p)
+         (not (hyalo-detail-visible-p)))
+    (hyalo-log "Sidebar: Inspector not visible, showing first")
+    (when (fboundp 'hyalo-detail-show)
+      (hyalo-detail-show))
+    (run-at-time 0.2 nil #'hyalo-sidebar-setup-right)
+    (run-at-time 0.5 nil #'hyalo-sidebar--do-focus-right))
+   ;; Frame doesn't exist but inspector is visible - create it
+   (t
+    (hyalo-log "Sidebar: Frame doesn't exist, creating...")
+    (hyalo-sidebar-setup-right)
+    (run-at-time 0.3 nil #'hyalo-sidebar--do-focus-right))))
 
 (provide 'hyalo-sidebar)
 ;;; hyalo-sidebar.el ends here

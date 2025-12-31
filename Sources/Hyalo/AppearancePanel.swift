@@ -70,6 +70,10 @@ final class AppearanceSettings {
     var opacity: Double = 0.5
     var tintColor: NSColor = .windowBackgroundColor
     var appearanceMode: AppearanceMode = .auto
+    
+    // Theme support
+    var availableThemes: [String] = []
+    var currentTheme: String = ""
 
     private init() {}
 
@@ -250,6 +254,72 @@ struct PresetPicker: View {
     }
 }
 
+// MARK: - Theme Picker
+
+@available(macOS 26.0, *)
+struct ThemePicker: View {
+    @Bindable var settings: AppearanceSettings
+    var onThemeChange: (String) -> Void
+    var onRandomLight: () -> Void
+    var onRandomDark: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "swatchpalette")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.primary.opacity(0.7))
+                Text("Theme")
+                    .font(.system(size: 13, weight: .medium))
+                Spacer()
+            }
+            
+            HStack(spacing: 8) {
+                // Native Picker for better scrolling/search behavior
+                Picker("", selection: $settings.currentTheme) {
+                    ForEach(settings.availableThemes, id: \.self) { theme in
+                        Text(theme).tag(theme)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .controlSize(.regular)
+                .frame(maxWidth: .infinity)
+                .onChange(of: settings.currentTheme) { _, newValue in
+                    print("[ThemePicker] Selected: \(newValue)")
+                    onThemeChange(newValue)
+                }
+
+                // Random Light
+                Button(action: {
+                    print("[ThemePicker] Random Light")
+                    onRandomLight()
+                }) {
+                    Image(systemName: "sun.max")
+                        .font(.system(size: 12))
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Load random light theme")
+
+                // Random Dark
+                Button(action: {
+                    print("[ThemePicker] Random Dark")
+                    onRandomDark()
+                }) {
+                    Image(systemName: "moon.stars")
+                        .font(.system(size: 12))
+                        .frame(width: 20, height: 20)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Load random dark theme")
+            }
+        }
+    }
+}
+
 // MARK: - Appearance Mode Picker
 
 @available(macOS 26.0, *)
@@ -303,6 +373,11 @@ struct AppearancePanelView: View {
     var onDismiss: () -> Void
     var onApply: () -> Void
     var onAppearanceModeChange: ((AppearanceMode) -> Void)?
+    
+    // Theme callbacks
+    var onThemeChange: ((String) -> Void)?
+    var onRandomLight: (() -> Void)?
+    var onRandomDark: (() -> Void)?
 
     var body: some View {
         VStack(spacing: 16) {
@@ -324,9 +399,6 @@ struct AppearancePanelView: View {
                 onAppearanceModeChange?(settings.appearanceMode)
             }
 
-            // Presets
-            PresetPicker(settings: settings, onChange: onApply)
-
             // Controls
             VStack(spacing: 16) {
                 // Discrete vibrancy picker
@@ -338,6 +410,19 @@ struct AppearancePanelView: View {
                     icon: "drop.halffull",
                     value: $settings.opacity,
                     onChange: onApply
+                )
+            }
+            
+            // Theme Picker (Bottom)
+            if !settings.availableThemes.isEmpty {
+                Divider()
+                    .overlay(.white.opacity(0.1))
+                
+                ThemePicker(
+                    settings: settings,
+                    onThemeChange: { theme in onThemeChange?(theme) },
+                    onRandomLight: { onRandomLight?() },
+                    onRandomDark: { onRandomDark?() }
                 )
             }
         }
@@ -363,6 +448,11 @@ final class AppearancePanelController {
 
     var onSettingsChanged: ((AppearanceSettings) -> Void)?
     var onAppearanceModeChanged: ((AppearanceMode) -> Void)?
+    
+    // Theme callbacks
+    var onThemeChanged: ((String) -> Void)?
+    var onRandomLight: (() -> Void)?
+    var onRandomDark: (() -> Void)?
 
     private init() {
         onSettingsChanged = { settings in
@@ -419,7 +509,10 @@ final class AppearancePanelController {
             settings: settings,
             onDismiss: { [weak self] in self?.dismiss() },
             onApply: { [weak self] in self?.onSettingsChanged?(settings) },
-            onAppearanceModeChange: { [weak self] mode in self?.onAppearanceModeChanged?(mode) }
+            onAppearanceModeChange: { [weak self] mode in self?.onAppearanceModeChanged?(mode) },
+            onThemeChange: { [weak self] theme in self?.onThemeChanged?(theme) },
+            onRandomLight: { [weak self] in self?.onRandomLight?() },
+            onRandomDark: { [weak self] in self?.onRandomDark?() }
         )
 
         let hosting = NSHostingView(rootView: panelView)

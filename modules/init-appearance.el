@@ -4,25 +4,8 @@
 
 ;;;; Fonts
 
-(use-package faces
-  :ensure nil
-  :if (display-graphic-p)
-  :config
-  (set-face-attribute 'default nil
-                      :font "Monaspace Neon Frozen"
-                      :height 110
-                      :weight 'thin)
-  (set-face-attribute 'fixed-pitch nil
-                      :font "Monaspace Neon Frozen"
-                      :height 110
-                      :weight 'thin)
-  (set-face-attribute 'variable-pitch nil
-                      :font "Monaspace Radon Frozen"
-                      :height 110
-                      :weight 'thin)
-  (set-fontset-font t '(#xe000 . #xffdd)
-                    (font-spec :name "Symbols Nerd Font Mono"
-                               :size 11) nil))
+;; Fonts are managed by hyalo-fonts.el using Fontaine.
+;; See lisp/hyalo-fonts.el for configuration.
 
 ;;;; Icons
 

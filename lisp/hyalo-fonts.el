@@ -34,7 +34,8 @@
         '((default
            ;; Default code: Monaspace Neon
            :default-family "Monaspace Neon Var"
-           :default-height 130
+           :default-height 110
+           :line-spacing 0.1
            :fixed-pitch-family "Monaspace Neon Var"
 
            ;; Prose, documentation: Mona Sans
@@ -59,12 +60,12 @@
 
           (compact
            :inherit default
-           :default-height 110)
+           :default-height 90)
 
           ;; Fallback preset using only system fonts
           (t
            :default-family "SF Mono"
-           :default-height 130
+           :default-height 110
            :fixed-pitch-family "SF Mono"
            :variable-pitch-family "SF Pro Text")))
 
@@ -84,9 +85,14 @@
   (add-hook 'enable-theme-functions (lambda (&rest _) (hyalo-fonts--apply-comment-font)))
 
   (fontaine-mode 1)
-  
+  (fontaine-set-preset 'default)
+
   ;; Apply once immediately in case we are reloading
-  (hyalo-fonts--apply-comment-font))
+  (hyalo-fonts--apply-comment-font)
+
+  ;; Robustly set line spacing
+  (setq-default line-spacing 0.1)
+  (add-to-list 'default-frame-alist '(line-spacing . 0.1)))
 
 ;; -----------------------------------------------------------------------------
 ;; Mode-Specific Font Hooks
@@ -137,6 +143,11 @@
 
 (with-eval-after-load 'nerd-icons
   (setq nerd-icons-font-family "Symbols Nerd Font Mono"))
+
+(when (display-graphic-p)
+  (set-fontset-font t '(#xe000 . #xffdd)
+                    (font-spec :name "Symbols Nerd Font Mono"
+                               :size 11) nil))
 
 (provide 'hyalo-fonts)
 
