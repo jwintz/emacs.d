@@ -200,39 +200,6 @@ configures `ns-alpha-elements' for fine-grained transparency control."
       (set-frame-parameter f 'right-fringe 4))))
 
 
-;;; Theme Sync
-
-(defun hyalo-appearance--push-themes ()
-  "Push available themes to the Swift panel."
-  (when (fboundp 'hyalo-set-available-themes)
-    (let ((themes (seq-filter (lambda (theme)
-                                (let ((name (symbol-name theme)))
-                                  (or (string-prefix-p "modus-" name)
-                                      (string-prefix-p "ef-" name))))
-                              (custom-available-themes))))
-      (hyalo-set-available-themes (vconcat (mapcar #'symbol-name themes))))))
-
-(defun hyalo-on-theme-changed-from-panel (theme-name)
-  "Handle theme change from panel. THEME-NAME is a string."
-  (let ((theme (intern theme-name)))
-    (when (and (memq theme (custom-available-themes))
-               (not (memq theme custom-enabled-themes)))
-      (mapc #'disable-theme custom-enabled-themes)
-      (load-theme theme t)
-      (message "Loaded theme from panel: %s" theme))))
-
-(defun hyalo-on-random-light ()
-  "Handle random light theme request from panel."
-  (if (fboundp 'modus-themes-load-random-light)
-      (modus-themes-load-random-light)
-    (message "modus-themes-load-random-light not available")))
-
-(defun hyalo-on-random-dark ()
-  "Handle random dark theme request from panel."
-  (if (fboundp 'modus-themes-load-random-dark)
-      (modus-themes-load-random-dark)
-    (message "modus-themes-load-random-dark not available")))
-
 ;;; Face Background Cleanup
 
 (defun hyalo-appearance--clear-backgrounds (&optional _theme)
@@ -268,16 +235,8 @@ Only reacts if appearance mode is `auto'."
   "Handle theme load event for THEME.
 Saves the loaded theme as current-theme and applies tint.
 Does NOT alter vibrancy settings."
-  ;; Debug: log frame size before/after (check Console.app for [THEME-DEBUG])
-  (let ((frame-before (when (frame-live-p (selected-frame))
-                        (frame-parameter (selected-frame) 'width))))
-    (hyalo-log "[THEME-DEBUG] on-theme-load START: theme=%s frame-width=%s"
-                      theme frame-before))
   (hyalo-appearance--clear-backgrounds)
   (when (hyalo-available-p)
-    ;; Update current theme in panel
-    (when (fboundp 'hyalo-set-current-theme)
-      (hyalo-set-current-theme (symbol-name theme)))
     ;; Save the loaded theme as current-theme (if initialized)
     (when (and hyalo-appearance--initialized
                theme (symbolp theme))
@@ -292,16 +251,8 @@ Does NOT alter vibrancy settings."
                         (apply #'format "#%02x%02x%02x"
                                (mapcar (lambda (c) (/ c 256))
                                        (color-values bg))))))
-      (hyalo-log "[THEME-DEBUG] on-theme-load: calling set-background-color with %s %.2f"
-                        hex-color hyalo-appearance-opacity)
       (when (fboundp 'hyalo-sidebar-set-background-color)
-        (hyalo-sidebar-set-background-color hex-color (float hyalo-appearance-opacity)))))
-  ;; Debug: log frame size after
-  (run-at-time 0.2 nil
-               (lambda ()
-                 (when (frame-live-p (selected-frame))
-                   (hyalo-log "[THEME-DEBUG] on-theme-load END (200ms): frame-width=%s"
-                                     (frame-parameter (selected-frame) 'width))))))
+        (hyalo-sidebar-set-background-color hex-color (float hyalo-appearance-opacity))))))
 
 ;;; Public API
 
@@ -557,11 +508,6 @@ This is the callback function that Swift calls via the pending actions mechanism
 Syncs SAVED Emacs values TO Swift - does not override them."
   (condition-case err
       (progn
-        ;; Setup theme callbacks
-        (when (fboundp 'hyalo-setup-theme-callbacks)
-          (hyalo-setup-theme-callbacks))
-        ;; Push available themes
-        (hyalo-appearance--push-themes)
         ;; Apply frame settings
         (hyalo-appearance--apply-frame-settings)
         ;; Get current appearance based on saved mode setting

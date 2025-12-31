@@ -6,7 +6,8 @@
   :ensure nil
   :custom
   (dired-use-ls-dired nil)
-  (dired-listing-switches "-agho")
+  ;; -A hides . and .., -g omits owner, -h human readable, -o omits group
+  (dired-listing-switches "-Agho")
   (dired-auto-revert-buffer t)
   (delete-by-moving-to-trash t))
 
@@ -23,12 +24,12 @@
 
 (use-package hyalo-sidebar
   :ensure nil
-  
+
   :after hyalo
   :demand t
   :custom
   (hyalo-sidebar-font nil)
-  (hyalo-sidebar-internal-border-width 12)
+  (hyalo-sidebar-internal-border-width 0)
   :config
   (hyalo-sidebar-mode 1)
   :general

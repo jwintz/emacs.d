@@ -120,11 +120,14 @@ struct SidebarSectionHeader: View {
     let title: String
     let systemImage: String
     var isBusy: Bool = false
+    var isFirst: Bool = false
 
     @State private var rotation: Double = 0
 
+    /// Standard margin matching embedded frame padding
+    private let sideMargin: CGFloat = 12
+
     var body: some View {
-        let _ = print("[SidebarSectionHeader] Rendering. Title: \(title), Busy: \(isBusy), Rotation: \(rotation)")
         HStack(spacing: 6) {
             Image(systemName: systemImage)
                 .font(.system(size: 10, weight: .medium))
@@ -132,15 +135,12 @@ struct SidebarSectionHeader: View {
                 .symbolEffect(.pulse, isActive: isBusy)
                 .rotationEffect(.degrees(rotation))
                 .onChange(of: isBusy, initial: true) { _, busy in
-                    print("[SidebarSectionHeader] onChange(isBusy): \(busy)")
                     if busy {
-                        // Continuous rotation
                         rotation = 0
                         withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
                             rotation = 360
                         }
                     } else {
-                        // Reset rotation
                         withAnimation(.default) {
                             rotation = 0
                         }
@@ -151,8 +151,9 @@ struct SidebarSectionHeader: View {
                 .foregroundStyle(.secondary)
             Spacer()
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
+        .padding(.horizontal, sideMargin)
+        .padding(.top, isFirst ? 6 : sideMargin)
+        .padding(.bottom, 6)
     }
 }
 
@@ -300,7 +301,7 @@ struct SidebarContentView: View {
                 dividerThickness: 1,
                 top: {
                     VStack(spacing: 0) {
-                        SidebarSectionHeader(title: "OPEN BUFFERS", systemImage: "doc.on.doc")
+                        SidebarSectionHeader(title: "OPEN BUFFERS", systemImage: "doc.on.doc", isFirst: true)
                         EmbeddedEmacsView(embeddedView: topView, originalWindow: state.leftTopWindow, slot: "left-top", onResize: onResize)
                             .padding(.horizontal, embeddedMargin)
                             .padding(.bottom, embeddedMargin)
@@ -326,7 +327,7 @@ struct SidebarContentView: View {
         } else if let topView = state.leftTopView {
             // Only top view available
             VStack(spacing: 0) {
-                SidebarSectionHeader(title: "OPEN BUFFERS", systemImage: "doc.on.doc")
+                SidebarSectionHeader(title: "OPEN BUFFERS", systemImage: "doc.on.doc", isFirst: true)
                 EmbeddedEmacsView(embeddedView: topView, originalWindow: state.leftTopWindow, slot: "left-top", onResize: onResize)
                     .padding(.horizontal, embeddedMargin)
                     .padding(.bottom, embeddedMargin)
@@ -341,7 +342,7 @@ struct SidebarContentView: View {
         } else if let bottomView = state.leftBottomView {
             // Only bottom view available
             VStack(spacing: 0) {
-                SidebarSectionHeader(title: "WORKSPACE", systemImage: "folder")
+                SidebarSectionHeader(title: "WORKSPACE", systemImage: "folder", isFirst: true)
                 EmbeddedEmacsView(embeddedView: bottomView, originalWindow: state.leftBottomWindow, slot: "left-bottom", onResize: onResize)
                     .padding(.horizontal, embeddedMargin)
                     .padding(.bottom, embeddedMargin)
@@ -951,16 +952,17 @@ struct DetailPlaceholderView: View {
             if let rightView = state.rightView {
                 VStack(spacing: 0) {
                     SidebarSectionHeader(
-                        title: state.inspectorTitle,
+                        title: state.inspectorTitle.uppercased(),
                         systemImage: state.inspectorIcon,
                         isBusy: state.inspectorBusy
                     )
                     EmbeddedEmacsView(embeddedView: rightView, originalWindow: state.rightWindow, slot: "right", onResize: onResize)
+                        .padding(.top, 6)
                         .padding(.horizontal, 12)
                         .padding(.bottom, 12)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                  .padding(.top, 12)  // Increased from 6 to 16 for more padding before the header view
+                .padding(.top, 6)
             } else {
                 // Placeholder content
                 VStack(spacing: 16) {
@@ -2744,7 +2746,7 @@ final class NavigationSidebarManager {
             return existing
         }
         let controller = NavigationSidebarController(window: window)
-        
+
         // Connect callbacks
         controller.onSidebarVisibilityChanged = { [weak self] visible, needsSetup in
             self?.notifySidebarVisibilityChanged(visible: visible, needsSetup: needsSetup)
@@ -2752,7 +2754,7 @@ final class NavigationSidebarManager {
         controller.onDetailVisibilityChanged = { [weak self] visible, needsSetup in
             self?.notifyDetailVisibilityChanged(visible: visible, needsSetup: needsSetup)
         }
-        
+
         controllers[key] = controller
         return controller
     }

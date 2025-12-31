@@ -124,13 +124,25 @@ First tries frame parameter, then falls back to stored value."
 ;;; Hook-based refresh (must be defined before setup function)
 
 (defun hyalo-ibuffer--cleanup-display (&rest _)
-  "Clean up ibuffer display: hide header-line and trim trailing empty lines."
+  "Clean up ibuffer display: remove headers, filter groups, empty lines."
   (when (string= (buffer-name) "*Hyalo-Ibuffer*")
     (setq header-line-format nil)
-    ;; Remove trailing empty lines
-    (save-excursion
-      (goto-char (point-max))
-      (let ((inhibit-read-only t))
+    (let ((inhibit-read-only t))
+      ;; Remove filter group headers like "[ Default ]"
+      (save-excursion
+        (goto-char (point-min))
+        (while (re-search-forward "^\\[ .* \\]$" nil t)
+          (delete-region (line-beginning-position)
+                         (min (1+ (line-end-position)) (point-max)))))
+      ;; Remove leading empty lines
+      (save-excursion
+        (goto-char (point-min))
+        (while (and (< (point) (point-max))
+                    (looking-at "^[ \t]*$"))
+          (delete-region (point) (min (1+ (line-end-position)) (point-max)))))
+      ;; Remove trailing empty lines
+      (save-excursion
+        (goto-char (point-max))
         (while (and (> (point) (point-min))
                     (looking-back "^[ \t]*\n" nil))
           (delete-char -1))))))
@@ -196,7 +208,8 @@ If NOSELECT is non-nil, don't select the buffer."
 ;;; Setup function
 
 (defun hyalo-ibuffer-sidebar-setup ()
-  "Configure ibuffer for sidebar display."
+  "Configure ibuffer for sidebar display.
+Minimal display: just buffer list, no headers, no empty lines."
   (interactive)
 
   ;; CRITICAL: Disable all filter groups BEFORE setting format
@@ -206,8 +219,8 @@ If NOSELECT is non-nil, don't select the buffer."
   (setq ibuffer-current-filter-groups nil)
   (setq ibuffer-show-empty-filter-groups nil)
 
-  ;; Set format - use hyalo-name to suppress column header
-  ;; Also removes mark column for cleaner display
+  ;; Set format - minimal: icon, name, modified indicator
+  ;; No mark column for cleaner display
   (setq-local ibuffer-formats
               '((icon " " (hyalo-name 30 30 :left :elide) " " modified)))
 
@@ -220,8 +233,9 @@ If NOSELECT is non-nil, don't select the buffer."
   ;; Sort by recency (most recently used first)
   (setq-local ibuffer-default-sorting-mode 'recency)
 
-  ;; Hide header-line (column headers go in buffer without this)
-  (setq-local ibuffer-use-header-line t)
+  ;; Completely disable header-line to remove column headers
+  (setq-local ibuffer-use-header-line nil)
+  (setq-local header-line-format nil)
 
   ;; Suppress all headers and summary
   (setq-local ibuffer-display-summary nil)
@@ -237,9 +251,11 @@ If NOSELECT is non-nil, don't select the buffer."
   ;; Update display silently - this regenerates the buffer
   (ibuffer-update nil t)
 
-  ;; Move to first buffer line (skip any headers)
+  ;; Clean up any leading/trailing empty lines
+  (hyalo-ibuffer--cleanup-display)
+
+  ;; Move to first buffer line
   (goto-char (point-min))
-  (forward-line 0)
   (ibuffer-forward-line 0 t)
 
   ;; Install refresh hook
