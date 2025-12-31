@@ -72,13 +72,23 @@ Invalidated on theme change.")
     (or fg (face-foreground 'default))))
 
 (defun hyalo-markdown-tags--get-font-family ()
-  "Get the current frame's font family."
+  "Get a font family that svg-lib can use for metrics.
+Uses the frame's default font if it can be looked up, otherwise falls back."
   (let* ((font (face-attribute 'default :font))
          (family (when (fontp font)
-                   (font-get font :family))))
-    (or family
-        (face-attribute 'default :family nil t)
-        "Monospace")))
+                   (font-get font :family)))
+         (family (or family (face-attribute 'default :family nil t))))
+    ;; Verify font-info can find this font, else use fallback
+    (if (and family
+             (ignore-errors
+               (font-info (format "%s-12" family))))
+        family
+      ;; Fallback to a common monospace font
+      (cond
+       ((ignore-errors (font-info "Menlo-12")) "Menlo")
+       ((ignore-errors (font-info "Monaco-12")) "Monaco")
+       ((ignore-errors (font-info "Consolas-12")) "Consolas")
+       (t "Monospace")))))
 
 (defun hyalo-markdown-tags--get-font-size ()
   "Get the current frame's font size in points, accounting for text-scale."
@@ -119,23 +129,23 @@ Invalidated on theme change.")
          (fg (hyalo-markdown-tags--get-face-colors face))
          (bg (hyalo-markdown-tags--get-frame-background))
          (font-family (hyalo-markdown-tags--get-font-family))
-         (font-size (hyalo-markdown-tags--get-font-size))
+         (font-size (truncate (hyalo-markdown-tags--get-font-size)))
          (text-scale (if (boundp 'text-scale-mode-amount) text-scale-mode-amount 0))
          ;; Display text includes the # prefix
          (display-text (concat "#" tag-text))
          ;; Cache key includes scale
-         (cache-key (list display-text fg bg text-scale))
+         (cache-key (list display-text fg bg font-size text-scale))
          (cached (assoc cache-key hyalo-markdown-tags--cache)))
     (if cached
         (cdr cached)
       (let* ((svg (svg-lib-tag display-text nil
                                :foreground fg
                                :background bg
+                               :font-family font-family
+                               :font-size font-size
                                :stroke hyalo-markdown-tags-stroke
                                :padding hyalo-markdown-tags-padding
                                :radius hyalo-markdown-tags-radius
-                               :font-family font-family
-                               :font-size (truncate font-size)
                                :height 1.1)))
         (push (cons cache-key svg) hyalo-markdown-tags--cache)
         svg))))

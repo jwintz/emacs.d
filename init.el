@@ -1121,9 +1121,9 @@
           (change-fg (or (face-foreground 'warning nil t)
                          (face-foreground 'diff-changed nil t)
                          "#c18401")))
-      (set-face-attribute 'diff-hl-insert nil :foreground insert-fg :background nil)
-      (set-face-attribute 'diff-hl-delete nil :foreground delete-fg :background nil)
-      (set-face-attribute 'diff-hl-change nil :foreground change-fg :background nil)))
+      (set-face-attribute 'diff-hl-insert nil :foreground insert-fg :background 'unspecified)
+      (set-face-attribute 'diff-hl-delete nil :foreground delete-fg :background 'unspecified)
+      (set-face-attribute 'diff-hl-change nil :foreground change-fg :background 'unspecified)))
   (add-hook 'enable-theme-functions #'hyalo-diff-hl--update-faces)
   (hyalo-diff-hl--update-faces)
   (global-diff-hl-mode 1)
@@ -1386,6 +1386,8 @@
         (push (face-remap-add-relative 'markdown-code-face :height scale)
               hyalo-markdown--code-face-cookies)
         (push (face-remap-add-relative 'markdown-inline-code-face :height scale)
+              hyalo-markdown--code-face-cookies)
+        (push (face-remap-add-relative 'markdown-pre-face :height scale)
               hyalo-markdown--code-face-cookies))))
 
   (defun hyalo-markdown--setup-code-scaling ()
@@ -1395,6 +1397,19 @@
 
   :hook ((markdown-mode . hyalo-markdown-tags-mode)
          (markdown-mode . hyalo-markdown--setup-code-scaling))
+  :config
+  ;; Subtle background for pre blocks (code fences)
+  (defun hyalo-markdown--setup-pre-face ()
+    "Set subtle background for markdown pre blocks based on theme."
+    (let* ((bg (face-background 'default))
+           (subtle-bg (if (eq (frame-parameter nil 'background-mode) 'dark)
+                          (color-lighten-name bg 5)
+                        (color-darken-name bg 3))))
+      (set-face-attribute 'markdown-pre-face nil
+                          :background subtle-bg
+                          :extend t)))
+  (add-hook 'enable-theme-functions (lambda (&rest _) (hyalo-markdown--setup-pre-face)))
+  (hyalo-markdown--setup-pre-face)
   :general
   (:keymaps 'markdown-mode-map
    :prefix "C-c m"
