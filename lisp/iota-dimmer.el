@@ -92,6 +92,32 @@ Buffers matching these patterns will never be dimmed."
   :type 'boolean
   :group 'iota-dimmer)
 
+;;; Logging
+
+(defvar iota-dimmer-elog nil
+  "Iota dimmer logger (nil if elog not loaded).")
+
+(defun iota-dimmer-log (msg &rest args)
+  "Log MSG with ARGS using elog if available, otherwise `message'."
+  (if (and iota-dimmer-elog (fboundp 'elog-info))
+      (apply #'elog-info iota-dimmer-elog (concat "[dimmer] " msg) args)
+    (let ((formatted (apply #'format (concat "[dimmer] " msg) args)))
+      (message "%s" formatted))))
+
+(defun iota-dimmer-log-init ()
+  "Initialize iota-dimmer logger if elog is available."
+  (when (fboundp 'elog-logger)
+    (setq iota-dimmer-elog
+          (elog-logger
+           :name "dimmer"
+           :level 'info
+           :buffer "*elog*"
+           :handlers '(buffer)))))
+
+;; Initialize logger when elog becomes available
+(with-eval-after-load 'elog
+  (iota-dimmer-log-init))
+
 ;;; Internal State
 
 (defvar iota-dimmer--face-remaps (make-hash-table :test 'eq :weakness 'key)
@@ -369,7 +395,8 @@ Returns nil if face cannot be dimmed."
   (advice-add 'disable-theme :after #'iota-dimmer--on-theme-change)
   
   ;; Initial update
-  (iota-dimmer--update))
+  (iota-dimmer--update)
+  (iota-dimmer-log "Dimmer enabled"))
 
 (defun iota-dimmer--teardown ()
   "Tear down dimmer mode."
@@ -389,7 +416,8 @@ Returns nil if face cannot be dimmed."
   
   ;; Clear state
   (iota-dimmer--clear-cache)
-  (setq iota-dimmer--last-selected-window nil))
+  (setq iota-dimmer--last-selected-window nil)
+  (iota-dimmer-log "Dimmer disabled"))
 
 ;;; Mode Definition
 
@@ -423,7 +451,7 @@ syntax highlighting."
   (interactive "nDimming fraction (0.0-1.0): ")
   (setq iota-dimmer-fraction (max 0.0 (min 1.0 fraction)))
   (iota-dimmer-refresh)
-  (message "Dimming fraction set to %.2f" iota-dimmer-fraction))
+  (iota-dimmer-log "Dimming fraction set to %.2f" iota-dimmer-fraction))
 
 (defun iota-dimmer-apply-preset (preset)
   "Apply a dimming PRESET.
@@ -466,7 +494,7 @@ Available presets:
     ("high-contrast" (setq iota-dimmer-saturation-fraction 0.20
                            iota-dimmer-luminance-fraction 0.50)))
   (iota-dimmer-refresh)
-  (message "Applied '%s' preset (sat: %s, lum: %s)"
+  (iota-dimmer-log "Applied '%s' preset (sat: %s, lum: %s)"
            preset
            (or iota-dimmer-saturation-fraction "default")
            (or iota-dimmer-luminance-fraction "default")))

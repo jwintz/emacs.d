@@ -79,24 +79,33 @@
 ;;; ============================================================================
 
 (require 'init-core)       ;; general, which-key, diminish
-(require 'init-emacs)      ;; cursor, startup, recentf, saveplace
-(require 'init-help)       ;; helpful, elisp-refs
-(require 'init-appearance) ;; fonts, icons, themes
-(require 'init-modeline)   ;; doom-modeline, keycast
-(require 'init-completion) ;; vertico, consult, marginalia, orderless
-(require 'init-editing)    ;; god-mode, windmove, outline
-(require 'init-hyalo)      ;; macOS Liquid Glass (ns only)
-(require 'init-tools)      ;; project, magit, diff-hl, eglot
-(require 'init-dired)      ;; dired, sidebar
-(require 'init-agents)     ;; copilot, agent-shell
-(require 'init-terminal)   ;; eat
-(require 'init-markdown)   ;; markdown-mode, obsidian
+
+;; Helper to trace module initialization time
+(defmacro init--require-with-trace (feature &optional filename)
+  `(let ((start (float-time)))
+     (require ,feature ,filename)
+     (when (and (fboundp 'elog-info) (boundp 'emacs-logger))
+       (elog-info emacs-logger "Module loaded: %s (%.3fs)" ,feature (- (float-time) start)))))
+
+(init--require-with-trace 'init-emacs)      ;; cursor, startup, recentf, saveplace
+(init--require-with-trace 'init-help)       ;; helpful, elisp-refs
+(init--require-with-trace 'init-appearance) ;; fonts, icons, themes
+(init--require-with-trace 'init-modeline)   ;; doom-modeline, keycast
+(init--require-with-trace 'init-completion) ;; vertico, consult, marginalia, orderless
+(init--require-with-trace 'init-editing)    ;; god-mode, windmove, outline
+(init--require-with-trace 'init-hyalo)      ;; macOS Liquid Glass (ns only)
+(init--require-with-trace 'init-tools)      ;; project, magit, diff-hl, eglot
+(init--require-with-trace 'init-dired)      ;; dired, sidebar
+(init--require-with-trace 'init-agents)     ;; copilot, agent-shell
+(init--require-with-trace 'init-terminal)   ;; eat
+(init--require-with-trace 'init-markdown)   ;; markdown-mode, obsidian
 
 ;;; ============================================================================
 ;;; Finalize
 ;;; ============================================================================
 
-(message "Init complete (%.3fs)"
-         (float-time (time-subtract (current-time) before-init-time)))
+(let ((duration (float-time (time-subtract (current-time) before-init-time))))
+  (when (and (fboundp 'elog-info) (boundp 'emacs-logger))
+    (elog-info emacs-logger "Init complete (%.3fs)" duration)))
 
 ;;; init.el ends here

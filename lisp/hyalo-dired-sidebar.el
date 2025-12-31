@@ -16,6 +16,7 @@
 ;;; Code:
 
 (require 'dired)
+(require 'hyalo)
 
 (defgroup hyalo-dired-sidebar nil
   "Hyalo sidebar dired-sidebar configuration."
@@ -252,7 +253,7 @@ Call this after switching projects."
                            (car (project-roots proj))))))
         (when (and (window-live-p sidebar-win)
                    (frame-live-p sidebar-frame))
-          (message "[hyalo-dired-sidebar] Updating sidebar to: %s (frame: %s)" root sidebar-frame)
+          (hyalo-module-log "[dired-sidebar] Updating sidebar to: %s (frame: %s)" root sidebar-frame)
           ;; Capture parent frame from existing context
           (let* ((parent-frame hyalo-dired-sidebar--parent-frame)
                  ;; Check if a sidebar buffer for this root already exists
@@ -296,11 +297,11 @@ Call this after switching projects."
                 (when (fboundp 'nerd-icons-dired--refresh)
                   (nerd-icons-dired--refresh)))))))
     (error
-     (message "[hyalo-dired-sidebar] Error updating sidebar: %s" err))))
+     (hyalo-module-log "[dired-sidebar] Error updating sidebar: %s" err))))
 
 (defun hyalo-dired-sidebar--after-project-switch (&rest _)
   "Update sidebar after project switch completes."
-  (message "[hyalo-dired-sidebar] Project switch detected, scheduling update...")
+  (hyalo-module-log "[dired-sidebar] Project switch detected, scheduling update...")
   (run-with-timer 0.3 nil #'hyalo-dired-sidebar-update-to-project))
 
 ;; Setup when dired-sidebar loads

@@ -356,8 +356,8 @@ When hidden, provides a minimal chrome experience."
   (if (fboundp 'hyalo-toggle-decorations)
       (progn
         (hyalo-toggle-decorations)
-        (message "Decorations %s" (if (hyalo-decorations-visible-p) "shown" "hidden")))
-    (message "Hyalo decorations toggle not available - module not loaded")))
+        (hyalo-module-log "Decorations %s" (if (hyalo-decorations-visible-p) "shown" "hidden")))
+    (hyalo-module-log "Hyalo decorations toggle not available - module not loaded")))
 
 ;; Create an alias so M-x hyalo-toggle-decorations works
 (defalias 'hyalo-toggle-chrome 'hyalo-toggle-decorations-command
