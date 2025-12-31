@@ -784,20 +784,46 @@
   ;; * `extra-bold`
   ;; * `ultra-bold` (or heavy, black)
   (defun hyalo-set-highlights (&rest _)
-    (let ((w 'bold)
-          (wb 'ultra-bold)) ;;(wb 'ultra-bold))
-      ;; Only enforce weight for standard highlights to preserve theme colors
-      (set-face-attribute 'region nil :weight w)
-      (set-face-attribute 'isearch nil :weight w)
-      (set-face-attribute 'lazy-highlight nil :weight w)
-      (set-face-attribute 'match nil :weight w)
-      (set-face-attribute 'show-paren-match nil :weight w)
+    "Set highlight faces using weight differentiation.
+
+Weight hierarchy (lightest to heaviest):
+- hl-line: medium (subtle, always-visible cursor line)
+- region: bold + underline (selection, must stand out)
+- search/match: semi-bold to extra-bold (context-dependent)"
+    (let ((w-subtle 'medium)        ; hl-line - subtle cursor line
+          (w-selection 'bold)       ; region - marked text
+          (w-match 'semi-bold)      ; lazy-highlight, match
+          (w-active 'extra-bold))   ; isearch, magit
+
+      ;; Cursor line - subtle, always visible
       (when (facep 'hl-line)
-        (set-face-attribute 'hl-line nil :weight w))
+        (set-face-attribute 'hl-line nil
+                            :weight w-subtle
+                            :underline nil))
+
+      ;; Selection - must be clearly distinct from hl-line
+      (set-face-attribute 'region nil
+                          :weight w-selection)
+
+      ;; Active search match - highest visibility
+      (set-face-attribute 'isearch nil
+                          :weight w-active
+                          :box '(:line-width (-1 . -1)))
+
+      ;; Secondary search matches
+      (set-face-attribute 'lazy-highlight nil :weight w-match)
+      (set-face-attribute 'match nil :weight w-match)
+      (set-face-attribute 'show-paren-match nil :weight w-selection)
+
+      ;; Generic highlight (mouse hover, etc.)
       (when (facep 'highlight)
-        (set-face-attribute 'highlight nil :weight w))
+        (set-face-attribute 'highlight nil :weight w-match))
+
+      ;; Vertico current - bold like selection
       (when (facep 'vertico-current)
-        (set-face-attribute 'vertico-current nil :weight w))
+        (set-face-attribute 'vertico-current nil :weight w-selection))
+
+      ;; Orderless matches
       (dolist (face '(orderless-match-face-0
                       orderless-match-face-1
                       orderless-match-face-2
@@ -807,9 +833,13 @@
                       consult-file
                       consult-bookmark))
         (when (facep face)
-          (set-face-attribute face nil :weight w)))
+          (set-face-attribute face nil :weight w-match)))
+
+      ;; Consult buffer names
       (when (facep 'consult-buffer)
-        (set-face-attribute 'consult-buffer nil :weight wb))
+        (set-face-attribute 'consult-buffer nil :weight w-active))
+
+      ;; Magit - highest weight for diff highlights
       (dolist (face '(magit-item-highlight
                       magit-section-highlight
                       magit-diff-added-highlight
@@ -826,7 +856,7 @@
                       magit-diff-file-heading-selection
                       magit-diff-hunk-heading-selection))
         (when (facep face)
-          (set-face-attribute face nil :weight wb)))))
+          (set-face-attribute face nil :weight w-active)))))
 
   (defvar hyalo-profiles
     '((focus . (:appearance light :theme modus-operandi :vibrancy "none"      :opacity 1.0))
