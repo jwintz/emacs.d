@@ -1,4 +1,4 @@
-;;; hyalo-module-system.el --- macOS system integration -*- lexical-binding: t -*-
+;;; hyalo-system.el --- macOS system integration -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2025
 ;; Author: Julien Wintz <julien.wintz@inria.fr>
@@ -8,11 +8,11 @@
 
 ;;; Commentary:
 
-;; macOS system integration for hyalo-module.
+;; macOS system integration for hyalo.
 ;; This file provides native macOS features:
-;; - `hyalo-module-reveal-in-finder': Reveal file(s) in Finder
-;; - `hyalo-module-share': Share file(s) via macOS share sheet
-;; - `hyalo-module-show-emoji-picker': Show the macOS emoji picker
+;; - `hyalo-reveal-in-finder': Reveal file(s) in Finder
+;; - `hyalo-share': Share file(s) via macOS share sheet
+;; - `hyalo-show-emoji-picker': Show the macOS emoji picker
 ;;
 ;; Uses a "do what I mean" approach:
 ;; - In dired: use marked files or file at point
@@ -20,10 +20,10 @@
 ;; - Otherwise: prompt for file
 ;;
 ;; Usage:
-;;   (require 'hyalo-module-system)
-;;   (global-set-key (kbd "C-c l r") #'hyalo-module-reveal-in-finder)
-;;   (global-set-key (kbd "C-c l s") #'hyalo-module-share)
-;;   (global-set-key (kbd "C-c l e") #'hyalo-module-show-emoji-picker)
+;;   (require 'hyalo-system)
+;;   (global-set-key (kbd "C-c l r") #'hyalo-reveal-in-finder)
+;;   (global-set-key (kbd "C-c l s") #'hyalo-share)
+;;   (global-set-key (kbd "C-c l e") #'hyalo-show-emoji-picker)
 
 ;;; Code:
 
@@ -31,7 +31,7 @@
 
 ;;; File Selection
 
-(defun hyalo-module--files-dwim ()
+(defun hyalo-system--files-dwim ()
   "Return a list of files based on context (Do What I Mean).
 - In dired: return marked files, or file at point
 - In buffer with file: return buffer's file
@@ -51,43 +51,43 @@
 ;;; Interactive Commands
 
 ;;;###autoload
-(defun hyalo-module-reveal-in-finder ()
+(defun hyalo-reveal-in-finder ()
   "Reveal file(s) in macOS Finder.
 In dired, reveals marked files or file at point.
 In a file buffer, reveals the buffer's file.
 Otherwise, prompts for a file."
   (interactive)
-  (hyalo-module-ensure)
-  (let ((files (hyalo-module--files-dwim)))
+  (hyalo-ensure)
+  (let ((files (hyalo-system--files-dwim)))
     (when files
       (if (fboundp 'hyalo-reveal-in-finder)
           (hyalo-reveal-in-finder (vconcat files))
         (user-error "hyalo-reveal-in-finder not available")))))
 
 ;;;###autoload
-(defun hyalo-module-share ()
+(defun hyalo-share ()
   "Share file(s) via the macOS share sheet.
 In dired, shares marked files or file at point.
 In a file buffer, shares the buffer's file.
 Otherwise, prompts for a file.
 Uses AirDrop, Mail, Messages, and other macOS sharing services."
   (interactive)
-  (hyalo-module-ensure)
-  (let ((files (hyalo-module--files-dwim)))
+  (hyalo-ensure)
+  (let ((files (hyalo-system--files-dwim)))
     (when files
       (if (fboundp 'hyalo-share)
           (hyalo-share (vconcat files))
         (user-error "hyalo-share not available")))))
 
 ;;;###autoload
-(defun hyalo-module-show-emoji-picker ()
+(defun hyalo-show-emoji-picker ()
   "Show the macOS emoji picker.
 Inserts the selected emoji at point."
   (interactive)
-  (hyalo-module-ensure)
+  (hyalo-ensure)
   (if (fboundp 'hyalo-show-emoji-picker)
       (hyalo-show-emoji-picker)
     (user-error "hyalo-show-emoji-picker not available")))
 
 (provide 'hyalo-system)
-;;; hyalo-module-system.el ends here
+;;; hyalo-system.el ends here

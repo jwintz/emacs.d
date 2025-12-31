@@ -21,11 +21,6 @@
   :config
   (add-hook 'dired-sidebar-mode-hook #'nerd-icons-dired-mode))
 
-(use-package hyalo-dired-sidebar
-  :ensure nil
-  
-  :after dired-sidebar)
-
 (use-package hyalo-sidebar
   :ensure nil
   
@@ -35,7 +30,7 @@
   (hyalo-sidebar-font nil)
   (hyalo-sidebar-internal-border-width 12)
   :config
-  (hyalo-module-sidebar-mode 1)
+  (hyalo-sidebar-mode 1)
   :general
   (leader-def
     "t e" '(hyalo-sidebar-toggle-left :wk "sidebar (left)")

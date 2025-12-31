@@ -65,15 +65,15 @@
   (modus-themes-prompts '(semibold))
   :config
   (defun hyalo-switch-to-dark (&rest _)
-    (when (fboundp 'hyalo-module-appearance-set)
-      (hyalo-module-appearance-set 'dark)
-      (hyalo-module-footer-set-pattern-alpha 0.02)))
+    (when (fboundp 'hyalo-appearance-set)
+      (hyalo-appearance-set 'dark)
+      (hyalo-footer-set-pattern-alpha 0.02)))
   (advice-add 'modus-themes-load-random-dark :after #'hyalo-switch-to-dark)
 
   (defun hyalo-switch-to-light (&rest _)
-    (when (fboundp 'hyalo-module-appearance-set)
-      (hyalo-module-appearance-set 'light)
-      (hyalo-module-footer-set-pattern-alpha 0.06)))
+    (when (fboundp 'hyalo-appearance-set)
+      (hyalo-appearance-set 'light)
+      (hyalo-footer-set-pattern-alpha 0.06)))
   (advice-add 'modus-themes-load-random-light :after #'hyalo-switch-to-light))
 
 (use-package ef-themes

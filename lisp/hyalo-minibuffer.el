@@ -1,4 +1,4 @@
-;;; hyalo-module-minibuffer.el --- Glass effect for mini-frame -*- lexical-binding: t -*-
+;;; hyalo-minibuffer.el --- Glass effect for mini-frame -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2025
 ;; Author: Julien Wintz <julien.wintz@inria.fr>
@@ -18,17 +18,17 @@
 (require 'hyalo)
 (require 'mini-frame)
 
-(defgroup hyalo-module-minibuffer nil
+(defgroup hyalo-minibuffer nil
   "Hyalo module for minibuffer glass effects."
-  :group 'hyalo-module
-  :prefix "hyalo-module-minibuffer-")
+  :group 'hyalo
+  :prefix "hyalo-minibuffer-")
 
-(defun hyalo-module-minibuffer--get-theme-bg ()
+(defun hyalo-minibuffer--get-theme-bg ()
   "Get the current theme's background color."
   (or (face-background 'default)
       "#1a1a2e"))  ; Fallback dark color
 
-(defun hyalo-module-minibuffer--strip-faces (frame)
+(defun hyalo-minibuffer--strip-faces (frame)
   "Set up FRAME for glass effect - fully transparent, Swift provides container."
   ;; Set frame parameters for full transparency
   (modify-frame-parameters
@@ -49,103 +49,103 @@
   (force-mode-line-update t)
   (redisplay t))
 
-(defun hyalo-module-minibuffer-setup (frame)
+(defun hyalo-minibuffer-setup (frame)
   "Apply glass effect to FRAME if it is a mini-frame."
   (let ((is-mini (or (frame-parameter frame 'mini-frame)
                      (frame-parameter frame 'parent-frame))))
-    (when (and (hyalo-module-available-p) is-mini)
+    (when (and (hyalo-available-p) is-mini)
       ;; 1. Prepare Emacs side (transparency)
-      (hyalo-module-minibuffer--strip-faces frame)
+      (hyalo-minibuffer--strip-faces frame)
       
       ;; 2. Activate Swift side
       (let ((window-id (frame-parameter frame 'window-id)))
         (when window-id
           (hyalo-minibuffer-enable window-id))))))
 
-(defun hyalo-module-minibuffer-ensure-focus ()
+(defun hyalo-minibuffer-ensure-focus ()
   "Ensure the mini-frame has focus when minibuffer is active."
   (let ((frame (window-frame (minibuffer-window))))
     ;; Check if it's a child frame (mini-frame uses child frames)
     (let ((is-mini (or (frame-parameter frame 'mini-frame)
                        (frame-parameter frame 'parent-frame)))) ;; mini-frame usually has a parent
-      (when (and is-mini (hyalo-module-available-p))
+      (when (and is-mini (hyalo-available-p))
         ;; Ensure glass effect is applied if it wasn't caught by make-frame hook
         ;; (e.g. frame was created before mode was enabled or reused)
-        (hyalo-module-minibuffer-setup frame)
+        (hyalo-minibuffer-setup frame)
         
         (let ((window-id (frame-parameter frame 'window-id)))
           (when window-id
             (hyalo-window-focus window-id)))))))
 
 ;;;###autoload
-(define-minor-mode hyalo-module-minibuffer-mode
+(define-minor-mode hyalo-minibuffer-mode
   "Global minor mode to enable glass effect for mini-frame."
   :global t
-  :group 'hyalo-module-minibuffer
-  (if hyalo-module-minibuffer-mode
+  :group 'hyalo-minibuffer
+  (if hyalo-minibuffer-mode
       (progn
         ;; Enable pixel-wise resizing globally to avoid character-cell snapping
         ;; This helps Swift container sizing work correctly
         (setq frame-resize-pixelwise t)
-        (add-hook 'after-make-frame-functions #'hyalo-module-minibuffer-setup)
-        (add-hook 'minibuffer-setup-hook #'hyalo-module-minibuffer-ensure-focus)
+        (add-hook 'after-make-frame-functions #'hyalo-minibuffer-setup)
+        (add-hook 'minibuffer-setup-hook #'hyalo-minibuffer-ensure-focus)
         ;; Deactivate modal tracking when minibuffer exits
-        (add-hook 'minibuffer-exit-hook #'hyalo-module-minibuffer--on-exit)
+        (add-hook 'minibuffer-exit-hook #'hyalo-minibuffer--on-exit)
         ;; Also apply face stripping on every minibuffer activation
         ;; (mini-frame reuses frames but may not reapply our parameters)
-        (add-hook 'minibuffer-setup-hook #'hyalo-module-minibuffer--apply-transparency)
+        (add-hook 'minibuffer-setup-hook #'hyalo-minibuffer--apply-transparency)
         ;; Sync theme changes to mini-frames
         (when (boundp 'enable-theme-functions)
-          (add-hook 'enable-theme-functions #'hyalo-module-minibuffer--on-theme-change))
+          (add-hook 'enable-theme-functions #'hyalo-minibuffer--on-theme-change))
         ;; Sync system appearance changes to mini-frames
         (when (boundp 'ns-system-appearance-change-functions)
-          (add-hook 'ns-system-appearance-change-functions #'hyalo-module-minibuffer--on-appearance-change))
+          (add-hook 'ns-system-appearance-change-functions #'hyalo-minibuffer--on-appearance-change))
         ;; Try to setup existing frames if any
         (dolist (f (frame-list))
-          (hyalo-module-minibuffer-setup f)))
-    (remove-hook 'after-make-frame-functions #'hyalo-module-minibuffer-setup)
-    (remove-hook 'minibuffer-setup-hook #'hyalo-module-minibuffer-ensure-focus)
-    (remove-hook 'minibuffer-exit-hook #'hyalo-module-minibuffer--on-exit)
-    (remove-hook 'minibuffer-setup-hook #'hyalo-module-minibuffer--apply-transparency)
+          (hyalo-minibuffer-setup f)))
+    (remove-hook 'after-make-frame-functions #'hyalo-minibuffer-setup)
+    (remove-hook 'minibuffer-setup-hook #'hyalo-minibuffer-ensure-focus)
+    (remove-hook 'minibuffer-exit-hook #'hyalo-minibuffer--on-exit)
+    (remove-hook 'minibuffer-setup-hook #'hyalo-minibuffer--apply-transparency)
     (when (boundp 'enable-theme-functions)
-      (remove-hook 'enable-theme-functions #'hyalo-module-minibuffer--on-theme-change))
+      (remove-hook 'enable-theme-functions #'hyalo-minibuffer--on-theme-change))
     (when (boundp 'ns-system-appearance-change-functions)
-      (remove-hook 'ns-system-appearance-change-functions #'hyalo-module-minibuffer--on-appearance-change))))
+      (remove-hook 'ns-system-appearance-change-functions #'hyalo-minibuffer--on-appearance-change))))
 
-(defun hyalo-module-minibuffer--on-theme-change (_theme)
+(defun hyalo-minibuffer--on-theme-change (_theme)
   "Update mini-frame appearance when theme changes."
   ;; Re-strip faces on all mini-frames to match new theme
   (dolist (frame (frame-list))
     (when (frame-parameter frame 'parent-frame)
-      (hyalo-module-minibuffer--strip-faces frame)
+      (hyalo-minibuffer--strip-faces frame)
       (redraw-frame frame)))
   ;; Update Swift glass effect appearance
-  (when (and (hyalo-module-available-p)
+  (when (and (hyalo-available-p)
              (fboundp 'hyalo-minibuffer-update-appearance))
     (hyalo-minibuffer-update-appearance)))
 
-(defun hyalo-module-minibuffer--on-appearance-change (_appearance)
+(defun hyalo-minibuffer--on-appearance-change (_appearance)
   "Update mini-frame glass effect when system appearance changes.
 APPEARANCE is `light' or `dark'."
   ;; Update Swift glass effect appearance
-  (when (and (hyalo-module-available-p)
+  (when (and (hyalo-available-p)
              (fboundp 'hyalo-minibuffer-update-appearance))
     (hyalo-minibuffer-update-appearance)))
 
-(defun hyalo-module-minibuffer--apply-transparency ()
+(defun hyalo-minibuffer--apply-transparency ()
   "Apply transparency parameters to the current minibuffer frame."
   (let ((frame (selected-frame)))
     (when (frame-parameter frame 'parent-frame)
       ;; This is a child frame (mini-frame) - apply transparency
-      (hyalo-module-minibuffer--strip-faces frame)
+      (hyalo-minibuffer--strip-faces frame)
       ;; Force redisplay
       (redraw-frame frame))))
 
-(defun hyalo-module-minibuffer--on-exit ()
+(defun hyalo-minibuffer--on-exit ()
   "Handle minibuffer exit - deactivate modal tracking."
-  (when (and (hyalo-module-available-p)
+  (when (and (hyalo-available-p)
              (fboundp 'hyalo-minibuffer-deactivate))
     (hyalo-minibuffer-deactivate)))
 
 (provide 'hyalo-minibuffer)
-;;; hyalo-module-minibuffer.el ends here
+;;; hyalo-minibuffer.el ends here

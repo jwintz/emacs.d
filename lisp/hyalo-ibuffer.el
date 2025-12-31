@@ -18,7 +18,7 @@
 
 (defgroup hyalo-ibuffer nil
   "Hyalo sidebar ibuffer configuration."
-  :group 'hyalo-module-sidebar
+  :group 'hyalo-sidebar
   :prefix "hyalo-ibuffer-")
 
 (defcustom hyalo-ibuffer-excluded-buffer-names

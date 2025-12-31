@@ -21,9 +21,9 @@
   :ensure nil
   :if (eq window-system 'ns)
   :custom
-  (hyalo-module-auto-build t)
+  (hyalo-auto-build t)
   :config
-  (hyalo-module-load))
+  (hyalo-load))
 
 ;;;; Hyalo Header
 
@@ -32,7 +32,7 @@
   :if (eq window-system 'ns)
   :after hyalo
   :config
-  (hyalo-module-header-mode 1))
+  (hyalo-header-mode 1))
 
 ;;;; Fonts
 
@@ -98,16 +98,16 @@
               (vibrancy (plist-get profile :vibrancy))
               (opacity (plist-get profile :opacity)))
           (when appearance
-            (hyalo-module-appearance-set appearance))
+            (hyalo-appearance-set appearance))
           (when theme
             (mapc #'disable-theme custom-enabled-themes)
             (load-theme theme t)
             (hyalo-set-highlights)
-            (customize-save-variable 'hyalo-module-appearance-current-theme theme))
+            (customize-save-variable 'hyalo-appearance-current-theme theme))
           (when vibrancy
-            (hyalo-module-appearance-set-vibrancy vibrancy))
+            (hyalo-appearance-set-vibrancy vibrancy))
           (when opacity
-            (hyalo-module-appearance-set-opacity opacity))
+            (hyalo-appearance-set-opacity opacity))
           (message "Loaded profile: %s" name)))))
 
   (defun hyalo-switch-profile ()
@@ -118,26 +118,26 @@
       (hyalo-load-profile (intern selection))))
 
   :init
-  (unless (get 'hyalo-module-appearance-theme-light 'saved-value)
-    (setq hyalo-module-appearance-theme-light 'modus-operandi))
-  (unless (get 'hyalo-module-appearance-theme-dark 'saved-value)
-    (setq hyalo-module-appearance-theme-dark 'modus-vivendi))
+  (unless (get 'hyalo-appearance-theme-light 'saved-value)
+    (setq hyalo-appearance-theme-light 'modus-operandi))
+  (unless (get 'hyalo-appearance-theme-dark 'saved-value)
+    (setq hyalo-appearance-theme-dark 'modus-vivendi))
 
   :general
   (leader-def
-    "l v" '(hyalo-module-appearance-set-vibrancy :wk "vibrancy")
-    "l o" '(hyalo-module-appearance-set-opacity :wk "opacity")
+    "l v" '(hyalo-appearance-set-vibrancy :wk "vibrancy")
+    "l o" '(hyalo-appearance-set-opacity :wk "opacity")
     "l p" '((lambda () (interactive)
-              (call-interactively 'hyalo-module-appearance-set)
-              (customize-save-variable 'hyalo-module-appearance-mode-setting
-                                       hyalo-module-appearance-mode-setting)
-              (message "Appearance mode saved: %s" hyalo-module-appearance-mode-setting))
+              (call-interactively 'hyalo-appearance-set)
+              (customize-save-variable 'hyalo-appearance-mode-setting
+                                       hyalo-appearance-mode-setting)
+              (message "Appearance mode saved: %s" hyalo-appearance-mode-setting))
             :wk "appearance mode")
-    "l P" '(hyalo-module-appearance-show-panel :wk "panel")
+    "l P" '(hyalo-appearance-show-panel :wk "panel")
     "l ." '(hyalo-switch-profile :wk "profile"))
 
   :config
-  (hyalo-module-appearance-mode 1)
+  (hyalo-appearance-mode 1)
   (add-hook 'enable-theme-functions #'hyalo-set-highlights)
   (hyalo-set-highlights)
   (with-eval-after-load 'magit
@@ -149,11 +149,11 @@
   (easy-menu-define hyalo-appearance-menu nil
     "Hyalo Appearance Menu"
     '("Hyalo"
-      ["Appearance Panel..." hyalo-module-appearance-show-panel
+      ["Appearance Panel..." hyalo-appearance-show-panel
        :help "Open appearance settings panel"]
       "---"
-      ["Set Vibrancy..." hyalo-module-appearance-set-vibrancy]
-      ["Set Opacity..." hyalo-module-appearance-set-opacity]
+      ["Set Vibrancy..." hyalo-appearance-set-vibrancy]
+      ["Set Opacity..." hyalo-appearance-set-opacity]
       "---"
       ("Profiles"
        ["Focus" (hyalo-load-profile 'focus)]
@@ -162,29 +162,29 @@
        ["Switch..." hyalo-switch-profile])
       "---"
       ("Appearance Mode"
-       ["Auto" (hyalo-module-appearance-set 'auto)
-        :style radio :selected (eq hyalo-module-appearance-mode-setting 'auto)]
-       ["Light" (hyalo-module-appearance-set 'light)
-        :style radio :selected (eq hyalo-module-appearance-mode-setting 'light)]
-       ["Dark" (hyalo-module-appearance-set 'dark)
-        :style radio :selected (eq hyalo-module-appearance-mode-setting 'dark)])))
+       ["Auto" (hyalo-appearance-set 'auto)
+        :style radio :selected (eq hyalo-appearance-mode-setting 'auto)]
+       ["Light" (hyalo-appearance-set 'light)
+        :style radio :selected (eq hyalo-appearance-mode-setting 'light)]
+       ["Dark" (hyalo-appearance-set 'dark)
+        :style radio :selected (eq hyalo-appearance-mode-setting 'dark)])))
   (easy-menu-add-item global-map '(menu-bar) hyalo-appearance-menu)
-  (add-hook 'hyalo-module-appearance-mode-hook
-            #'hyalo-module-appearance--apply-vibrancy))
+  (add-hook 'hyalo-appearance-mode-hook
+            #'hyalo-appearance--apply-vibrancy))
 
 ;;;; Hyalo Viewport/Scroll
 
-(use-package hyalo-scroll
+(use-package hyalo-viewport
   :ensure nil
   :if (eq window-system 'ns)
   :after hyalo-header
   :custom
-  (hyalo-module-viewport-debug nil)
-  (hyalo-module-viewport-excluded-modes '(agent-shell-mode
+  (hyalo-viewport-debug nil)
+  (hyalo-viewport-excluded-modes '(agent-shell-mode
                                           agent-shell-viewport-view-mode
                                           agent-shell-viewport-edit-mode))
   :config
-  (hyalo-module-viewport-mode 1))
+  (hyalo-viewport-mode 1))
 
 ;;;; Hyalo System
 
@@ -194,19 +194,19 @@
   :after hyalo
   :general
   (leader-def
-    "l r" '(hyalo-module-reveal-in-finder :wk "reveal")
-    "l s" '(hyalo-module-share :wk "share")
-    "l e" '(hyalo-module-show-emoji-picker :wk "emoji")
-    "l d" '(hyalo-module-debug-status :wk "debug")))
+    "l r" '(hyalo-reveal-in-finder :wk "reveal")
+    "l s" '(hyalo-share :wk "share")
+    "l e" '(hyalo-show-emoji-picker :wk "emoji")
+    "l d" '(hyalo-debug-status :wk "debug")))
 
-;;;; Hyalo Modeline/Footer
+;;;; Hyalo Footer
 
-(use-package hyalo-modeline
+(use-package hyalo-footer
   :ensure nil
   :if (eq window-system 'ns)
   :after hyalo
   :config
-  (defun hyalo-module-footer-random-pattern ()
+  (defun hyalo-footer-random-pattern ()
     "Set a random footer pattern."
     (interactive)
     (let* ((patterns '("hideout" "hexagons" "death-star" "bathroom-floor"
@@ -214,12 +214,12 @@
                        "stripes" "diagonal-lines" "polka-dots" "signal"
                        "wallpaper"))
            (choice (nth (random (length patterns)) patterns)))
-      (hyalo-module-footer-set-pattern choice)
+      (hyalo-footer-set-pattern choice)
       (message "Footer pattern set to: %s" choice)))
 
-  (hyalo-module-footer-mode 1)
-  (hyalo-module-footer-set-pattern "hexagons")
-  (hyalo-module-footer-set-background-alpha 0.1))
+  (hyalo-footer-mode 1)
+  (hyalo-footer-set-pattern "hexagons")
+  (hyalo-footer-set-background-alpha 0.1))
 
 (provide 'init-hyalo)
 
