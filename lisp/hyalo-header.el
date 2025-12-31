@@ -25,7 +25,7 @@
 
 ;;; Code:
 
-(require 'hyalo-module)
+(require 'hyalo)
 
 (defgroup hyalo-module-header nil
   "Header view settings for hyalo-module."
@@ -368,5 +368,5 @@ When hidden, provides a minimal chrome experience."
   (when hyalo-module-header-mode
     (hyalo-module-header--setup-magit)))
 
-(provide 'hyalo-module-header)
+(provide 'hyalo-header)
 ;;; hyalo-module-header.el ends here

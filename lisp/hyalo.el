@@ -75,8 +75,10 @@ source file is newer than the built dylib."
   "Non-nil when the dynamic module has been successfully loaded.")
 
 (defvar hyalo-module--base-dir
-  (file-name-directory (or load-file-name buffer-file-name))
-  "Base directory where hyalo-module.el is located.")
+  (file-name-directory
+   (directory-file-name
+    (file-name-directory (or load-file-name buffer-file-name))))
+  "Base directory where Sources/ and .build/ are located (parent of lisp/).")
 
 ;;; Build Support
 
@@ -235,5 +237,5 @@ Returns nil if module is not loaded."
   (when (and hyalo-module--loaded (fboundp 'hyalo-corner-radius))
     (hyalo-corner-radius)))
 
-(provide 'hyalo-module)
+(provide 'hyalo)
 ;;; hyalo-module.el ends here

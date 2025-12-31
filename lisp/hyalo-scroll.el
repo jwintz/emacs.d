@@ -31,7 +31,7 @@
 ;;; Code:
 
 (require 'cl-lib)
-(require 'hyalo-module)
+(require 'hyalo)
 
 (defgroup hyalo-module-viewport nil
   "Viewport offset settings for hyalo-module."
@@ -300,5 +300,5 @@ below the header overlay."
       (hyalo-module-viewport--enable)
     (hyalo-module-viewport--disable)))
 
-(provide 'hyalo-module-viewport)
+(provide 'hyalo-scroll)
 ;;; hyalo-module-viewport.el ends here

@@ -30,7 +30,7 @@
 
 ;;; Code:
 
-(require 'hyalo-module)
+(require 'hyalo)
 
 (defgroup hyalo-module-footer nil
   "Footer pattern settings for hyalo-module."
@@ -282,5 +282,5 @@ Hyalo window, covering the echo area region."
       (hyalo-module-footer--enable)
     (hyalo-module-footer--disable)))
 
-(provide 'hyalo-module-footer)
+(provide 'hyalo-modeline)
 ;;; hyalo-module-footer.el ends here

@@ -18,7 +18,7 @@
 
 ;;; Code:
 
-(require 'hyalo-module)
+(require 'hyalo)
 (require 'hyalo-ibuffer)
 (require 'hyalo-dired-sidebar)  ; Required for dired-sidebar keybindings
 
@@ -689,5 +689,5 @@ This enables immediate response to toolbar button clicks."
                 (hyalo-sidebar--stop-visibility-watcher)))))
 
 
-(provide 'hyalo-module-sidebar)
+(provide 'hyalo-sidebar)
 ;;; hyalo-module-sidebar.el ends here

@@ -27,7 +27,7 @@
 
 ;;; Code:
 
-(require 'hyalo-module)
+(require 'hyalo)
 
 ;;; File Selection
 
@@ -89,5 +89,5 @@ Inserts the selected emoji at point."
       (hyalo-show-emoji-picker)
     (user-error "hyalo-show-emoji-picker not available")))
 
-(provide 'hyalo-module-system)
+(provide 'hyalo-system)
 ;;; hyalo-module-system.el ends here

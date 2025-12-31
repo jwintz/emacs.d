@@ -29,7 +29,7 @@
 
 ;;; Code:
 
-(require 'hyalo-module)
+(require 'hyalo)
 
 (defgroup hyalo-module-appearance nil
   "Appearance settings for hyalo-module."
@@ -587,5 +587,5 @@ When enabled, manages theme and transparency based on system appearance."
       (hyalo-module-appearance--enable)
     (hyalo-module-appearance--disable)))
 
-(provide 'hyalo-module-appearance)
+(provide 'hyalo-appearance)
 ;;; hyalo-module-appearance.el ends here

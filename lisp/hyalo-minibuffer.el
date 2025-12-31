@@ -15,7 +15,7 @@
 
 ;;; Code:
 
-(require 'hyalo-module)
+(require 'hyalo)
 (require 'mini-frame)
 
 (defgroup hyalo-module-minibuffer nil
@@ -147,5 +147,5 @@ APPEARANCE is `light' or `dark'."
              (fboundp 'hyalo-minibuffer-deactivate))
     (hyalo-minibuffer-deactivate)))
 
-(provide 'hyalo-module-minibuffer)
+(provide 'hyalo-minibuffer)
 ;;; hyalo-module-minibuffer.el ends here
