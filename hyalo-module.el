@@ -49,22 +49,21 @@ source file is newer than the built dylib."
 
 (defun hyalo-module-log (msg &rest args)
   "Log MSG with ARGS using elog if available, otherwise `message'."
-  (let ((formatted (apply #'format (concat "[hyalo] " msg) args)))
-    (if (and hyalo-module-elog (fboundp 'elog-info))
-        (elog-info hyalo-module-elog formatted)
+  (if (and hyalo-module-elog (fboundp 'elog-info))
+      (apply #'elog-info hyalo-module-elog (concat "[hyalo] " msg) args)
+    (let ((formatted (apply #'format (concat "[hyalo] " msg) args)))
       (message "%s" formatted))))
 
 
 (defun hyalo-module-log-init ()
   "Initialize hyalo-module logger if elog is available."
-  (when (fboundp 'elog-make-logger)
+  (when (fboundp 'elog-logger)
     (setq hyalo-module-elog
-          (elog-make-logger
+          (elog-logger
            :name "hyalo"
            :level 'info
-           :appenders (list (elog-make-appender
-                             :type 'buffer
-                             :name "*elog*"))))))
+           :buffer "*elog*"
+           :handlers '(buffer)))))
 
 ;; Initialize logger when elog becomes available
 (with-eval-after-load 'elog

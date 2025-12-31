@@ -90,12 +90,14 @@
 
 ;;;; Core Packages
 
-;; (use-package exec-path-from-shell
-;;   :ensure t
-;;   :demand t
-;;   :config
-;;   (when (memq window-system '(mac ns x))
-;;     (exec-path-from-shell-initialize)))
+(use-package exec-path-from-shell
+  :ensure t
+  :demand t
+  :custom
+  (exec-path-from-shell-check-startup-files nil)
+  :config
+  (when (memq window-system '(mac ns x))
+    (exec-path-from-shell-initialize)))
 
 (use-package diminish
   :demand t)
@@ -169,7 +171,7 @@
 (defun emacs-log-info (msg)
   "Log MSG using elog if available, otherwise use `message'."
   (if (and elog-emacs (fboundp 'elog-info))
-      (elog-info elog-emacs msg)
+      (elog-info elog-emacs "%s" msg)
     nil))
 
 (defun emacs-section-start (name)
@@ -186,20 +188,26 @@
 
 (defun emacs-log-init ()
   "Initialize elog logger if available."
-  (when (fboundp 'elog-make-logger)
+  (when (fboundp 'elog-logger)
     (setq elog-emacs
-          (elog-make-logger
+          (elog-logger
            :name "emacs"
            :level 'info
-           :appenders (list (elog-make-appender
-                             :type 'buffer
-                             :name "*elog*"))))))
+           :buffer "*elog*"
+           :handlers '(buffer)))))
 
 (use-package elog
   :vc (:url "https://github.com/Kinneyzhang/elog")
-  :defer t
-  :init
-  (add-hook 'after-init-hook #'emacs-log-init))
+  :demand t
+  :custom-face
+  (elog-trace-face ((t :inherit shadow)))
+  (elog-debug-face ((t :inherit shadow)))
+  (elog-info-face ((t :inherit default)))
+  (elog-warning-face ((t :inherit warning)))
+  (elog-error-face ((t :inherit error)))
+  (elog-fatal-face ((t :inherit error :weight bold)))
+  :config
+  (emacs-log-init))
 
 ;;; ============================================================================
 ;;; Core
@@ -299,7 +307,8 @@
      "\\.\\(?:gz\\|gif\\|svg\\|png\\|jpe?g\\|bmp\\|xpm\\)$"
      "-autoloads\\.el$" "autoload\\.el$"))
   :config
-  (recentf-mode 1)
+  (let ((inhibit-message t))
+    (recentf-mode 1))
   (add-hook 'kill-emacs-hook #'recentf-cleanup -90))
 
 (use-package savehist
@@ -1029,13 +1038,15 @@
     "p d" '(project-dired :wk "dired")
     "p k" '(project-kill-buffers :wk "kill buffers")
     "p p" '(project-switch-project :wk "switch project")
-    "p s" '(project-search :wk "search")
+ ;; "p s" '(project-search :wk "search")
     "p c" '(project-compile :wk "compile")
-    "p v" '(magit-project-status :wk "magit"))
+    "p v" '(magit-project-status :wk "magit")
+    "p s" '(consult-ripgrep :wk "search")
+    )
   :custom
   (project-switch-commands
    '((project-find-file "Find file")
-     (project-find-regexp "Find regexp")
+     (consult-ripgrep "Search" ?s)
      (project-dired "Dired")
      (magit-project-status "Magit" ?v)
      (project-eshell "Eshell"))))

@@ -41,7 +41,7 @@ When nil, uses the default frame font."
   :type '(choice (const nil) string)
   :group 'hyalo-module-sidebar)
 
-(defvar hyalo-sidebar-debug t
+(defvar hyalo-sidebar-debug nil
   "Enable debug logging for sidebar embedding.")
 
 (defun hyalo-sidebar--log (format-string &rest args)
