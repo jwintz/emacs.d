@@ -94,9 +94,12 @@
 
 (defun hyalo-fonts--agent-shell-fonts ()
   "Set agent-shell buffer to use Hubot Sans with Krypton code blocks."
-  (face-remap-add-relative 'default :family "Monaspace Krypton Var" :height 100)
-  (face-remap-add-relative 'markdown-code-face :family "Monaspace Krypton Var" :height 100)
-  (face-remap-add-relative 'markdown-inline-code-face :family "Monaspace Krypton Var" :height 100))
+  (let ((height (if (boundp 'hyalo-sidebar-font-height)
+                    hyalo-sidebar-font-height
+                  100)))
+    (face-remap-add-relative 'default :family "Monaspace Krypton Var" :height height)
+    (face-remap-add-relative 'markdown-code-face :family "Monaspace Krypton Var" :height height)
+    (face-remap-add-relative 'markdown-inline-code-face :family "Monaspace Krypton Var" :height height)))
 
 (defun hyalo-fonts--markdown-fonts ()
   "Set markdown buffers to use Monaspace Xenon."
@@ -122,10 +125,16 @@ Git commit messages should use monospace font for proper formatting."
   (face-remap-add-relative 'variable-pitch :family "Monaspace Neon Var"))
 
 (defun hyalo-fonts--sidebar-fonts ()
-  "Set sidebar buffers to use SF Mono."
-  (face-remap-add-relative 'default :family "SF Mono" :height 100)
-  ;; Ensure nerd-icons still display correctly
-  (face-remap-add-relative 'nerd-icons-dired-dir-face :family "Symbols Nerd Font Mono"))
+  "Set sidebar buffers to use configured font."
+  (let ((family (if (bound-and-true-p hyalo-sidebar-font)
+                    hyalo-sidebar-font
+                  "SF Mono"))
+        (height (if (boundp 'hyalo-sidebar-font-height)
+                    hyalo-sidebar-font-height
+                  100)))
+    (face-remap-add-relative 'default :family family :height height)
+    ;; Ensure nerd-icons still display correctly
+    (face-remap-add-relative 'nerd-icons-dired-dir-face :family "Symbols Nerd Font Mono")))
 
 (defun hyalo-fonts--terminal-fonts ()
   "Set terminal buffers to use Monaspace Argon."

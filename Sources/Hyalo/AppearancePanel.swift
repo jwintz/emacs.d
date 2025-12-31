@@ -324,6 +324,8 @@ struct AppearancePanelView: View {
                 onAppearanceModeChange?(settings.appearanceMode)
             }
 
+            PresetPicker(settings: settings, onChange: onApply)
+
             // Controls
             VStack(spacing: 16) {
                 // Discrete vibrancy picker
@@ -381,7 +383,7 @@ final class AppearancePanelController {
             let controller = NavigationSidebarManager.shared.getController(for: window)
             controller.setWindowAppearance(mode.emacsValue)
             controller.state.windowAppearance = mode.emacsValue
-            
+
             // Also update mini-frame glass effects to match new appearance
             DispatchQueue.main.async {
                 for w in NSApp.windows {

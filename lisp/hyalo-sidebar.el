@@ -42,10 +42,16 @@ Set to 0 for no margin, 8 for compact, 12 for standard, 16 for spacious."
   :group 'hyalo-sidebar)
 
 (defcustom hyalo-sidebar-font nil
-  "Font to use for sidebar buffers.
-When non-nil, should be a font spec string like \"SF Pro-12\".
-When nil, uses the default frame font."
+  "Font family to use for sidebar buffers.
+When non-nil, should be a font family string like \"SF Pro Display\".
+When nil, uses the default frame font family."
   :type '(choice (const nil) string)
+  :group 'hyalo-sidebar)
+
+(defcustom hyalo-sidebar-font-height 100
+  "Font height for sidebar buffers (100 = 10pt).
+This ensures proper layout calculation for embedded frames."
+  :type 'integer
   :group 'hyalo-sidebar)
 
 ;;; Frame tracking
@@ -142,18 +148,16 @@ Returns the created frame."
             (left . -10000)
             (top . -10000)
             (visibility . t)
-            ,@(when hyalo-sidebar-font
-                `((font . ,hyalo-sidebar-font)))
+            (font . ,(font-spec :family (or hyalo-sidebar-font "Menlo")
+                                :height hyalo-sidebar-font-height
+                                :weight 'regular))
             ,@params))
          (frame (make-frame frame-params)))
     ;; Display buffer in the frame
     (with-selected-frame frame
       (switch-to-buffer buffer)
       (setq-local mode-line-format nil)
-      (setq-local header-line-format nil)
-      ;; Set font if configured
-      (when hyalo-sidebar-font
-        (set-frame-font hyalo-sidebar-font nil (list frame))))
+      (setq-local header-line-format nil))
     ;; Force a redisplay to ensure the frame is fully created
     (redisplay t)
     ;; Small delay to ensure NSWindow is created before registration
@@ -216,9 +220,7 @@ Sets `hyalo-embedded' parameter and positions off-screen."
     ;; Width
     (setq dired-sidebar-width hyalo-sidebar-width)
     ;; Don't show in other-window
-    (setq dired-sidebar-should-follow-file t)
-    ;; Subtree indentation
-    (setq dired-sidebar-subtree-indent 2)))
+    (setq dired-sidebar-should-follow-file t)))
 
 (defun hyalo-sidebar-setup-left ()
   "Setup the left sidebar (dired-sidebar).
@@ -410,6 +412,13 @@ In non-embedded frames, returns original result unchanged."
   ;; Remove mode-line in sidebar
   (setq-local mode-line-format nil)
   (setq-local header-line-format nil)
+  ;; Disable interfering modes
+  (whitespace-mode -1)
+  (display-line-numbers-mode -1)
+  ;; Hide leading space in dired-sidebar (single character spacing fix)
+  (when (derived-mode-p 'dired-sidebar-mode)
+    (font-lock-add-keywords nil '(("^\\s-+" 0 '(face nil display (space :width 0)))))
+    (font-lock-flush))
   ;; Enable our keymap override - MUST set the variable to t for the keymap to be active
   (setq-local hyalo-sidebar-embedded t)
   (push `(hyalo-sidebar-embedded . ,hyalo-sidebar--keymap)

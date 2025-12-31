@@ -301,7 +301,7 @@ struct SidebarContentView: View {
                 dividerThickness: 1,
                 top: {
                     VStack(spacing: 0) {
-                        SidebarSectionHeader(title: "OPEN BUFFERS", systemImage: "doc.on.doc", isFirst: true)
+                        SidebarSectionHeader(title: "OPEN BUFFERS", systemImage: "document.on.document.fill", isFirst: true)
                         EmbeddedEmacsView(embeddedView: topView, originalWindow: state.leftTopWindow, slot: "left-top", onResize: onResize)
                             .padding(.horizontal, embeddedMargin)
                             .padding(.bottom, embeddedMargin)
@@ -310,7 +310,7 @@ struct SidebarContentView: View {
                 },
                 bottom: {
                     VStack(spacing: 0) {
-                        SidebarSectionHeader(title: "WORKSPACE", systemImage: "folder")
+                        SidebarSectionHeader(title: "WORKSPACE", systemImage: "folder.fill")
                         EmbeddedEmacsView(embeddedView: bottomView, originalWindow: state.leftBottomWindow, slot: "left-bottom", onResize: onResize)
                             .padding(.horizontal, embeddedMargin)
                             .padding(.bottom, embeddedMargin)
@@ -1402,7 +1402,7 @@ struct HyaloNavigationLayout: View {
                             state.detailVisible.toggle()
                         }
                     } label: {
-                        Image(systemName: "sparkles")
+                        Image(systemName: "sidebar.right")
                             .symbolVariant(state.detailVisible ? .none : .none)
                     }
                     .help(state.detailVisible ? "Hide Inspector" : "Show Inspector")
