@@ -108,9 +108,8 @@ Available elements:
 - `ns-alpha-glyphs': Glyph background fills (hl-line, region, etc.)
 - `ns-alpha-all': All elements (shortcut for all above)
 
-Default is (ns-alpha-default ns-alpha-fringe) which provides transparency
-for the main window background and fringes while keeping highlights opaque.
-Add `ns-alpha-glyphs' if you want transparent hl-line/region backgrounds."
+Default is `ns-alpha-all' for full transparency.
+diff-hl uses margin mode (not fringe) so indicators remain visible."
   :type '(repeat symbol)
   :group 'hyalo-module-appearance
   :set (lambda (sym val)
@@ -197,9 +196,9 @@ configures `ns-alpha-elements' for fine-grained transparency control."
       ;; Set which elements should be transparent
       (set-frame-parameter f 'ns-alpha-elements
                            hyalo-module-appearance-alpha-elements)
-      ;; Ensure fringes are visible
-      (set-frame-parameter f 'left-fringe 8)
-      (set-frame-parameter f 'right-fringe 8))))
+      ;; Fringes: 4px each
+      (set-frame-parameter f 'left-fringe 4)
+      (set-frame-parameter f 'right-fringe 4))))
 
 
 ;;; Face Background Cleanup
@@ -512,8 +511,8 @@ This is the callback function that Swift calls via the pending actions mechanism
   (let ((f (or frame (selected-frame))))
     (when (and (display-graphic-p f) (eq (framep f) 'ns))
       (set-frame-parameter f 'alpha-background 0.0)
-      (set-frame-parameter f 'left-fringe 8)
-      (set-frame-parameter f 'right-fringe 8)
+      (set-frame-parameter f 'left-fringe 4)
+      (set-frame-parameter f 'right-fringe 4)
       (when (hyalo-module-available-p)
         (hyalo-module-appearance--apply-window-appearance
          (hyalo-module-appearance-current))))))

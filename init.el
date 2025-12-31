@@ -649,7 +649,7 @@
 
 (use-package outline
   :ensure nil
-  :diminish outline-minor-mode
+  :diminish outline-inor-mode
   :hook (prog-mode . outline-minor-mode)
   :config
   (add-hook 'outline-minor-mode-hook
@@ -666,7 +666,11 @@
   :after nerd-icons
   :custom
   (outline-indent-ellipsis (concat " " (nerd-icons-codicon "nf-cod-chevron_down")))
-  :hook ((yaml-mode markdown-mode) . outline-indent-minor-mode))
+  :hook
+  ((python-mode . outline-indent-minor-mode)
+   (python-ts-mode . outline-indent-minor-mode)
+   (yaml-mode . outline-indent-minor-mode)
+   (yaml-ts-mode . outline-indent-minor-mode)))
 
 (use-package ultra-scroll
   :vc (:url "https://github.com/jdtsmith/ultra-scroll")
@@ -1065,6 +1069,52 @@
   :config
   (add-hook 'after-save-hook 'magit-after-save-refresh-status t))
 
+(use-package diff-hl
+  :custom
+  ;; Use right side for diff indicators
+  (diff-hl-side 'right)
+  ;; Margin mode uses text chars instead of fringe bitmaps
+  ;; This allows fringe to be transparent while indicators remain visible
+  (diff-hl-margin-symbols-alist '((insert . "┃")
+                                   (delete . "┃")
+                                   (change . "┃")))
+  :config
+  (defun hyalo-diff-hl--get-face-color (face attr)
+    "Get ATTR (foreground/background) from FACE, resolving inheritance."
+    (let ((color (face-attribute face attr nil t)))
+      (when (and color (not (eq color 'unspecified)))
+        color)))
+
+  (defun hyalo-diff-hl--update-faces (&rest _)
+    "Update diff-hl face foregrounds from theme faces.
+Inherits from standard faces: success, error, warning.
+Falls back to diff-added/removed/changed, then to sensible defaults."
+    (let ((insert-color (or (hyalo-diff-hl--get-face-color 'success :foreground)
+                            (hyalo-diff-hl--get-face-color 'diff-added :foreground)
+                            "#50a14f"))
+          (delete-color (or (hyalo-diff-hl--get-face-color 'error :foreground)
+                            (hyalo-diff-hl--get-face-color 'diff-removed :foreground)
+                            "#e45649"))
+          (change-color (or (hyalo-diff-hl--get-face-color 'warning :foreground)
+                            (hyalo-diff-hl--get-face-color 'diff-changed :foreground)
+                            "#c18401")))
+      (set-face-attribute 'diff-hl-insert nil :foreground insert-color :background nil)
+      (set-face-attribute 'diff-hl-delete nil :foreground delete-color :background nil)
+      (set-face-attribute 'diff-hl-change nil :foreground change-color :background nil)))
+
+  ;; Update faces on theme change
+  (add-hook 'enable-theme-functions #'hyalo-diff-hl--update-faces)
+  ;; Initial setup
+  (hyalo-diff-hl--update-faces)
+  ;; Enable globally
+  (global-diff-hl-mode 1)
+  ;; Use margin instead of fringe (works with transparent fringes)
+  (diff-hl-margin-mode 1)
+  ;; Show changes for unsaved buffers
+  (diff-hl-flydiff-mode 1)
+  ;; Update diff-hl after magit operations
+  (add-hook 'magit-post-refresh-hook 'diff-hl-magit-post-refresh))
+
 (use-package swift-mode
   :mode "\\.swift\\'")
 
@@ -1083,6 +1133,18 @@
 
 (use-package nerd-icons-dired
   :commands (nerd-icons-dired-mode))
+
+(use-package dired
+  :ensure nil  ; built-in
+  :custom
+  ;; macOS BSD ls doesn't support --dired flag
+  (dired-use-ls-dired nil)
+  ;; BSD ls compatible flags: all files, long format, human sizes, no owner
+  (dired-listing-switches "-agho")
+  ;; Auto-refresh buffer when directory changes externally
+  (dired-auto-revert-buffer t)
+  ;; Use trash instead of permanent deletion
+  (delete-by-moving-to-trash t))
 
 (use-package dired-sidebar
   :defer t

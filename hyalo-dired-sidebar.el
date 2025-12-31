@@ -219,59 +219,84 @@ In non-embedded frames, returns original result unchanged."
 ;;; Project switching support
 
 (defun hyalo-dired-sidebar--find-sidebar-buffer ()
-  "Find the dired-sidebar buffer if it exists."
-  (cl-find-if (lambda (buf)
-                (with-current-buffer buf
-                  (derived-mode-p 'dired-sidebar-mode)))
-              (buffer-list)))
+  "Find the active dired-sidebar buffer.
+Prioritizes a buffer that is currently displayed in an embedded frame."
+  (or
+   ;; Try to find a visible sidebar buffer in an embedded frame
+   (cl-find-if (lambda (buf)
+                 (when (buffer-live-p buf)
+                   (with-current-buffer buf
+                     (and (derived-mode-p 'dired-sidebar-mode)
+                          (let ((win (get-buffer-window buf t)))
+                            (and win
+                                 (frame-parameter (window-frame win) 'hyalo-embedded)))))))
+               (buffer-list))
+   ;; Fallback: any dired-sidebar buffer (e.g. during initial setup)
+   (cl-find-if (lambda (buf)
+                 (with-current-buffer buf
+                   (derived-mode-p 'dired-sidebar-mode)))
+               (buffer-list))))
 
 (defun hyalo-dired-sidebar-update-to-project ()
   "Update dired-sidebar in embedded child-frame to show the current project root.
 Call this after switching projects."
   (interactive)
-  (when-let* ((sidebar-buf (hyalo-dired-sidebar--find-sidebar-buffer))
-              (sidebar-win (get-buffer-window sidebar-buf t))  ; t = search all frames
-              (sidebar-frame (window-frame sidebar-win))
-              (proj (project-current))
-              (root (expand-file-name
-                     (if (fboundp 'project-root)
-                         (project-root proj)
-                       (car (project-roots proj))))))
-    (message "[hyalo-dired-sidebar] Updating sidebar to: %s (frame: %s)" root sidebar-frame)
-    ;; Store current parent frame reference
-    (let ((parent-frame hyalo-dired-sidebar--parent-frame)
-          (old-buf sidebar-buf))
-      ;; Explicitly select the sidebar frame and window
-      (with-selected-frame sidebar-frame
-        (with-selected-window sidebar-win
-          ;; Create new dired-sidebar buffer for new root
-          (let ((new-buf (dired-sidebar-get-or-create-buffer root)))
-            (message "[hyalo-dired-sidebar] new-buf: %s, mode: %s"
-                     new-buf (with-current-buffer new-buf major-mode))
-            (when new-buf
-              (switch-to-buffer new-buf)
-              ;; Force dired-sidebar-mode if not active
+  (condition-case err
+      (when-let* ((sidebar-buf (hyalo-dired-sidebar--find-sidebar-buffer))
+                  (sidebar-win (get-buffer-window sidebar-buf t))  ; t = search all frames
+                  (sidebar-frame (window-frame sidebar-win))
+                  (proj (project-current))
+                  (root (expand-file-name
+                         (if (fboundp 'project-root)
+                             (project-root proj)
+                           (car (project-roots proj))))))
+        (when (and (window-live-p sidebar-win)
+                   (frame-live-p sidebar-frame))
+          (message "[hyalo-dired-sidebar] Updating sidebar to: %s (frame: %s)" root sidebar-frame)
+          ;; Capture parent frame from existing context
+          (let* ((parent-frame hyalo-dired-sidebar--parent-frame)
+                 ;; Check if a sidebar buffer for this root already exists
+                 (expected-name (dired-sidebar-buffer-name root))
+                 (existing-buf (get-buffer expected-name))
+                 (new-buf (or existing-buf (dired-noselect root))))
+            ;; Configure the new buffer
+            (with-current-buffer new-buf
+              ;; Ensure dired-sidebar mode is active
               (unless (derived-mode-p 'dired-sidebar-mode)
-                (message "[hyalo-dired-sidebar] Forcing dired-sidebar-mode")
                 (dired-sidebar-mode))
               ;; Restore parent frame reference
               (setq hyalo-dired-sidebar--parent-frame parent-frame)
-              ;; Apply embedded frame setup (same as hyalo-dired-sidebar--setup-if-embedded)
+              ;; Apply sidebar setup
               (hyalo-dired-sidebar-setup)
+              ;; Enable monochrome advice (global but frame-aware)
               (hyalo-dired-sidebar--enable-monochrome)
-              ;; Enable our keymap override - MUST set the variable to t
+              ;; Ensure nerd-icons-dired mode is active
+              (when (and (fboundp 'nerd-icons-dired-mode)
+                         (not nerd-icons-dired-mode))
+                (nerd-icons-dired-mode 1))
+              ;; Enable keymap override
               (setq-local hyalo-dired-sidebar-embedded t)
               (when (boundp 'hyalo-dired-sidebar--keymap)
                 (push `(hyalo-dired-sidebar-embedded . ,hyalo-dired-sidebar--keymap)
                       minor-mode-overriding-map-alist))
               (setq-local mode-line-format nil)
-              (setq-local header-line-format nil)
-              ;; Kill old buffer if it's different and still alive
-              (when (and old-buf
-                         (not (eq old-buf new-buf))
-                         (buffer-live-p old-buf))
-                (message "[hyalo-dired-sidebar] Killing old buffer: %s" old-buf)
-                (kill-buffer old-buf)))))))))
+              (setq-local header-line-format nil))
+
+            ;; Forcefully display in the sidebar window
+            (set-window-dedicated-p sidebar-win nil) ; Unlock window
+            (set-window-buffer sidebar-win new-buf)
+            (set-window-dedicated-p sidebar-win t)   ; Re-lock window
+
+            ;; CRITICAL: Refresh icons with embedded frame selected
+            ;; The monochrome advice checks (selected-frame) to determine if we're
+            ;; in an embedded frame. Without this, the timer callback runs in the
+            ;; main frame context, and icons lose their monochrome handling.
+            (with-selected-frame sidebar-frame
+              (with-current-buffer new-buf
+                (when (fboundp 'nerd-icons-dired--refresh)
+                  (nerd-icons-dired--refresh)))))))
+    (error
+     (message "[hyalo-dired-sidebar] Error updating sidebar: %s" err))))
 
 (defun hyalo-dired-sidebar--after-project-switch (&rest _)
   "Update sidebar after project switch completes."
