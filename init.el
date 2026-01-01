@@ -35,6 +35,8 @@
 
 ;;;; Package System
 
+(defvar demap--tools-demap-defined-start-p t)
+
 (require 'package)
 (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
 (package-initialize)
@@ -69,10 +71,11 @@
   :ensure t
   :demand t
   :custom
+  (exec-path-from-shell-debug t)
   (exec-path-from-shell-check-startup-files nil)
   :config
   (when (memq window-system '(mac ns x))
-    (exec-path-from-shell-initialize)))
+    (exec-path-from-shell-copy-env "PATH")))
 
 ;;; ============================================================================
 ;;; Modules

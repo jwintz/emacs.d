@@ -880,8 +880,8 @@ final class GradientFadeView: NSView {
     private func updateGradientColors() {
         // Scale the gradient stops by topOpacity (window's background alpha)
         // Base values: 0.85, 0.3, 0.0 - scaled by current window opacity
-        let solidColor = fadeColor.withAlphaComponent(0.85 * topOpacity)
-        let midColor = fadeColor.withAlphaComponent(0.3 * topOpacity)
+        let solidColor = fadeColor.withAlphaComponent(1.0 * topOpacity)
+        let midColor = fadeColor.withAlphaComponent(0.5 * topOpacity)
         let clearColor = fadeColor.withAlphaComponent(0.0)
         gradientLayer?.colors = [solidColor.cgColor, midColor.cgColor, clearColor.cgColor]
     }
@@ -1488,15 +1488,12 @@ enum FooterPattern: String, CaseIterable {
     case none = "none"
     case hideout = "hideout"
     case hexagons = "hexagons"
-    case deathStar = "death-star"
-    case bathroomFloor = "bathroom-floor"
     case tinyCheckers = "tiny-checkers"
     case plus = "plus"
     case cage = "cage"
     case diagonalStripes = "diagonal-stripes"
     case stripes = "stripes"
     case diagonalLines = "diagonal-lines"
-    case polkaDots = "polka-dots"
     case signal = "signal"
     case wallpaper = "wallpaper"
 
@@ -1511,12 +1508,6 @@ enum FooterPattern: String, CaseIterable {
         case .hexagons:
             // ViewBox: 0 0 28 49
             return ("M13.99 9.25l13 7.5v15l-13 7.5L1 31.75v-15l12.99-7.5zM3 17.9v12.7l10.99 6.34 11-6.35V17.9l-11-6.34L3 17.9zM0 15l12.98-7.5V0h-2v6.35L0 12.69v2.3zm0 18.5L12.98 41v8h-2v-6.85L0 35.81v-2.3zM15 0v7.5L27.99 15H28v-2.31h-.01L17 6.35V0h-2zm0 49v-8l12.99-7.5H28v2.31h-.01L17 42.15V49h-2z", 28, 49)
-        case .deathStar:
-            // ViewBox: 0 0 80 105
-            return ("M20 10a5 5 0 0 1 10 0v50a5 5 0 0 1-10 0V10zm15 35a5 5 0 0 1 10 0v50a5 5 0 0 1-10 0V45zM20 75a5 5 0 0 1 10 0v20a5 5 0 0 1-10 0V75zm30-65a5 5 0 0 1 10 0v50a5 5 0 0 1-10 0V10zm0 65a5 5 0 0 1 10 0v20a5 5 0 0 1-10 0V75zM35 10a5 5 0 0 1 10 0v20a5 5 0 0 1-10 0V10zM5 45a5 5 0 0 1 10 0v50a5 5 0 0 1-10 0V45zm0-35a5 5 0 0 1 10 0v20a5 5 0 0 1-10 0V10zm60 35a5 5 0 0 1 10 0v50a5 5 0 0 1-10 0V45zm0-35a5 5 0 0 1 10 0v20a5 5 0 0 1-10 0V10z", 80, 105)
-        case .bathroomFloor:
-            // ViewBox: 0 0 80 80
-            return ("M0 40L40 0H20L0 20M40 40L80 0v2L42 40h-2zm4 0L80 4v2L46 40h-2zm4 0l28-28v2L50 40h-2zm4 0l24-24v2L54 40h-2zm4 0l20-20v2L58 40h-2zm4 0l16-16v2L62 40h-2zm4 0l12-12v2L66 40h-2zm4 0l8-8v2l-6 6h-2z", 80, 80)
         case .tinyCheckers:
             // ViewBox: 0 0 8 8
             return ("M0 0h4v4H0V0zm4 4h4v4H4V4z", 8, 8)
@@ -1535,9 +1526,6 @@ enum FooterPattern: String, CaseIterable {
         case .diagonalLines:
             // ViewBox: 0 0 6 6
             return ("M5 0h1L0 6V5zM6 5v1H5z", 6, 6)
-        case .polkaDots:
-            // ViewBox: 0 0 20 20 (uses circles, rendered as filled arcs)
-            return ("M3 3m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0M13 13m-3 0a3 3 0 1 0 6 0a3 3 0 1 0 -6 0", 20, 20)
         case .signal:
             // ViewBox: 0 0 84 48
             return ("M0 0h12v6H0V0zm28 8h12v6H28V8zm14-8h12v6H42V0zm14 0h12v6H56V0zm0 8h12v6H56V8zM42 8h12v6H42V8zm0 16h12v6H42v-6zm14-8h12v6H56v-6zm14 0h12v6H70v-6zm0-16h12v6H70V0zM28 32h12v6H28v-6zM14 16h12v6H14v-6zM0 24h12v6H0v-6zm0 8h12v6H0v-6zm14 0h12v6H14v-6zm14 8h12v6H28v-6zm-14 0h12v6H14v-6zm28 0h12v6H42v-6zm14-8h12v6H56v-6zm0-8h12v6H56v-6zm14 8h12v6H70v-6zm0 8h12v6H70v-6zM14 24h12v6H14v-6zm14-8h12v6H28v-6zM14 8h12v6H14V8zM0 8h12v6H0V8z", 84, 48)

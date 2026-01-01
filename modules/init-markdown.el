@@ -7,7 +7,7 @@
 
 (use-package hyalo-markdown-tags
   :ensure nil
-  
+
   :commands (hyalo-markdown-tags-mode))
 
 (use-package markdown-mode
@@ -73,6 +73,14 @@
    "i" 'markdown-insert-italic
    "s" 'markdown-insert-strike-through
    "q" 'markdown-insert-blockquote))
+
+(use-package polymode
+  :ensure t)
+
+(use-package poly-markdown
+  :ensure t
+  :config
+  (add-to-list 'auto-mode-alist '("\\.md" . poly-markdown-mode)))
 
 (use-package obsidian
   :ensure t

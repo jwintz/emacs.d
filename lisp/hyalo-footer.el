@@ -19,9 +19,9 @@
 ;; The footer height is dynamically tracked via hooks and advices (no timers).
 ;;
 ;; Available patterns from heropatterns.com:
-;; - hideout, hexagons, death-star, bathroom-floor, tiny-checkers
+;; - hideout, hexagons, tiny-checkers
 ;; - plus, cage, diagonal-stripes, stripes, diagonal-lines
-;; - polka-dots, signal, wallpaper
+;; - signal, wallpaper
 ;;
 ;; Usage:
 ;;   (require 'hyalo-footer)
@@ -43,29 +43,23 @@ Available patterns:
   - \"none\" (disabled)
   - \"hideout\" (X marks)
   - \"hexagons\"
-  - \"death-star\" (circles)
-  - \"bathroom-floor\" (tiles)
   - \"tiny-checkers\"
   - \"plus\" (plus signs)
   - \"cage\" (grid)
   - \"diagonal-stripes\"
   - \"stripes\" (horizontal)
   - \"diagonal-lines\"
-  - \"polka-dots\"
   - \"signal\" (waves)
   - \"wallpaper\" (floral)"
   :type '(choice (const :tag "None (disabled)" "none")
                  (const :tag "Hideout (X marks)" "hideout")
                  (const :tag "Hexagons" "hexagons")
-                 (const :tag "Death Star (circles)" "death-star")
-                 (const :tag "Bathroom Floor (tiles)" "bathroom-floor")
                  (const :tag "Tiny Checkers" "tiny-checkers")
                  (const :tag "Plus (+ signs)" "plus")
                  (const :tag "Cage (grid)" "cage")
                  (const :tag "Diagonal Stripes" "diagonal-stripes")
                  (const :tag "Stripes (horizontal)" "stripes")
                  (const :tag "Diagonal Lines" "diagonal-lines")
-                 (const :tag "Polka Dots" "polka-dots")
                  (const :tag "Signal (waves)" "signal")
                  (const :tag "Wallpaper (floral)" "wallpaper"))
   :group 'hyalo-footer
@@ -101,10 +95,10 @@ Controls the visibility of the decorative pattern."
 Use this instead of `setq' to ensure the pattern is applied."
   (interactive
    (list (completing-read "Pattern: "
-                          '("none" "hideout" "hexagons" "death-star"
-                            "bathroom-floor" "tiny-checkers" "plus" "cage"
+                          '("none" "hideout" "hexagons"
+                            "tiny-checkers" "plus" "cage"
                             "diagonal-stripes" "stripes" "diagonal-lines"
-                            "polka-dots" "signal" "wallpaper")
+                            "signal" "wallpaper")
                           nil t)))
   (setq hyalo-footer-pattern pattern)
   (hyalo-footer--apply-pattern))

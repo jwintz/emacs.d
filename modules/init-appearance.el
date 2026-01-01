@@ -21,7 +21,6 @@
 
 (use-package hyalo-icons
   :ensure nil
-  
   :after nerd-icons
   :custom
   (hyalo-icons-monochrome t))
@@ -79,19 +78,29 @@
 
 (use-package iota-dimmer
   :ensure nil
-  
   :custom
   (iota-dimmer-saturation-fraction 0.90)
   (iota-dimmer-luminance-fraction 0.30)
   :config
   (iota-dimmer-mode 1))
 
-;;;; Minions
+;;; Minimap
 
-(use-package minions
+(use-package hide-mode-line
+  :ensure t)
+
+(use-package demap
   :ensure t
+  :defer t
+  :custom
+  (demap-minimap-window-side 'right)
+  (demap-minimap-window-width 20)
   :config
-  (minions-mode 1))
+  (defun my-demap-update-overlay-frame (minimap)
+    "Update a child frame to highlight the visible region.")
+
+  (advice-add 'demap--visible-region-mode-update :after #'my-demap-update-overlay-frame)
+)
 
 (provide 'init-appearance)
 

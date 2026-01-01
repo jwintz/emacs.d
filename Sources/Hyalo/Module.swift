@@ -48,7 +48,7 @@ func findEmacsWindow() -> NSWindow? {
 final class HyaloModule: Module {
     let isGPLCompatible = true
     private let version = "1.0.0"
-    
+
     // Static reference to keep channel alive
     static var visibilityChannel: Any?
 
@@ -197,7 +197,7 @@ final class HyaloModule: Module {
         }
 
         // MARK: - Native Navigation Sidebar
-        
+
         try env.defun(
             "hyalo-navigation-setup",
             with: """
@@ -215,7 +215,7 @@ final class HyaloModule: Module {
             }
             return false
         }
-        
+
         try env.defun(
             "hyalo-navigation-teardown",
             with: """
@@ -387,7 +387,7 @@ final class HyaloModule: Module {
         }
 
         // MARK: - Visibility Change Callbacks
-        
+
         try env.defun(
             "hyalo-setup-visibility-callbacks",
             with: """
@@ -400,24 +400,24 @@ final class HyaloModule: Module {
             if #available(macOS 26.0, *) {
                 // Open a channel for async callbacks from Swift to Elisp
                 let channel = try env.openChannel(name: "hyalo-visibility")
-                
+
                 // RETAIN the channel to prevent deallocation
                 HyaloModule.visibilityChannel = channel
-                
+
                 // Create callback for sidebar visibility changes
                 let sidebarCallback: (String, Bool) -> Void = { slot, visible in
                     print("[Hyalo] Module: sidebarCallback triggered (slot: \(slot), visible: \(visible))")
                     let hook: (String, Bool) -> Void = channel.hook("hyalo-on-sidebar-visibility-changed")
                     hook(slot, visible)
                 }
-                
-                // Create callback for detail visibility changes  
+
+                // Create callback for detail visibility changes
                 let detailCallback: (String, Bool) -> Void = { slot, visible in
                     print("[Hyalo] Module: detailCallback triggered")
                     let hook: (String, Bool) -> Void = channel.hook("hyalo-on-detail-visibility-changed")
                     hook(slot, visible)
                 }
-                
+
                 // Set the callbacks on the manager
                 DispatchQueue.main.async {
                     NavigationSidebarManager.shared.onSidebarVisibilityChanged = sidebarCallback
@@ -568,7 +568,7 @@ final class HyaloModule: Module {
             }
             return false
         }
-        
+
         try env.defun(
             "hyalo-sidebar-set-vibrancy-material",
             with: """
@@ -597,9 +597,9 @@ final class HyaloModule: Module {
             "hyalo-set-footer-pattern",
             with: """
             Set the footer pattern for the echo area/minibuffer region.
-            PATTERN is one of: "none", "hideout", "hexagons", "death-star",
-            "bathroom-floor", "tiny-checkers", "plus", "cage", "diagonal-stripes",
-            "stripes", "diagonal-lines", "polka-dots", "signal", "wallpaper".
+            PATTERN is one of: "none", "hideout", "hexagons",
+            "tiny-checkers", "plus", "cage", "diagonal-stripes",
+            "stripes", "diagonal-lines", "signal", "wallpaper".
             The pattern draws a tinted overlay at the bottom of the window.
             """
         ) { (env: Environment, pattern: String) throws -> Bool in
@@ -698,53 +698,53 @@ final class HyaloModule: Module {
                         emacsWindows.append(w)
                     }
                 }
-                
+
                 // Find the mini-frame: it's an EmacsWindow WITH a parent (child frame)
                 let miniFrame = emacsWindows.first { $0.parent != nil }
-                
+
                 // Find the ROOT window - must be a visible window WITHOUT a parent
                 // Cannot use keyWindow because mini-frame might be key
                 let rootCandidates = NSApp.windows.filter { $0.isVisible && $0.parent == nil }
                 let rootWindow = rootCandidates.first { String(describing: type(of: $0)).contains("EmacsWindow") }
                     ?? rootCandidates.first
-                
+
                 guard let root = rootWindow else {
                     return
                 }
-                
+
                 if let window = miniFrame {
                     if #available(macOS 10.14, *) {
                         // Check if glass is already attached (don't resize again)
                         let glassAlreadyAttached = window.contentView?.identifier?.rawValue == "HyaloGlassEffect"
-                        
+
                         // Position the mini-frame RELATIVE TO ROOT WINDOW (screen coordinates)
                         // Width: 75% of root (min 500px), Y position: 25% from top
                         let rootFrame = root.frame
                         let widthRatio: CGFloat = 0.75
                         let yRatio: CGFloat = 0.25
                         let minWidth: CGFloat = 500
-                        
+
                         let newWidth = max(rootFrame.width * widthRatio, minWidth)
                         // Keep existing height - don't accumulate
                         let currentHeight = window.frame.height
                         let newX = rootFrame.origin.x + (rootFrame.width - newWidth) / 2
                         // Position from top of root window (screen coordinates)
                         let newY = rootFrame.origin.y + rootFrame.height * (1 - yRatio) - currentHeight
-                        
+
                         // Set frame position and width (without display to minimize flicker)
                         window.setFrame(NSRect(x: newX, y: newY, width: newWidth, height: currentHeight), display: false, animate: false)
-                        
+
                         // Attach the glass effect (only if not already attached)
                         if !glassAlreadyAttached {
                             GlassEffectView.attach(to: window)
                         }
-                        
+
                         // Make mini-frame modal-like: higher window level prevents interaction with parent
                         window.level = .modalPanel
-                        
+
                         // Activate modal tracking to enforce focus
                         MiniFrameTracker.activate(window)
-                        
+
                         // Ensure focus on the mini-frame
                         window.makeKeyAndOrderFront(nil)
                         NSApp.activate(ignoringOtherApps: true)

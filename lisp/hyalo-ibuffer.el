@@ -29,9 +29,9 @@
     "*Compile-Log*" "*scratch*" "*Warnings*" "*Ibuffer*"
     " *Minibuf-" " *Echo Area" " *code-conversion-work*"
     " *Treemacs-" "*tramp/"
-    "copilot/copilot-stderr"  ; Matched as substring
+    "copilot-stderr"
     "*copilot events*" "*copilot-language-server-log*"
-    "~/.config/emacs/.local/copilot-stderr"
+;   "~/.config/emacs/.local/copilot-stderr"
     "*elog*")
   "List of buffer name patterns to exclude from sidebar ibuffer.
 Patterns starting with space match hidden buffers.
@@ -243,10 +243,9 @@ Minimal display: just buffer list, no headers, no empty lines."
   (setq ibuffer-never-show-predicates
         (list #'hyalo-ibuffer--buffer-excluded-p))
 
-
-
-  ;; Sort by recency (most recently used first)
-  (setq-local ibuffer-default-sorting-mode 'recency)
+  ;; Sort by creation order (first opened first)
+  ;; Options: 'recency, 'alphabetic, 'major-mode, 'filename/process, 'size
+  (setq-local ibuffer-default-sorting-mode 'alphabetic)
 
   ;; Completely disable header-line to remove column headers
   (setq-local ibuffer-use-header-line nil)

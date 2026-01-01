@@ -177,6 +177,29 @@ Git commit messages should use monospace font for proper formatting."
                     (font-spec :name "Symbols Nerd Font Mono"
                                :size 11) nil))
 
+(defun hyalo-fonts--demap-fonts ()
+  "Configure demap buffer to use consistent fonts (no Radon).
+Ensures comments and delimiters use Redacted Script without a fixed height,
+allowing them to scale with the minimap."
+  (face-remap-add-relative 'font-lock-comment-face
+                           :family "Redacted Script"
+                           :weight 'regular
+                           :slant 'normal)
+  (face-remap-add-relative 'font-lock-comment-delimiter-face
+                           :family "Redacted Script"
+                           :weight 'regular
+                           :slant 'normal)
+  ;; Ensure remappings persist if buffer is rebuilt
+  (when (fboundp 'demap-minimap-protect-variables)
+    (demap-minimap-protect-variables t 'face-remapping-alist)))
+
+(with-eval-after-load 'demap
+  (set-face-attribute 'demap-minimap-font-face nil
+                      :family "Redacted Script"
+                      :weight 'regular
+                      :height 0.3)
+  (add-hook 'demap-minimap-construct-hook #'hyalo-fonts--demap-fonts))
+
 (provide 'hyalo-fonts)
 
 ;;; hyalo-fonts.el ends here

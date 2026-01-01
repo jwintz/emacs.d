@@ -65,7 +65,7 @@
           (b 'bold)
           (wb 'ultra-bold))
       (set-face-attribute 'region nil :weight b)
-      (set-face-attribute 'isearch nil :weight wb :box '(:line-width -1 :style released-button))
+      (set-face-attribute 'isearch nil :weight wb :underline t)
       (set-face-attribute 'lazy-highlight nil :weight b)
       (set-face-attribute 'match nil :weight b)
       (set-face-attribute 'show-paren-match nil :weight b)
@@ -210,9 +210,9 @@
   (defun hyalo-footer-random-pattern ()
     "Set a random footer pattern."
     (interactive)
-    (let* ((patterns '("hideout" "hexagons" "death-star" "bathroom-floor"
-                       "tiny-checkers" "plus" "cage" "diagonal-stripes"
-                       "stripes" "diagonal-lines" "polka-dots" "signal"
+    (let* ((patterns '("hideout" "hexagons" "tiny-checkers"
+		       "plus" "cage" "diagonal-stripes"
+                       "stripes" "diagonal-lines" "signal"
                        "wallpaper"))
            (choice (nth (random (length patterns)) patterns)))
       (hyalo-footer-set-pattern choice)
