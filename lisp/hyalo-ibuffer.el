@@ -14,7 +14,10 @@
 ;;; Code:
 
 (require 'ibuffer)
+(require 'ibuf-ext)  ; Required for ibuffer-never-show-predicates
 (require 'hyalo-icons)
+(require 'cl-lib)
+(require 'hyalo)
 
 (defgroup hyalo-ibuffer nil
   "Hyalo sidebar ibuffer configuration."
@@ -25,9 +28,14 @@
   '("*Messages*" "*Completions*" "*Help*" "*Backtrace*"
     "*Compile-Log*" "*scratch*" "*Warnings*" "*Ibuffer*"
     " *Minibuf-" " *Echo Area" " *code-conversion-work*"
-    " *Treemacs-" "*tramp/")
+    " *Treemacs-" "*tramp/"
+    "copilot/copilot-stderr"  ; Matched as substring
+    "*copilot events*" "*copilot-language-server-log*"
+    "~/.config/emacs/.local/copilot-stderr"
+    "*elog*")
   "List of buffer name patterns to exclude from sidebar ibuffer.
-Patterns starting with space match hidden buffers."
+Patterns starting with space match hidden buffers.
+Patterns are matched as substrings of buffer names."
   :type '(repeat string)
   :group 'hyalo-ibuffer)
 
@@ -35,7 +43,8 @@ Patterns starting with space match hidden buffers."
   '(special-mode help-mode completion-list-mode
     Custom-mode messages-buffer-mode
     treemacs-mode ibuffer-mode dired-mode
-    minibuffer-inactive-mode echo-area-mode)
+    minibuffer-inactive-mode echo-area-mode
+    dired-sidebar-mode)
   "List of major modes to exclude from sidebar ibuffer."
   :type '(repeat symbol)
   :group 'hyalo-ibuffer)
@@ -71,15 +80,18 @@ Returns icon with face stripped - color inherited from context."
   "Return non-nil if BUF should be excluded from sidebar ibuffer."
   (let ((name (buffer-name buf)))
     (or
-     ;; Check excluded buffer names
+     ;; Hidden buffers (start with space) - check first for efficiency
+     (string-prefix-p " " name)
+     ;; Check excluded buffer names (substring match)
      (cl-some (lambda (pattern)
-                (string-match-p (regexp-quote pattern) name))
+                (and (stringp pattern)
+                     (string-match-p (regexp-quote pattern) name)))
               hyalo-ibuffer-excluded-buffer-names)
      ;; Check excluded modes
      (with-current-buffer buf
-       (memq major-mode hyalo-ibuffer-excluded-modes))
-     ;; Hidden buffers (start with space)
-     (string-prefix-p " " name))))
+       (cl-some (lambda (mode)
+                  (derived-mode-p mode))
+                hyalo-ibuffer-excluded-modes)))))
 
 (defun hyalo-ibuffer--file-buffer-p (buf)
   "Return non-nil if BUF is visiting a file."
@@ -90,9 +102,10 @@ Returns icon with face stripped - color inherited from context."
 (defvar hyalo-ibuffer-sidebar-format
   '((icon 2 2 :left :elide)
     " "
-    (name 30 30 :left :elide)
-    " "
-    (modified 1 1 :left))
+    (hyalo-name 30 30 :left :elide)
+    "      "
+    modified)
+
   "Ibuffer format for sidebar display.
 Shows icon, name, and modified indicator only.")
 
@@ -211,6 +224,7 @@ If NOSELECT is non-nil, don't select the buffer."
   "Configure ibuffer for sidebar display.
 Minimal display: just buffer list, no headers, no empty lines."
   (interactive)
+  (hyalo-log "Ibuffer Setup: Starting configuration...")
 
   ;; CRITICAL: Disable all filter groups BEFORE setting format
   ;; These must be set before ibuffer-update to prevent "[ Default ]"
@@ -219,16 +233,17 @@ Minimal display: just buffer list, no headers, no empty lines."
   (setq ibuffer-current-filter-groups nil)
   (setq ibuffer-show-empty-filter-groups nil)
 
-  ;; Set format - minimal: icon, name, modified indicator
-  ;; No mark column for cleaner display
-  (setq-local ibuffer-formats
-              '((icon " " (hyalo-name 30 30 :left :elide) " " modified)))
+  ;; Set format - use the defined sidebar format variable
+  (setq-local ibuffer-formats (list hyalo-ibuffer-sidebar-format))
 
   ;; Use never-show predicate instead of filtering qualifiers
   ;; This avoids creating filter groups entirely
+  ;; NOTE: Must use setq (not setq-local) as this is read during buffer list generation
   (setq-local ibuffer-filtering-qualifiers nil)
-  (setq-local ibuffer-never-show-predicates
-              '((lambda (buf) (hyalo-ibuffer--buffer-excluded-p buf))))
+  (setq ibuffer-never-show-predicates
+        (list #'hyalo-ibuffer--buffer-excluded-p))
+
+
 
   ;; Sort by recency (most recently used first)
   (setq-local ibuffer-default-sorting-mode 'recency)

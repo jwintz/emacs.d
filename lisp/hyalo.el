@@ -61,7 +61,7 @@ source file is newer than the built dylib."
     (setq hyalo-elog
           (elog-logger
            :name "hyalo"
-           :level 'info
+           :level 'trace
            :buffer "*elog*"
            :handlers '(buffer)))))
 

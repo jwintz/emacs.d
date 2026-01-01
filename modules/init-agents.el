@@ -47,11 +47,7 @@
             :rev :newest)
   :custom
   (agent-shell-section-functions nil)
-  :hook ((agent-shell-mode . (lambda ()
-                               (face-remap-add-relative 'default
-                                                        :family "Monaspace Krypton Frozen"
-                                                        :height 110)))
-         (agent-shell-mode . agent-shell-completion-mode))
+  :hook (agent-shell-mode . agent-shell-completion-mode)
   :general
   (leader-def
     "a" '(:ignore t :wk "agents")
@@ -67,7 +63,7 @@
 
 (use-package hyalo-agent-extras
   :ensure nil
-  
+
   :after agent-shell
   :config
   (hyalo-agent-extras-mode 1))

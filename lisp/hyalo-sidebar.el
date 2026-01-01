@@ -157,7 +157,12 @@ Returns the created frame."
     (with-selected-frame frame
       (switch-to-buffer buffer)
       (setq-local mode-line-format nil)
-      (setq-local header-line-format nil))
+      (setq-local header-line-format nil)
+      ;; Force apply font to ensure Swift layout calculation is correct
+      (let ((font-spec (font-spec :family (or hyalo-sidebar-font "Menlo")
+                                  :height hyalo-sidebar-font-height
+                                  :weight 'regular)))
+        (set-frame-font font-spec nil (list frame))))
     ;; Force a redisplay to ensure the frame is fully created
     (redisplay t)
     ;; Small delay to ensure NSWindow is created before registration
@@ -415,9 +420,12 @@ In non-embedded frames, returns original result unchanged."
   ;; Disable interfering modes
   (whitespace-mode -1)
   (display-line-numbers-mode -1)
-  ;; Hide leading space in dired-sidebar (single character spacing fix)
-  (when (derived-mode-p 'dired-sidebar-mode)
-    (font-lock-add-keywords nil '(("^\\s-+" 0 '(face nil display (space :width 0)))))
+  ;; Hide dired details (permissions, size, date) for cleaner display
+  (when (derived-mode-p 'dired-mode 'dired-sidebar-mode)
+    (dired-hide-details-mode 1)
+    ;; Hide the 2-char mark column at start of lines (space + permission char)
+    (setq-local dired-listing-switches "-l --group-directories-first")
+    (font-lock-add-keywords nil '(("^.." 0 '(face nil display ""))))
     (font-lock-flush))
   ;; Enable our keymap override - MUST set the variable to t for the keymap to be active
   (setq-local hyalo-sidebar-embedded t)

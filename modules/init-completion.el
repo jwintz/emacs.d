@@ -25,6 +25,7 @@
 (use-package consult
   :ensure t
   :bind (("C-x b" . consult-buffer)
+	 ("C-x C-r" . consult-recent-file)
          ("C-x 4 b" . consult-buffer-other-window)
          ("M-g g" . consult-goto-line)
          ("M-g M-g" . consult-goto-line)
