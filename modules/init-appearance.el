@@ -94,13 +94,7 @@
   :defer t
   :custom
   (demap-minimap-window-side 'right)
-  (demap-minimap-window-width 20)
-  :config
-  (defun my-demap-update-overlay-frame (minimap)
-    "Update a child frame to highlight the visible region.")
-
-  (advice-add 'demap--visible-region-mode-update :after #'my-demap-update-overlay-frame)
-)
+  (demap-minimap-window-width 20))
 
 (provide 'init-appearance)
 

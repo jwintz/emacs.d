@@ -97,7 +97,11 @@ This value is shared across light and dark appearances."
            (hyalo-appearance--apply-vibrancy))))
 
 (defcustom hyalo-appearance-alpha-elements
-  '(ns-alpha-all)
+; '(ns-alpha-all)
+  '(ns-alpha-default
+    ns-alpha-fringe
+    ns-alpha-relief
+    ns-alpha-glyphs)
   "List of Emacs elements to render with transparency.
 Available elements:
 - `ns-alpha-default': Default face/background

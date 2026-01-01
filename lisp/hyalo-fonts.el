@@ -189,16 +189,27 @@ allowing them to scale with the minimap."
                            :family "Redacted Script"
                            :weight 'regular
                            :slant 'normal)
+
+  (face-remap-add-relative 'demap-minimap-font-face
+                      :family "Redacted Script"
+                      :weight 'regular
+                      :height 0.3)
+
   ;; Ensure remappings persist if buffer is rebuilt
   (when (fboundp 'demap-minimap-protect-variables)
     (demap-minimap-protect-variables t 'face-remapping-alist)))
 
+(defun hyalo-fonts--update-demap-face (&rest _args)
+  (set-face-attribute 'demap-visible-region-face nil
+                      :box (list :line-width -4
+                                 :color (face-attribute 'default :background))))
+
+(hyalo-fonts--update-demap-face)
+
 (with-eval-after-load 'demap
-  (set-face-attribute 'demap-minimap-font-face nil
-                      :family "Redacted Script"
-                      :weight 'regular
-                      :height 0.3)
-  (add-hook 'demap-minimap-construct-hook #'hyalo-fonts--demap-fonts))
+  (add-hook 'demap-minimap-construct-hook #'hyalo-fonts--update-demap-face)
+  (add-hook 'demap-minimap-construct-hook #'hyalo-fonts--demap-fonts)
+  (add-hook 'enable-theme-functions #'hyalo-fonts--update-demap-face))
 
 (provide 'hyalo-fonts)
 
