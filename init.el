@@ -103,6 +103,7 @@
 (init--require-with-trace 'init-agents)     ;; copilot, agent-shell
 (init--require-with-trace 'init-terminal)   ;; eat
 (init--require-with-trace 'init-markdown)   ;; markdown-mode, obsidian
+(init--require-with-trace 'init-tengwar)    ;; tengwar transliteration
 
 ;;; ============================================================================
 ;;; Finalize

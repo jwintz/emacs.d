@@ -102,8 +102,14 @@
   (demap-minimap-window-width 20)
   :config
   (require 'hyalo-minimap)
+  ;; Override default to include Info-mode
+  (setq demap-track-window-mode-update-p-func
+        (lambda (&rest _) t))
   (add-hook 'demap-minimap-construct-hook #'hyalo-minimap-setup)
   (add-hook 'demap-minimap-window-set-hook #'hyalo-minimap-setup))
+
+(use-package olivetti
+  :ensure t)
 
 (provide 'init-appearance)
 
