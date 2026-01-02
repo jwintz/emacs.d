@@ -549,23 +549,58 @@ Returns list of alists with title, command, checked, enabled keys."
 
 (defun hyalo-header--find-lhs-rhs-separator (formatted)
   "Find the LHS/RHS separator position in FORMATTED mode-line string.
-Returns the position where RHS begins, or length if not found.
-Handles doom-modeline style (display property) and standard (multi-space)."
+Returns the position where RHS CONTENT begins (after the separator), or length if not found.
+Handles doom-modeline style (display property with align-to) and standard (multi-space)."
   (let ((len (length formatted))
         (sep-pos nil))
-    ;; Method 1: Look for display property with space/align-to (doom-modeline style)
+    ;; Method 1: Look for display property with (space :align-to ...) specifically
+    ;; This is the doom-modeline separator - NOT just any (space ...) display property
     (let ((pos 0))
-      (while (and (not sep-pos) (< pos len))
+      (while (< pos len)
         (let ((disp (get-text-property pos 'display formatted)))
-          (when (and disp (consp disp) (eq (car disp) 'space))
-            (setq sep-pos pos)))
+          (when (and disp
+                     (consp disp)
+                     (eq (car disp) 'space)
+                     (plist-get (cdr disp) :align-to))
+            ;; Found the doom-modeline separator!
+            ;; Skip past this character to where RHS content begins
+            (setq sep-pos (1+ pos))
+            (when hyalo-header--debug-extraction
+              (hyalo-debug 'header "Found align-to separator at pos %d, RHS starts at %d" pos sep-pos))))
         (setq pos (1+ pos))))
-    ;; Method 2: Look for multi-space gap (standard mode-line)
+    ;; Method 2: Look for the largest multi-space gap in the second half
+    ;; The doom-modeline separator creates a large gap
     (unless sep-pos
-      (let ((match (string-match "[^ ]  +" formatted)))
-        (when match
-          (setq sep-pos (1+ match)))))
-    ;; Return separator position or end of string
+      (let ((gaps nil)
+            (start 0)
+            (min-start-pct 0.3))  ; Separator is typically after 30% of the string
+        ;; Collect all gaps
+        (while (string-match "  +" formatted start)
+          (let ((gap-start (match-beginning 0))
+                (gap-end (match-end 0))
+                (gap-length (- (match-end 0) (match-beginning 0))))
+            (push (list gap-start gap-end gap-length) gaps)
+            (setq start gap-end)))
+        ;; Find the largest gap after min-start-pct - RHS starts at gap-end
+        (when gaps
+          (let ((best-length 0)
+                (best-gap nil))
+            (dolist (gap gaps)
+              (let ((gap-start (car gap))
+                    (gap-length (caddr gap)))
+                (when (and (> gap-start (* len min-start-pct))
+                           (> gap-length best-length))
+                  (setq best-length gap-length
+                        best-gap gap))))
+            (when best-gap
+              ;; RHS starts at the END of the gap (gap-end), not the start
+              (setq sep-pos (cadr best-gap))
+              (when hyalo-header--debug-extraction
+                (hyalo-debug 'header "Found gap separator, RHS starts at pos %d (gap length %d)"
+                             sep-pos (caddr best-gap))))))))
+    ;; Return separator position or end of string (everything is LHS)
+    (when hyalo-header--debug-extraction
+      (hyalo-debug 'header "Final: RHS starts at %d, total length %d" (or sep-pos len) len))
     (or sep-pos len)))
 
 (defun hyalo-header--extract-structured-segments ()
@@ -590,13 +625,17 @@ Extracts ALL text, including non-interactive spans (for icons)."
         (while (< pos len)
           (let ((km (or (get-text-property pos 'keymap formatted)
                         (get-text-property pos 'local-map formatted)))
-                (help (get-text-property pos 'help-echo formatted)))
-            ;; When properties change, close current span and start new one
-            (when (or (not (eq km current-map))
+                (help (get-text-property pos 'help-echo formatted))
+                ;; Also split at separator boundary
+                (at-separator (and (= pos sep-start) (> pos current-start))))
+            ;; When properties change OR we reach the separator, close current span
+            (when (or at-separator
+                      (not (eq km current-map))
                       (not (equal help current-help)))
               ;; Close previous span if it has content
-              (when (and (> pos current-start))
+              (when (> pos current-start)
                 (let* ((text (substring formatted current-start pos))
+                       ;; Segment is LHS if it ENDS before sep-start (strictly)
                        (side (if (< current-start sep-start) "lhs" "rhs"))
                        (menu-binding (when current-map
                                        (or (lookup-key current-map [mode-line down-mouse-1])
@@ -621,15 +660,17 @@ Extracts ALL text, including non-interactive spans (for icons)."
                                   (symbol-name menu-binding))))
                   ;; Only add non-empty, non-whitespace-only segments
                   (when (string-match-p "[^ \t]" text)
-                    (push `((text . ,text)
-                            (relStart . ,(/ (float current-start) len))
-                            (relEnd . ,(/ (float pos) len))
-                            (helpEcho . ,(when (stringp current-help) current-help))
-                            (side . ,side)
-                            (menuItems . ,menu-items)
-                            (command . ,command))
-                          segments))))
-              ;; Start new span
+                    ;; Trim leading/trailing whitespace for clean Swift display
+                    (let ((trimmed-text (string-trim text)))
+                      (push `((text . ,trimmed-text)
+                              (relStart . ,(/ (float current-start) len))
+                              (relEnd . ,(/ (float pos) len))
+                              (helpEcho . ,(when (stringp current-help) current-help))
+                              (side . ,side)
+                              (menuItems . ,menu-items)
+                              (command . ,command))
+                            segments)))))
+              ;; Start new span (but only if we're actually moving forward)
               (setq current-start pos
                     current-map km
                     current-help help)))
@@ -648,14 +689,16 @@ Extracts ALL text, including non-interactive spans (for icons)."
                  (command (when (and (not menu-items) (commandp menu-binding))
                             (symbol-name menu-binding))))
             (when (string-match-p "[^ \t]" text)
-              (push `((text . ,text)
-                      (relStart . ,(/ (float current-start) len))
-                      (relEnd . ,(/ (float pos) len))
-                      (helpEcho . ,(when (stringp current-help) current-help))
-                      (side . ,side)
-                      (menuItems . ,menu-items)
-                      (command . ,command))
-                    segments)))))
+              ;; Trim leading/trailing whitespace for clean Swift display
+              (let ((trimmed-text (string-trim text)))
+                (push `((text . ,trimmed-text)
+                        (relStart . ,(/ (float current-start) len))
+                        (relEnd . ,(/ (float pos) len))
+                        (helpEcho . ,(when (stringp current-help) current-help))
+                        (side . ,side)
+                        (menuItems . ,menu-items)
+                        (command . ,command))
+                      segments))))))
       ;; Debug output
       (when hyalo-header--debug-extraction
         (hyalo-debug 'header "Extracted %d segments" (length segments))

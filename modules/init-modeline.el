@@ -7,16 +7,18 @@
 (use-package keycast
   :ensure t
   :config
+  ;; Keycast uses mode-line-misc-info, which doom-modeline displays via misc-info segment
   (define-minor-mode keycast-mode
     "Show current command and its key binding in the mode line."
     :global t
     (if keycast-mode
         (progn
           (add-hook 'pre-command-hook 'keycast--update t)
-          (add-to-list 'global-mode-string '("" keycast-mode-line " ")))
+          ;; Push to front of mode-line-misc-info for first position in RHS
+          (push '("" keycast-mode-line " ") mode-line-misc-info))
       (progn
         (remove-hook 'pre-command-hook 'keycast--update)
-        (setq global-mode-string (delete '("" keycast-mode-line " ") global-mode-string))))))
+        (setq mode-line-misc-info (delete '("" keycast-mode-line " ") mode-line-misc-info))))))
 
 (use-package doom-modeline
   :ensure t
