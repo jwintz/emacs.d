@@ -421,30 +421,20 @@ Called by HyaloExecuteCommand notification from Swift.
 Triggers modeline refresh immediately after command execution.
 Can also be called interactively for testing."
   (interactive "sCommand name: ")
-  (message "[Hyalo] *** hyalo-execute-string-command CALLED with: %s ***" command-name)
   (let* ((sym (intern-soft command-name))
          (cmd (hyalo--safe-mode-line-command sym)))
-    (message "[Hyalo] sym=%S cmd=%S commandp=%S" sym cmd (and cmd (commandp cmd)))
     (if (and cmd (commandp cmd))
         ;; Run in timer to ensure we are in valid event context
-        (progn
-          (message "[Hyalo] Scheduling command execution via timer")
-          (run-at-time 0 nil
-                       (lambda (c)
-                         (message "[Hyalo] Timer fired, executing: %S" c)
-                         (with-demoted-errors "Mode-line command error: %S"
-                           (call-interactively c))
-                         (message "[Hyalo] Command executed, refreshing modeline")
-                         ;; Clear cache to force full refresh
-                         (setq hyalo-header--last-mode-line nil)
-                         ;; Force immediate modeline refresh
-                         (hyalo-header--update)
-                         ;; Force Emacs to redisplay
-                         (force-mode-line-update t)
-                         (redisplay t)
-                         (message "[Hyalo] Modeline refresh complete"))
-                       cmd))
-      (message "[Hyalo] ERROR: not a valid command: %s" command-name)
+        (run-at-time 0 nil
+                     (lambda (c)
+                       (with-demoted-errors "Mode-line command error: %S"
+                         (call-interactively c))
+                       ;; Clear cache and refresh modeline
+                       (setq hyalo-header--last-mode-line nil)
+                       (hyalo-header--update)
+                       (force-mode-line-update t)
+                       (redisplay t))
+                     cmd)
       (hyalo-error 'header "execute-string-command: not a valid command: %s" command-name))))
 
 (defun hyalo-header--invoke-mode-line-binding (map)
@@ -841,19 +831,13 @@ Called from `post-command-hook' to process clicks without polling."
 (defun hyalo-header--setup-modeline-click ()
   "Setup the mode-line click callback.
 Uses channel hooks for command execution - no timers or polling."
-  (message "[Hyalo] setup-modeline-click: STARTING")
   (hyalo-debug 'header "setup-modeline-click: checking if hyalo-setup-modeline-click-callback exists")
   (if (fboundp 'hyalo-setup-modeline-click-callback)
       (progn
-        (message "[Hyalo] setup-modeline-click: calling hyalo-setup-modeline-click-callback")
         (hyalo-debug 'header "setup-modeline-click: calling hyalo-setup-modeline-click-callback")
         (let ((result (hyalo-setup-modeline-click-callback)))
-          (message "[Hyalo] setup-modeline-click: result=%s" result)
           (hyalo-debug 'header "setup-modeline-click: result=%s" result))
-        (message "[Hyalo] setup-modeline-click: channel hooks installed")
         (hyalo-debug 'header "setup-modeline-click: channel hooks installed"))
-    (message "[Hyalo] setup-modeline-click: function NOT AVAILABLE")
     (hyalo-warn 'header "setup-modeline-click: function not available")))
 
 (provide 'hyalo-header)
-;;; hyalo-header.el ends here

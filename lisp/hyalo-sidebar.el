@@ -541,43 +541,69 @@ Call this after switching projects."
 
 ;;; Visibility Callbacks
 
+(defun hyalo-sidebar--safe-delete-frame (frame name)
+  "Safely delete FRAME if it's a valid sidebar frame.
+NAME is used for logging. Returns t if deleted, nil otherwise."
+  (when (and frame (frame-live-p frame))
+    ;; Safety check: never delete the main frame
+    (let ((parent (frame-parameter frame 'parent-frame)))
+      (if parent
+          (progn
+            (delete-frame frame)
+            t)
+        (hyalo-log 'sidebar "WARNING: Refusing to delete %s - no parent-frame!" name)
+        nil))))
+
 (defun hyalo-on-sidebar-visibility-changed (panel visible)
   "Callback from Swift when sidebar visibility changes.
-PANEL is 'left' or 'right'. VISIBLE is a boolean."
-  (hyalo-log 'sidebar "Visibility changed: %s %s" panel visible)
-  (when (string= panel "left")
-    (if visible
-        ;; Panel visible - setup frames if they don't exist
-        (unless (and hyalo-sidebar--left-top-frame
-                     (frame-live-p hyalo-sidebar--left-top-frame))
-          (hyalo-log 'sidebar "Triggering left-setup from callback")
-          (hyalo-sidebar--do-left-setup))
-      ;; Panel hidden - delete frames
-      (when (and hyalo-sidebar--left-top-frame
-                 (frame-live-p hyalo-sidebar--left-top-frame))
-        (delete-frame hyalo-sidebar--left-top-frame)
-        (setq hyalo-sidebar--left-top-frame nil))
-      (when (and hyalo-sidebar--left-bottom-frame
-                 (frame-live-p hyalo-sidebar--left-bottom-frame))
-        (delete-frame hyalo-sidebar--left-bottom-frame)
-        (setq hyalo-sidebar--left-bottom-frame nil)))))
+PANEL is 'left' or 'right'. VISIBLE is a boolean (t or nil).
+Note: Uses run-at-time to defer frame operations since this is called
+from a channel callback which may not be safe for frame manipulation."
+  ;; Ensure visible is a proper boolean (Swift false becomes nil)
+  (let ((visible-bool (not (null visible)))
+        (panel-str (if (stringp panel) panel (format "%s" panel))))
+    ;; Defer ALL processing to next event loop - channel callbacks are not safe
+    ;; for frame operations or heavy Elisp processing
+    (run-at-time 0 nil
+                 (lambda ()
+                   (when (string= panel-str "left")
+                     (if visible-bool
+                         ;; Panel visible - setup frames if they don't exist
+                         (unless (and hyalo-sidebar--left-top-frame
+                                      (frame-live-p hyalo-sidebar--left-top-frame))
+                           (hyalo-sidebar--do-left-setup))
+                       ;; Panel hidden - delete frames
+                       (when (or hyalo-sidebar--left-top-frame hyalo-sidebar--left-bottom-frame)
+                         (let ((top-frame hyalo-sidebar--left-top-frame)
+                               (bottom-frame hyalo-sidebar--left-bottom-frame))
+                           ;; Clear references immediately to prevent double-deletion
+                           (setq hyalo-sidebar--left-top-frame nil)
+                           (setq hyalo-sidebar--left-bottom-frame nil)
+                           ;; Delete the frames
+                           (hyalo-sidebar--safe-delete-frame top-frame "left-top-frame")
+                           (hyalo-sidebar--safe-delete-frame bottom-frame "left-bottom-frame")))))))))
 
 (defun hyalo-on-detail-visibility-changed (panel visible)
   "Callback from Swift when inspector visibility changes.
-PANEL is 'right'. VISIBLE is a boolean."
-  (hyalo-log 'sidebar "Detail visibility changed: %s %s" panel visible)
-  (when (string= panel "right")
-    (if visible
-        ;; Panel visible - setup frames if they don't exist
-        (unless (and hyalo-sidebar--right-frame
-                     (frame-live-p hyalo-sidebar--right-frame))
-          (hyalo-log 'sidebar "Triggering right-setup from callback")
-          (hyalo-sidebar-setup-right))
-      ;; Panel hidden - delete frames
-      (when (and hyalo-sidebar--right-frame
-                 (frame-live-p hyalo-sidebar--right-frame))
-        (delete-frame hyalo-sidebar--right-frame)
-        (setq hyalo-sidebar--right-frame nil)))))
+PANEL is 'right'. VISIBLE is a boolean.
+Note: Uses run-at-time to defer frame operations since this is called
+from a channel callback which may not be safe for frame manipulation."
+  ;; Defer ALL processing to next event loop
+  (run-at-time 0 nil
+               (lambda ()
+                 (when (string= panel "right")
+                   (if visible
+                       ;; Panel visible - setup frames if they don't exist
+                       (unless (and hyalo-sidebar--right-frame
+                                    (frame-live-p hyalo-sidebar--right-frame))
+                         (hyalo-sidebar-setup-right))
+                     ;; Panel hidden - delete frames
+                     (when hyalo-sidebar--right-frame
+                       (let ((right-frame hyalo-sidebar--right-frame))
+                         ;; Clear reference immediately to prevent double-deletion
+                         (setq hyalo-sidebar--right-frame nil)
+                         ;; Delete the frame
+                         (hyalo-sidebar--safe-delete-frame right-frame "right-frame"))))))))
 
 ;;; Visibility Watcher (for toolbar button integration)
 

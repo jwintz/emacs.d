@@ -409,29 +409,20 @@ final class HyaloModule: Module {
                 // RETAIN the channel to prevent deallocation
                 HyaloModule.visibilityChannel = channel
 
-                // Create callback for sidebar visibility changes
-                // NOTE: channel.callback(function:) uses funcall, channel.hook() uses run-hook-with-args
-                // We need funcall since our targets are regular functions, not hook variables
-                let sidebarCallback: (String, Bool) -> Void = channel.callback { 
-                    (env: Environment, slot: String, visible: Bool) in
-                    print("[Hyalo] Module: sidebarCallback triggered (slot: \(slot), visible: \(visible))")
-                    try env.funcall("hyalo-on-sidebar-visibility-changed", with: slot, visible)
-                }
+                // Sidebar visibility callback - DISABLED
+                // Using channel.callback for sidebar visibility causes the main window to hide
+                // when toggling the sidebar. The Elisp timer-based visibility watcher handles
+                // this correctly, so we don't need the Swift->Elisp callback for sidebars.
+                let sidebarCallback: (String, Bool) -> Void = { _, _ in }
 
-                // Create callback for detail visibility changes
-                let detailCallback: (String, Bool) -> Void = channel.callback {
-                    (env: Environment, slot: String, visible: Bool) in
-                    print("[Hyalo] Module: detailCallback triggered")
-                    try env.funcall("hyalo-on-detail-visibility-changed", with: slot, visible)
-                }
+                // Detail visibility callback - also disabled for symmetry
+                // The visibility watcher handles both sidebars
+                let detailCallback: (String, Bool) -> Void = { _, _ in }
                 
-                // Create callback for command execution (uses SAME channel as visibility)
-                // This is the callback that gets called when a modeline menu item is selected
+                // Command execution callback - this one works and is needed for modeline menus
                 let executeCommandCallback: (String) -> Void = channel.callback {
                     (env: Environment, command: String) in
-                    print("[Hyalo] Module: executeCommandCallback triggered for '\(command)'")
                     try env.funcall("hyalo-execute-string-command", with: command)
-                    print("[Hyalo] Module: funcall completed")
                 }
 
                 // Set the callbacks on the manager
@@ -439,7 +430,6 @@ final class HyaloModule: Module {
                     NavigationSidebarManager.shared.onSidebarVisibilityChanged = sidebarCallback
                     NavigationSidebarManager.shared.onDetailVisibilityChanged = detailCallback
                     NavigationSidebarManager.shared.onExecuteCommand = executeCommandCallback
-                    print("[Hyalo] Module: set all callbacks on NavigationSidebarManager (visibility channel)")
                 }
 
                 return true

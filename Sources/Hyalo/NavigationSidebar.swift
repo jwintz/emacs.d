@@ -128,13 +128,11 @@ final class ModeLineToolbarItemView: NSView {
             ]
             for name in names {
                 if let font = NSFont(name: name, size: size) {
-                    print("[Hyalo] SegmentView: Found Nerd Font '\(name)'")
                     cachedNerdFont = font
                     cachedNerdFontSize = size
                     return font
                 }
             }
-            print("[Hyalo] SegmentView: WARNING - No Nerd Font found!")
             return nil
         }
         
@@ -763,13 +761,8 @@ struct GlassMenuItemRow: View {
 
     var body: some View {
         Button(action: {
-            print("[Hyalo] GlassMenuItemRow: Button tapped for '\(item.title)' command='\(item.command)' enabled=\(item.enabled ?? true)")
             if item.enabled ?? true {
-                print("[Hyalo] GlassMenuItemRow: Calling onSelect with '\(item.command)'")
                 onSelect(item.command)
-                print("[Hyalo] GlassMenuItemRow: onSelect returned")
-            } else {
-                print("[Hyalo] GlassMenuItemRow: Item is disabled, not calling onSelect")
             }
         }) {
             HStack(spacing: 8) {
@@ -928,21 +921,14 @@ final class GlassMenuPopover: NSPopover, NSPopoverDelegate {
         onSelect: @escaping (String) -> Void
     ) {
         self.onCommandSelect = onSelect
-        print("[Hyalo] GlassMenuPopover: showMenu called with \(items.count) items, title='\(title)'")
 
         let menuView = GlassMenuView(
             title: title,
             items: items,
             onSelect: { [weak self] command in
-                print("[Hyalo] GlassMenuView: onSelect callback triggered with command='\(command)'")
-                // IMPORTANT: Call the callback BEFORE closing the popover
-                // Closing the popover disrupts the channel context
-                print("[Hyalo] GlassMenuPopover: calling onSelect callback BEFORE close")
+                // Call the callback BEFORE closing - closing disrupts the channel context
                 onSelect(command)
-                print("[Hyalo] GlassMenuPopover: onSelect callback returned, now closing")
-                // Close the popover AFTER the callback
                 self?.close()
-                print("[Hyalo] GlassMenuPopover: popover closed")
             }
         )
 
@@ -1382,12 +1368,6 @@ final class ModeLineGlassOverlayController {
                     let segmentLocation = segmentView.convert(windowLocation, from: nil)
                     if segmentView.bounds.contains(segmentLocation) {
                         let segment = segmentView.segment
-                        print("[Hyalo] Segment clicked: '\(segment.text)' menuItems=\(segment.menuItems?.count ?? 0) helpEcho=\(segment.helpEcho ?? "nil")")
-                        if let items = segment.menuItems {
-                            for (i, item) in items.prefix(3).enumerated() {
-                                print("[Hyalo]   menu[\(i)]: '\(item.title)'")
-                            }
-                        }
                         self.onSegmentClick?(segment, segmentView)
                         return nil // Consume the event
                     }
@@ -3455,9 +3435,8 @@ final class NavigationSidebarController: NSObject {
     /// The clicked segment view for popover positioning
     private weak var clickedSegmentView: NSView?
 
-    /// Show segment menu with Liquid Glass popover (picker style with arrow)
+    /// Show segment menu with Liquid Glass popover
     private func showSegmentMenuDirectly(items: [ModeLineMenuItem], for segment: ModeLineSegment, from view: NSView?) {
-        print("[Hyalo] showSegmentMenuDirectly: segment='\(segment.text.prefix(20))' items=\(items.count)")
         
         // Close any existing popover
         glassMenuPopover?.close()
@@ -3467,25 +3446,20 @@ final class NavigationSidebarController: NSObject {
         glassMenuPopover = popover
 
         // Use the segment view or fall back to modeLineView
-        guard let anchorView = view ?? modeLineGlassOverlay?.modeLineView else {
-            print("[Hyalo] showSegmentMenuDirectly: ERROR - No anchor view for menu popover")
-            return
-        }
+        guard let anchorView = view ?? modeLineGlassOverlay?.modeLineView else { return }
 
         popover.showMenu(
             items: items,
             title: segment.text.trimmingCharacters(in: .whitespaces),
             relativeTo: anchorView,
             onSelect: { [weak self] command in
-                print("[Hyalo] showSegmentMenuDirectly: onSelect received command='\(command)'")
                 self?.executeEmacsCommand(command)
             }
         )
     }
 
-    /// Execute an Emacs command by name and refresh modeline
+    /// Execute an Emacs command by name
     private func executeEmacsCommand(_ command: String) {
-        print("[Hyalo] executeEmacsCommand: calling directly for '\(command)'")
         NavigationSidebarManager.shared.executeCommand(command)
     }
 }
@@ -3508,54 +3482,37 @@ final class NavigationSidebarManager {
     var onModeLineClick: ((String, Double) -> Void)?
     
     /// Callback for executing Emacs commands by name
-    /// This is used instead of NotificationCenter to ensure channel hooks work
     var onExecuteCommand: ((String) -> Void)?
 
     /// Execute a command - calls the onExecuteCommand callback
     func executeCommand(_ command: String) {
-        print("[Hyalo] NavigationSidebarManager: executeCommand('\(command)')")
-        if let callback = onExecuteCommand {
-            print("[Hyalo] NavigationSidebarManager: invoking onExecuteCommand callback")
-            callback(command)
-        } else {
-            print("[Hyalo] NavigationSidebarManager: onExecuteCommand is nil!")
-        }
+        onExecuteCommand?(command)
     }
 
     /// Execute command asynchronously - escapes the Button action context
-    /// This ensures the channel hook is called from a clean run loop context
     func executeCommandAsync(_ command: String) {
-        print("[Hyalo] NavigationSidebarManager: executeCommandAsync('\(command)') - scheduling on main queue")
         DispatchQueue.main.async { [weak self] in
-            print("[Hyalo] NavigationSidebarManager: async block executing for '\(command)'")
-            if let callback = self?.onExecuteCommand {
-                print("[Hyalo] NavigationSidebarManager: invoking onExecuteCommand callback (async)")
-                callback(command)
-            } else {
-                print("[Hyalo] NavigationSidebarManager: onExecuteCommand is nil (async)!")
-            }
+            self?.onExecuteCommand?(command)
         }
     }
 
-    /// Notify about sidebar visibility change
+    // Track last visibility state to prevent duplicate callbacks
+    private var lastSidebarVisible: Bool? = nil
+    private var lastDetailVisible: Bool? = nil
+
+    /// Notify about sidebar visibility change (deduplicated)
     func notifySidebarVisibilityChanged(visible: Bool, needsSetup: Bool) {
-        print("[Hyalo] NavigationSidebarManager: notifySidebarVisibilityChanged(visible: \(visible))")
-        // Always notify Lisp so it can sync its internal state (e.g. dired buffer visibility)
-        if let callback = onSidebarVisibilityChanged {
-            print("[Hyalo] NavigationSidebarManager: invoking callback")
-            callback("left", visible)
-        } else {
-            print("[Hyalo] NavigationSidebarManager: onSidebarVisibilityChanged is nil")
-        }
+        guard lastSidebarVisible != visible else { return }
+        lastSidebarVisible = visible
+        onSidebarVisibilityChanged?("left", visible)
     }
 
-    /// Notify about detail visibility change
+    /// Notify about detail visibility change (deduplicated)
     func notifyDetailVisibilityChanged(visible: Bool, needsSetup: Bool) {
-        print("[Hyalo] NavigationSidebarManager: notifyDetailVisibilityChanged(visible: \(visible))")
-        // Always notify Lisp
+        guard lastDetailVisible != visible else { return }
+        lastDetailVisible = visible
         onDetailVisibilityChanged?("right", visible)
     }
-
 
 
     private init() {}
@@ -3576,10 +3533,8 @@ final class NavigationSidebarManager {
             self?.notifyDetailVisibilityChanged(visible: visible, needsSetup: needsSetup)
         }
         controller.onModeLineClick = { [weak self] segment, position in
-            print("[Hyalo] NavigationSidebarManager: received click from controller (segment=\(segment), position=\(position))")
             self?.onModeLineClick?(segment, position)
         }
-        print("[Hyalo] NavigationSidebarManager: wired controller.onModeLineClick for window \(key)")
 
         controllers[key] = controller
         return controller
