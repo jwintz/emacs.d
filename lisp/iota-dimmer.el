@@ -97,12 +97,37 @@ Buffers matching these patterns will never be dimmed."
 (defvar iota-dimmer-elog nil
   "Iota dimmer logger (nil if elog not loaded).")
 
-(defun iota-dimmer-log (msg &rest args)
-  "Log MSG with ARGS using elog if available, otherwise `message'."
+(defun iota-dimmer-info (msg &rest args)
+  "Log info level MSG with ARGS."
   (if (and iota-dimmer-elog (fboundp 'elog-info))
-      (apply #'elog-info iota-dimmer-elog (concat "[dimmer] " msg) args)
-    (let ((formatted (apply #'format (concat "[dimmer] " msg) args)))
-      (message "%s" formatted))))
+      (apply #'elog-info iota-dimmer-elog msg args)
+    (let ((out (apply #'format msg args)))
+      (message "[dimmer] %s" out))))
+
+(defun iota-dimmer-warn (msg &rest args)
+  "Log warning level MSG with ARGS."
+  (if (and iota-dimmer-elog (fboundp 'elog-warn))
+      (apply #'elog-warn iota-dimmer-elog msg args)
+    (let ((out (apply #'format msg args)))
+      (message "[dimmer] WARNING: %s" out))))
+
+(defun iota-dimmer-error (msg &rest args)
+  "Log error level MSG with ARGS."
+  (if (and iota-dimmer-elog (fboundp 'elog-error))
+      (apply #'elog-error iota-dimmer-elog msg args)
+    (let ((out (apply #'format msg args)))
+      (message "[dimmer] ERROR: %s" out))))
+
+(defun iota-dimmer-log (msg &rest args)
+  "Log MSG with ARGS using elog if available, otherwise `message'.
+Dispatches to specific levels based on content."
+  (cond
+   ((string-match-p "ERROR" msg)
+    (apply #'iota-dimmer-error msg args))
+   ((string-match-p "WARNING" msg)
+    (apply #'iota-dimmer-warn msg args))
+   (t
+    (apply #'iota-dimmer-info msg args))))
 
 (defun iota-dimmer-log-init ()
   "Initialize iota-dimmer logger if elog is available."

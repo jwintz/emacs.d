@@ -47,12 +47,57 @@ source file is newer than the built dylib."
 (defvar hyalo-elog nil
   "Hyalo module logger (nil if elog not loaded).")
 
-(defun hyalo-log (msg &rest args)
-  "Log MSG with ARGS using elog if available, otherwise `message'."
-  (if (and hyalo-elog (fboundp 'elog-info))
-      (apply #'elog-info hyalo-elog (concat "[hyalo] " msg) args)
-    (let ((formatted (apply #'format (concat "[hyalo] " msg) args)))
-      (message "%s" formatted))))
+(defun hyalo-trace (context msg &rest args)
+  "Log trace level MSG with ARGS in CONTEXT."
+  (let ((formatted (format "[%s] %s" context msg)))
+    (if (and hyalo-elog (fboundp 'elog-trace))
+        (apply #'elog-trace hyalo-elog formatted args)
+      ;; Trace ignored if elog not available
+      nil)))
+
+(defun hyalo-debug (context msg &rest args)
+  "Log debug level MSG with ARGS in CONTEXT."
+  (let ((formatted (format "[%s] %s" context msg)))
+    (if (and hyalo-elog (fboundp 'elog-debug))
+        (apply #'elog-debug hyalo-elog formatted args)
+      ;; Debug ignored if elog not available
+      nil)))
+
+(defun hyalo-info (context msg &rest args)
+  "Log info level MSG with ARGS in CONTEXT."
+  (let ((formatted (format "[%s] %s" context msg)))
+    (if (and hyalo-elog (fboundp 'elog-info))
+        (apply #'elog-info hyalo-elog formatted args)
+      (let ((out (apply #'format formatted args)))
+        (message "[hyalo] %s" out)))))
+
+(defun hyalo-warn (context msg &rest args)
+  "Log warning level MSG with ARGS in CONTEXT."
+  (let ((formatted (format "[%s] %s" context msg)))
+    (if (and hyalo-elog (fboundp 'elog-warn))
+        (apply #'elog-warn hyalo-elog formatted args)
+      (let ((out (apply #'format formatted args)))
+        (message "[hyalo] WARNING: %s" out)))))
+
+(defun hyalo-error (context msg &rest args)
+  "Log error level MSG with ARGS in CONTEXT."
+  (let ((formatted (format "[%s] %s" context msg)))
+    (if (and hyalo-elog (fboundp 'elog-error))
+        (apply #'elog-error hyalo-elog formatted args)
+      (let ((out (apply #'format formatted args)))
+        (message "[hyalo] ERROR: %s" out)))))
+
+(defun hyalo-log (context msg &rest args)
+  "Log MSG with ARGS in CONTEXT using elog if available, otherwise `message'.
+This is a compatibility wrapper around `hyalo-info'.
+It attempts to detect error/warning messages to route them appropriate."
+  (cond
+   ((or (string-match-p "ERROR" msg) (string-match-p "failed" msg))
+    (apply #'hyalo-error context msg args))
+   ((string-match-p "WARNING" msg)
+    (apply #'hyalo-warn context msg args))
+   (t
+    (apply #'hyalo-info context msg args))))
 
 
 (defun hyalo-log-init ()
@@ -130,14 +175,14 @@ Returns non-nil on success."
          (config (if release "release" "release"))  ; Always release for now
          (buffer-name "*hyalo-build*")
          (cmd (format "swift build -c %s" config)))
-    (hyalo-log "Building (%s)..." config)
+    (hyalo-log 'core "Building (%s)..." config)
     (let ((result (call-process-shell-command cmd nil buffer-name t)))
       (if (= result 0)
           (progn
-            (hyalo-log "Build successful")
+            (hyalo-log 'core "Build successful")
             t)
         (pop-to-buffer buffer-name)
-        (hyalo-log "Build failed (see %s)" buffer-name)
+        (hyalo-log 'core "Build failed (see %s)" buffer-name)
         nil))))
 
 (defun hyalo-rebuild-and-reload ()
@@ -151,12 +196,12 @@ This is useful during development to pick up Swift code changes."
               (progn
                 (module-load dylib-path)
                 (setq hyalo--loaded t)
-                (hyalo-log "Rebuilt and reloaded from %s" dylib-path)
+                (hyalo-log 'core "Rebuilt and reloaded from %s" dylib-path)
                 t)
             (error
-             (hyalo-log "Reload failed: %s" (error-message-string err))
+             (hyalo-log 'core "Reload failed: %s" (error-message-string err))
              nil))
-        (hyalo-log "No dylib found after build")
+        (hyalo-log 'core "No dylib found after build")
         nil))))
 
 ;;; Module Path Discovery
@@ -181,15 +226,15 @@ Returns non-nil on success, nil on failure."
   (interactive)
   (cond
    (hyalo--loaded
-    (hyalo-log "Already loaded")
+    (hyalo-log 'core "Already loaded")
     t)
    ;; Auto-build if enabled and needed
    ((and hyalo-auto-build
          (hyalo--needs-rebuild-p))
-    (hyalo-log "Module needs building, auto-building...")
+    (hyalo-log 'core "Module needs building, auto-building...")
     (if (hyalo-build t)
         (hyalo--do-load)
-      (hyalo-log "Auto-build failed")
+      (hyalo-log 'core "Auto-build failed")
       nil))
    (t
     (hyalo--do-load))))
@@ -200,16 +245,16 @@ Returns non-nil on success."
   (let ((dylib-path (hyalo--find-dylib)))
     (if (null dylib-path)
         (progn
-          (hyalo-log "Dynamic module not found. Run: swift build -c release")
+          (hyalo-log 'core "Dynamic module not found. Run: swift build -c release")
           nil)
       (condition-case err
           (progn
             (module-load dylib-path)
             (setq hyalo--loaded t)
-            (hyalo-log "Loaded from %s" dylib-path)
+            (hyalo-log 'core "Loaded from %s" dylib-path)
             t)
         (error
-         (hyalo-log "Failed to load module: %s" (error-message-string err))
+         (hyalo-log 'core "Failed to load module: %s" (error-message-string err))
          nil)))))
 
 ;;; Module Availability

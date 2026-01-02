@@ -58,7 +58,7 @@ Otherwise, infer from agent-shell state."
            (title (if model-name
                       (format "%s (%s)" buffer-name model-name)
                     buffer-name)))
-       (hyalo-log "Agent Extras: Updating header. Title: %s, Busy: %s (Status: %s, Override: %s)" 
+       (hyalo-log 'agent-extras "Updating header. Title: %s, Busy: %s (Status: %s, Override: %s)" 
                 title busy status busy-override)
        (hyalo-set-inspector-header title icon busy))))
 
@@ -66,12 +66,12 @@ Otherwise, infer from agent-shell state."
 
 (defun hyalo-agent-extras--on-heartbeat-start (&rest _args)
   "Called when agent starts thinking."
-  (hyalo-log "Agent Extras: Heartbeat START")
+  (hyalo-log 'agent-extras "Heartbeat START")
   (hyalo-agent-extras--update-inspector-header t))
 
 (defun hyalo-agent-extras--on-heartbeat-stop (&rest _args)
   "Called when agent stops thinking."
-  (hyalo-log "Agent Extras: Heartbeat STOP")
+  (hyalo-log 'agent-extras "Heartbeat STOP")
   (hyalo-agent-extras--update-inspector-header nil))
 
 (defun hyalo-agent-extras--on-header-update (&rest _args)
@@ -80,7 +80,7 @@ Only sync if NOT busy (busy frames are handled by heartbeat start/stop to avoid 
   (when (boundp 'agent-shell--state)
     (let ((status (map-nested-elt agent-shell--state '(:heartbeat :status))))
       (unless (memq status '(busy started))
-        (hyalo-log "Agent Extras: Header update (idle)")
+        (hyalo-log 'agent-extras "Header update (idle)")
         (hyalo-agent-extras--update-inspector-header)))))
 
 ;;; Fragment Update Override (Thought Process Padding)

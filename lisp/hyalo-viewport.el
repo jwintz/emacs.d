@@ -106,7 +106,7 @@ Queries the Swift module for the authoritative value."
                         hyalo-viewport-excluded-modes))
         (intersects (hyalo-viewport--window-intersects-header-p window)))
     (when hyalo-viewport-debug
-      (hyalo-log "Eligible check win=%s: graphic=%s live=%s minibuf=%s eq-mini=%s sidebar=%s mode=%s excluded=%s intersects=%s"
+      (hyalo-log 'viewport "Eligible check win=%s: graphic=%s live=%s minibuf=%s eq-mini=%s sidebar=%s mode=%s excluded=%s intersects=%s"
                         window graphic live minibuf eq-mini sidebar mode excluded intersects))
     (and graphic live (not minibuf) (not eq-mini) (not sidebar) (not excluded) intersects)))
 
@@ -161,7 +161,7 @@ If HEIGHT is 0, clears the overlay display."
           (overlay-put ov 'before-string (propertize "\n" 'line-height height))
         (overlay-put ov 'before-string nil))
       (when hyalo-viewport-debug
-        (hyalo-log "Viewport: window=%s height=%spx" window height)))))
+        (hyalo-log 'viewport "window=%s height=%spx" window height)))))
 
 (defun hyalo-viewport--remove-overlay (window)
   "Remove the offset overlay for WINDOW."
@@ -295,7 +295,7 @@ Called from `window-buffer-change-functions'."
   (hyalo-viewport--setup-magit)
   ;; Initial update for all windows
   (hyalo-viewport--update-all-windows)
-  (hyalo-log "Viewport: Enabled"))
+  (hyalo-log 'viewport "Enabled"))
 
 (defun hyalo-viewport--disable ()
   "Disable viewport offset management."
@@ -309,7 +309,7 @@ Called from `window-buffer-change-functions'."
   (hyalo-viewport--teardown-magit)
   ;; Remove all overlays
   (hyalo-viewport--remove-all-overlays)
-  (hyalo-log "Viewport: Disabled"))
+  (hyalo-log 'viewport "Disabled"))
 
 ;;;###autoload
 (define-minor-mode hyalo-viewport-mode

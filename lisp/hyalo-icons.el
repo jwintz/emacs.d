@@ -43,10 +43,12 @@ Returns empty string if ICON is nil."
 
 (defun hyalo-icons-for-mode (mode)
   "Get icon for MODE, stripped of foreground if monochrome enabled.
-Returns empty string if no icon found."
-  (if (fboundp 'nerd-icons-icon-for-mode)
-      (hyalo-icons-strip-foreground (nerd-icons-icon-for-mode mode))
-    ""))
+Returns empty string if no icon found or on error."
+  (condition-case nil
+      (if (fboundp 'nerd-icons-icon-for-mode)
+          (hyalo-icons-strip-foreground (nerd-icons-icon-for-mode mode))
+        "")
+    (error "")))
 
 (defun hyalo-icons-for-file (file &rest args)
   "Get icon for FILE, stripped of foreground if monochrome enabled."

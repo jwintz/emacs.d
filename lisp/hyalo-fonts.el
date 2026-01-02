@@ -18,6 +18,8 @@
 
 ;;; Code:
 
+(require 'color)
+
 (eval-when-compile
   (require 'fontaine nil t))
 
@@ -46,7 +48,8 @@
            :italic-slant normal  ; Radon is inherently italic-looking
 
            ;; Line numbers: slightly lighter
-           :line-number-height 0.9)
+           ;; :line-number-height 0.9
+	   )
 
           (presentation
            :inherit default
@@ -200,9 +203,17 @@ allowing them to scale with the minimap."
     (demap-minimap-protect-variables t 'face-remapping-alist)))
 
 (defun hyalo-fonts--update-demap-face (&rest _args)
+  (let* ((base-color (face-attribute 'default :background))
+       (tint-color (face-attribute 'highlight :background))
+       (alpha      0.9)
+       (blended-color (apply 'color-rgb-to-hex
+                             (color-blend (color-name-to-rgb tint-color)
+                                          (color-name-to-rgb base-color)
+                                          alpha))))
+  ;; Apply the face attribute
   (set-face-attribute 'demap-visible-region-face nil
-                      :box (list :line-width -4
-                                 :color (face-attribute 'default :background))))
+                      :box (list :line-width -4          ;; -4 ??
+                                 :color blended-color))))
 
 (hyalo-fonts--update-demap-face)
 

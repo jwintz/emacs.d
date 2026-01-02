@@ -13,7 +13,12 @@
   :ensure t
   :demand t
   :config
-  (require 'nerd-icons))
+  (require 'nerd-icons)
+  ;; Use FontAwesome icons for default directories and files
+  (setf (cdr (assoc ".?" nerd-icons-dir-icon-alist))
+        '(nerd-icons-faicon "nf-fa-folder"))
+  (setq nerd-icons-default-file-icon
+        '(nerd-icons-faicon "nf-fa-file")))
 
 (use-package nerd-icons-dired
   :ensure t
@@ -94,7 +99,11 @@
   :defer t
   :custom
   (demap-minimap-window-side 'right)
-  (demap-minimap-window-width 20))
+  (demap-minimap-window-width 20)
+  :config
+  (require 'hyalo-minimap)
+  (add-hook 'demap-minimap-construct-hook #'hyalo-minimap-setup)
+  (add-hook 'demap-minimap-window-set-hook #'hyalo-minimap-setup))
 
 (provide 'init-appearance)
 

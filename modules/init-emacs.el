@@ -15,18 +15,18 @@
 ;; Towards using box instead of highlight for visible region indication
 ;;
 
-(require 'color)
+(require ’color)
 
 (let* ((base-color (face-attribute 'default :background))
-       (tint-color \"red\") ;; The color at hand
-       (alpha      0.2)
+       (tint-color (face-attribute 'highlight :background))
+       (alpha      0.9)
        (blended-color (apply 'color-rgb-to-hex
                              (color-blend (color-name-to-rgb tint-color)
                                           (color-name-to-rgb base-color)
                                           alpha))))
   ;; Apply the face attribute
-  (set-face-attribute 'the-face
-                      :box (list :line-width -4          ;; -4 ??
+  (set-face-attribute 'demap-visible-region-face nil
+                      :box (list :line-width -4
                                  :color blended-color)))
 ")
   ;; Cursor

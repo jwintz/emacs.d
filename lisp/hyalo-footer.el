@@ -121,7 +121,7 @@ Use this instead of `setq' to ensure the pattern is applied."
              (fboundp 'hyalo-set-footer-pattern)
              (boundp 'hyalo-footer-mode)
              hyalo-footer-mode)
-    (hyalo-log "Footer: Setting pattern to '%s'" hyalo-footer-pattern)
+    (hyalo-log 'footer "Setting pattern to '%s'" hyalo-footer-pattern)
     (hyalo-set-footer-pattern hyalo-footer-pattern)))
 
 (defun hyalo-footer--apply-background-alpha ()
@@ -130,7 +130,7 @@ Use this instead of `setq' to ensure the pattern is applied."
              (fboundp 'hyalo-set-footer-background-alpha)
              (boundp 'hyalo-footer-mode)
              hyalo-footer-mode)
-    (hyalo-log "Footer: Setting background alpha to %s" hyalo-footer-background-alpha)
+    (hyalo-log 'footer "Setting background alpha to %s" hyalo-footer-background-alpha)
     (hyalo-set-footer-background-alpha hyalo-footer-background-alpha)))
 
 (defun hyalo-footer--apply-pattern-alpha ()
@@ -139,7 +139,7 @@ Use this instead of `setq' to ensure the pattern is applied."
              (fboundp 'hyalo-set-footer-pattern-alpha)
              (boundp 'hyalo-footer-mode)
              hyalo-footer-mode)
-    (hyalo-log "Footer: Setting pattern alpha to %s" hyalo-footer-pattern-alpha)
+    (hyalo-log 'footer "Setting pattern alpha to %s" hyalo-footer-pattern-alpha)
     (hyalo-set-footer-pattern-alpha hyalo-footer-pattern-alpha)))
 
 ;;; Internal State
@@ -237,7 +237,7 @@ This dynamically adapts to the current minibuffer height."
 
     ;; Initial height update
     (hyalo-footer--update-height)
-    (hyalo-log "Footer: Enabled with pattern '%s'" hyalo-footer-pattern)))
+    (hyalo-log 'footer "Enabled with pattern '%s'" hyalo-footer-pattern)))
 
 (defun hyalo-footer--disable ()
   "Disable footer pattern mode."
@@ -262,7 +262,7 @@ This dynamically adapts to the current minibuffer height."
              (fboundp 'hyalo-set-footer-height))
     (hyalo-set-footer-height 0))
 
-  (hyalo-log "Footer: Disabled"))
+  (hyalo-log 'footer "Disabled"))
 
 ;;;###autoload
 (define-minor-mode hyalo-footer-mode

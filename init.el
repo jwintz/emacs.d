@@ -88,7 +88,7 @@
   `(let ((start (float-time)))
      (require ,feature ,filename)
      (when (and (fboundp 'elog-info) (boundp 'emacs-logger))
-       (elog-info emacs-logger "Module loaded: %s (%.3fs)" ,feature (- (float-time) start)))))
+       (elog-info emacs-logger "[%s] Loaded (%.3fs)" ,feature (- (float-time) start)))))
 
 (init--require-with-trace 'init-emacs)      ;; cursor, startup, recentf, saveplace
 (init--require-with-trace 'init-help)       ;; helpful, elisp-refs
@@ -109,6 +109,6 @@
 
 (let ((duration (float-time (time-subtract (current-time) before-init-time))))
   (when (and (fboundp 'elog-info) (boundp 'emacs-logger))
-    (elog-info emacs-logger "Init complete (%.3fs)" duration)))
+    (elog-info emacs-logger "[init] Complete (%.3fs)" duration)))
 
 ;;; init.el ends here

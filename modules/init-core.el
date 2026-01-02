@@ -45,6 +45,15 @@
   :config
   (which-key-mode 1))
 
+;;;; Quiet Custom Save
+
+(defun hyalo-inhibit-custom-save-message (orig-fun &rest args)
+  "Inhibit messages when saving customizations."
+  (let ((inhibit-message t))
+    (apply orig-fun args)))
+
+(advice-add 'custom-save-all :around #'hyalo-inhibit-custom-save-message)
+
 (provide 'init-core)
 
 ;;; init-core.el ends here

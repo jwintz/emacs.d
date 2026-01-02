@@ -291,7 +291,7 @@ Always saves to custom.el unless NO-SAVE is non-nil."
     ;; Sync appearance mode to Swift panel
     (when (and (hyalo-available-p) (fboundp 'hyalo-set-panel-appearance-mode))
       (hyalo-set-panel-appearance-mode (symbol-name appearance))))
-  (hyalo-log "Appearance set to %s%s" appearance (if no-save "" " (saved)")))
+  (hyalo-log 'appearance "set to %s%s" appearance (if no-save "" " (saved)")))
 
 (defun hyalo-appearance-sync-from-panel (&optional save)
   "Sync all appearance settings from Swift panel to Emacs.
@@ -357,7 +357,7 @@ Applies to all frames without changing the theme."
     (when (and (hyalo-available-p) (fboundp 'hyalo-refresh-appearance-panel))
       (hyalo-refresh-appearance-panel))
     (customize-save-variable 'hyalo-appearance-opacity clamped)
-    (hyalo-log "Opacity set to %.2f" clamped)))
+    (hyalo-log 'appearance "Opacity set to %.2f" clamped)))
 
 (defun hyalo-appearance-set-vibrancy (material)
   "Set vibrancy MATERIAL style.
@@ -372,7 +372,7 @@ Use ultraThin for maximum see-through effect."
   (when (and (hyalo-available-p) (fboundp 'hyalo-refresh-appearance-panel))
     (hyalo-refresh-appearance-panel))
   (customize-save-variable 'hyalo-appearance-vibrancy-material material)
-  (hyalo-log "Vibrancy material set to %s" material))
+  (hyalo-log 'appearance "Vibrancy material set to %s" material))
 
 ;;; Panel Timer (active only while panel is open)
 
@@ -462,7 +462,7 @@ Syncs to Emacs variables and saves if values differ."
 Use this to persist settings adjusted in the panel."
   (interactive)
   (hyalo-appearance-sync-from-panel t)
-  (hyalo-log "Appearance settings saved"))
+  (hyalo-log 'appearance "Settings saved"))
 
 (defun hyalo-appearance-save-from-panel ()
   "Called from Swift when panel settings change.
@@ -491,7 +491,7 @@ This is the callback function that Swift calls via the pending actions mechanism
     (let ((appearance (hyalo-appearance-current)))
       (hyalo-appearance--apply-window-appearance appearance)
       (hyalo-appearance--apply-vibrancy))
-    (hyalo-log "Appearance settings saved from panel")))
+    (hyalo-log 'appearance "Settings saved from panel")))
 
 
 ;;; Mode Definition
@@ -546,11 +546,11 @@ Syncs SAVED Emacs values TO Swift - does not override them."
         (add-hook 'after-make-frame-functions #'hyalo-appearance--setup-frame)
         ;; Mark initialization complete - hooks can now sync from panel
         (setq hyalo-appearance--initialized t)
-        (hyalo-log "Appearance: Enabled (appearance: %s, opacity: %.2f, vibrancy: %s)"
+        (hyalo-log 'appearance "Enabled (appearance: %s, opacity: %.2f, vibrancy: %s)"
                  (hyalo-appearance-current)
                  hyalo-appearance-opacity
                  hyalo-appearance-vibrancy-material))
-    (error (hyalo-log "Appearance: Failed to enable: %s" err))))
+    (error (hyalo-log 'appearance "Failed to enable: %s" err))))
 
 (defun hyalo-appearance--disable ()
   "Disable appearance management."
@@ -565,7 +565,7 @@ Syncs SAVED Emacs values TO Swift - does not override them."
   (remove-hook 'after-make-frame-functions #'hyalo-appearance--setup-frame)
   (dolist (frame (frame-list))
     (set-frame-parameter frame 'alpha-background 1.0))
-  (hyalo-log "Appearance: Disabled"))
+  (hyalo-log 'appearance "Disabled"))
 
 ;;;###autoload
 (define-minor-mode hyalo-appearance-mode

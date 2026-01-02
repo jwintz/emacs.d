@@ -32,7 +32,7 @@
     "copilot-stderr"
     "*copilot events*" "*copilot-language-server-log*"
 ;   "~/.config/emacs/.local/copilot-stderr"
-    "*elog*")
+    "*elog*" "*Minimap*")
   "List of buffer name patterns to exclude from sidebar ibuffer.
 Patterns starting with space match hidden buffers.
 Patterns are matched as substrings of buffer names."
@@ -44,7 +44,7 @@ Patterns are matched as substrings of buffer names."
     Custom-mode messages-buffer-mode
     treemacs-mode ibuffer-mode dired-mode
     minibuffer-inactive-mode echo-area-mode
-    dired-sidebar-mode)
+    dired-sidebar-mode agent-shell-mode)
   "List of major modes to exclude from sidebar ibuffer."
   :type '(repeat symbol)
   :group 'hyalo-ibuffer)
@@ -224,7 +224,7 @@ If NOSELECT is non-nil, don't select the buffer."
   "Configure ibuffer for sidebar display.
 Minimal display: just buffer list, no headers, no empty lines."
   (interactive)
-  (hyalo-log "Ibuffer Setup: Starting configuration...")
+  (hyalo-log 'ibuffer "Setup: Starting configuration...")
 
   ;; CRITICAL: Disable all filter groups BEFORE setting format
   ;; These must be set before ibuffer-update to prevent "[ Default ]"
