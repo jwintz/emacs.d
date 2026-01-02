@@ -52,15 +52,14 @@
 
 (use-package multiple-cursors
   :ensure t
-  :demand t  ; Force load at startup so :config runs
+  :demand t
   :general
   ("M-s-<down>" 'mc/mark-next-like-this)
   ("M-s-<up>"   'mc/mark-previous-like-this)
   :init
-  ;; Define helper functions at init time so they exist when :config runs
-  ;; Fake cursor styling for hbar: mc only supports bar (vertical), not hbar.
+  ;; Helper functions defined at init time
   (defun iota/mc-cursor-is-hbar ()
-    "Return non-nil if cursor-type is hbar (horizontal bar/underline)."
+    "Return non-nil if cursor-type is hbar."
     (let ((ct (if (eq cursor-type t)
                   (frame-parameter nil 'cursor-type)
                 cursor-type)))
@@ -68,15 +67,13 @@
           (and (listp ct) (eq (car ct) 'hbar)))))
 
   (defun iota/mc-hbar-face ()
-    "Return face spec for hbar (underline) fake cursors."
+    "Return face spec for hbar fake cursors."
     (let ((cursor-color (face-background 'cursor nil t)))
-      ;; Use underline with cursor background color
       `(:underline (:color ,cursor-color :style line)
-        :inverse-video nil
-        :inherit nil)))
+        :inverse-video nil)))
 
   (defun iota/mc-fix-cursor-overlay-inline (orig-fun pos)
-    "Advice around mc/make-cursor-overlay-inline to support hbar cursors."
+    "Advice to support hbar cursors."
     (if (and (bound-and-true-p mc/match-cursor-style) (iota/mc-cursor-is-hbar))
         (let ((overlay (make-overlay pos (1+ pos) nil nil nil)))
           (overlay-put overlay 'face (iota/mc-hbar-face))
@@ -84,7 +81,7 @@
       (funcall orig-fun pos)))
 
   (defun iota/mc-fix-cursor-overlay-at-eol (orig-fun pos)
-    "Advice around mc/make-cursor-overlay-at-eol to support hbar cursors."
+    "Advice for hbar cursors at end of line."
     (if (and (bound-and-true-p mc/match-cursor-style) (iota/mc-cursor-is-hbar))
         (let ((overlay (make-overlay pos pos nil nil nil)))
           (overlay-put overlay 'after-string
@@ -92,26 +89,22 @@
           overlay)
       (funcall orig-fun pos)))
 
-  (defun iota/mc-refresh-cursors-on-toggle ()
-    "Force cursor refresh when god-mode toggles."
+  (defun iota/mc-refresh-cursors ()
+    "Refresh fake cursor faces when cursor-type changes."
     (when (bound-and-true-p multiple-cursors-mode)
       (mc/for-each-fake-cursor
-       (let ((overlay cursor))
-         (when (overlayp overlay)
-           (if (iota/mc-cursor-is-hbar)
-               (overlay-put overlay 'face (iota/mc-hbar-face))
-             (overlay-put overlay 'face 'mc/cursor-face)))))))
+       (when (overlayp cursor)
+         (overlay-put cursor 'face
+                      (if (iota/mc-cursor-is-hbar)
+                          (iota/mc-hbar-face)
+                        'mc/cursor-face))))))
 
   :config
   (define-key mc/keymap (kbd "C-g") 'mc/keyboard-quit)
-
-  ;; Apply advice - functions are already defined from :init
   (advice-add 'mc/make-cursor-overlay-inline :around #'iota/mc-fix-cursor-overlay-inline)
   (advice-add 'mc/make-cursor-overlay-at-eol :around #'iota/mc-fix-cursor-overlay-at-eol)
-
-  ;; Update existing cursors when god-mode toggles
-  (add-hook 'god-mode-enabled-hook #'iota/mc-refresh-cursors-on-toggle)
-  (add-hook 'god-mode-disabled-hook #'iota/mc-refresh-cursors-on-toggle))
+  (add-hook 'god-mode-enabled-hook #'iota/mc-refresh-cursors)
+  (add-hook 'god-mode-disabled-hook #'iota/mc-refresh-cursors))
 
 (use-package windmove
   :ensure nil
