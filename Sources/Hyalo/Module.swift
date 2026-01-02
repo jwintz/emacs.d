@@ -52,7 +52,6 @@ final class HyaloModule: Module {
     // Static reference to keep channel alive
     static var visibilityChannel: Any?
     static var modeLineClickChannel: Any?
-    static var commandObserver: Any?
 
     // NOTE: lastModeLineClick is only used during click handling, not for polling
     static var lastModeLineClick: (segment: String, position: Double)? = nil
@@ -400,6 +399,7 @@ final class HyaloModule: Module {
             This enables Swift to notify Elisp when toolbar buttons toggle panels.
             The callbacks call `hyalo-on-sidebar-visibility-changed' and
             `hyalo-on-detail-visibility-changed' hooks respectively.
+            Also sets up the command execution callback for modeline menus.
             """
         ) { (env: Environment) throws -> Bool in
             if #available(macOS 26.0, *) {
@@ -410,23 +410,36 @@ final class HyaloModule: Module {
                 HyaloModule.visibilityChannel = channel
 
                 // Create callback for sidebar visibility changes
-                let sidebarCallback: (String, Bool) -> Void = { slot, visible in
+                // NOTE: channel.callback(function:) uses funcall, channel.hook() uses run-hook-with-args
+                // We need funcall since our targets are regular functions, not hook variables
+                let sidebarCallback: (String, Bool) -> Void = channel.callback { 
+                    (env: Environment, slot: String, visible: Bool) in
                     print("[Hyalo] Module: sidebarCallback triggered (slot: \(slot), visible: \(visible))")
-                    let hook: (String, Bool) -> Void = channel.hook("hyalo-on-sidebar-visibility-changed")
-                    hook(slot, visible)
+                    try env.funcall("hyalo-on-sidebar-visibility-changed", with: slot, visible)
                 }
 
                 // Create callback for detail visibility changes
-                let detailCallback: (String, Bool) -> Void = { slot, visible in
+                let detailCallback: (String, Bool) -> Void = channel.callback {
+                    (env: Environment, slot: String, visible: Bool) in
                     print("[Hyalo] Module: detailCallback triggered")
-                    let hook: (String, Bool) -> Void = channel.hook("hyalo-on-detail-visibility-changed")
-                    hook(slot, visible)
+                    try env.funcall("hyalo-on-detail-visibility-changed", with: slot, visible)
+                }
+                
+                // Create callback for command execution (uses SAME channel as visibility)
+                // This is the callback that gets called when a modeline menu item is selected
+                let executeCommandCallback: (String) -> Void = channel.callback {
+                    (env: Environment, command: String) in
+                    print("[Hyalo] Module: executeCommandCallback triggered for '\(command)'")
+                    try env.funcall("hyalo-execute-string-command", with: command)
+                    print("[Hyalo] Module: funcall completed")
                 }
 
                 // Set the callbacks on the manager
                 DispatchQueue.main.async {
                     NavigationSidebarManager.shared.onSidebarVisibilityChanged = sidebarCallback
                     NavigationSidebarManager.shared.onDetailVisibilityChanged = detailCallback
+                    NavigationSidebarManager.shared.onExecuteCommand = executeCommandCallback
+                    print("[Hyalo] Module: set all callbacks on NavigationSidebarManager (visibility channel)")
                 }
 
                 return true
@@ -477,54 +490,8 @@ final class HyaloModule: Module {
                     print("[Hyalo] Module: set NavigationSidebarManager.shared.onModeLineClick")
                 }
 
-                // Remove existing observer if any
-                if let observer = HyaloModule.commandObserver {
-                    NotificationCenter.default.removeObserver(observer)
-                    HyaloModule.commandObserver = nil
-                }
-
-                // Setup observer for command execution from menus
-                // NOTE: We capture `channel` strongly here since it's already retained
-                // in HyaloModule.modeLineClickChannel. Using weak caused nil issues.
-                HyaloModule.commandObserver = NotificationCenter.default.addObserver(
-                    forName: NSNotification.Name("HyaloExecuteCommand"),
-                    object: nil,
-                    queue: .main
-                ) { notification in
-                    print("[Hyalo] Module: HyaloExecuteCommand notification received")
-                    guard let userInfo = notification.userInfo,
-                          let command = userInfo["command"] as? String else {
-                        print("[Hyalo] Module: ERROR - no command in userInfo")
-                        return
-                    }
-                    
-                    print("[Hyalo] Module: executing command: \(command)")
-                    
-                    // CRITICAL: Focus restoration sequence for channel hooks
-                    // The popover closing may have temporarily unfocused Emacs.
-                    // We need to ensure Emacs is fully focused before calling the hook.
-                    if #available(macOS 26.0, *) {
-                        if let window = findEmacsWindow() {
-                            // Step 1: Make sure window is key
-                            window.makeKeyAndOrderFront(nil)
-                            
-                            // Step 2: Restore Emacs first responder
-                            let controller = NavigationSidebarManager.shared.getController(for: window)
-                            controller.restoreEmacsFocus()
-                            print("[Hyalo] Module: focus restored to Emacs")
-                        }
-                    }
-                    
-                    // Step 3: Allow event loop to process focus change,
-                    // then call the hook. Use asyncAfter to ensure Emacs
-                    // has time to process the focus restoration events.
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                        print("[Hyalo] Module: calling hook hyalo-execute-string-command (after focus delay)")
-                        let hook: (String) -> Void = channel.hook("hyalo-execute-string-command")
-                        hook(command)
-                        print("[Hyalo] Module: hook called")
-                    }
-                }
+                // NOTE: executeCommandCallback is now set up in hyalo-setup-visibility-callbacks
+                // using the hyalo-visibility channel which is proven to work
 
                 return true
             }

@@ -418,8 +418,10 @@ This simulates a mouse-1 click on the mode-line to trigger native popups."
 (defun hyalo-execute-string-command (command-name)
   "Execute command from Swift by name.
 Called by HyaloExecuteCommand notification from Swift.
-Triggers modeline refresh immediately after command execution."
-  (message "[Hyalo] hyalo-execute-string-command called with: %s" command-name)
+Triggers modeline refresh immediately after command execution.
+Can also be called interactively for testing."
+  (interactive "sCommand name: ")
+  (message "[Hyalo] *** hyalo-execute-string-command CALLED with: %s ***" command-name)
   (let* ((sym (intern-soft command-name))
          (cmd (hyalo--safe-mode-line-command sym)))
     (message "[Hyalo] sym=%S cmd=%S commandp=%S" sym cmd (and cmd (commandp cmd)))
@@ -839,13 +841,18 @@ Called from `post-command-hook' to process clicks without polling."
 (defun hyalo-header--setup-modeline-click ()
   "Setup the mode-line click callback.
 Uses channel hooks for command execution - no timers or polling."
+  (message "[Hyalo] setup-modeline-click: STARTING")
   (hyalo-debug 'header "setup-modeline-click: checking if hyalo-setup-modeline-click-callback exists")
   (if (fboundp 'hyalo-setup-modeline-click-callback)
       (progn
+        (message "[Hyalo] setup-modeline-click: calling hyalo-setup-modeline-click-callback")
         (hyalo-debug 'header "setup-modeline-click: calling hyalo-setup-modeline-click-callback")
         (let ((result (hyalo-setup-modeline-click-callback)))
+          (message "[Hyalo] setup-modeline-click: result=%s" result)
           (hyalo-debug 'header "setup-modeline-click: result=%s" result))
+        (message "[Hyalo] setup-modeline-click: channel hooks installed")
         (hyalo-debug 'header "setup-modeline-click: channel hooks installed"))
+    (message "[Hyalo] setup-modeline-click: function NOT AVAILABLE")
     (hyalo-warn 'header "setup-modeline-click: function not available")))
 
 (provide 'hyalo-header)

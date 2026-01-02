@@ -763,8 +763,13 @@ struct GlassMenuItemRow: View {
 
     var body: some View {
         Button(action: {
+            print("[Hyalo] GlassMenuItemRow: Button tapped for '\(item.title)' command='\(item.command)' enabled=\(item.enabled ?? true)")
             if item.enabled ?? true {
+                print("[Hyalo] GlassMenuItemRow: Calling onSelect with '\(item.command)'")
                 onSelect(item.command)
+                print("[Hyalo] GlassMenuItemRow: onSelect returned")
+            } else {
+                print("[Hyalo] GlassMenuItemRow: Item is disabled, not calling onSelect")
             }
         }) {
             HStack(spacing: 8) {
@@ -923,13 +928,21 @@ final class GlassMenuPopover: NSPopover, NSPopoverDelegate {
         onSelect: @escaping (String) -> Void
     ) {
         self.onCommandSelect = onSelect
+        print("[Hyalo] GlassMenuPopover: showMenu called with \(items.count) items, title='\(title)'")
 
         let menuView = GlassMenuView(
             title: title,
             items: items,
             onSelect: { [weak self] command in
-                self?.close()
+                print("[Hyalo] GlassMenuView: onSelect callback triggered with command='\(command)'")
+                // IMPORTANT: Call the callback BEFORE closing the popover
+                // Closing the popover disrupts the channel context
+                print("[Hyalo] GlassMenuPopover: calling onSelect callback BEFORE close")
                 onSelect(command)
+                print("[Hyalo] GlassMenuPopover: onSelect callback returned, now closing")
+                // Close the popover AFTER the callback
+                self?.close()
+                print("[Hyalo] GlassMenuPopover: popover closed")
             }
         )
 
@@ -3356,17 +3369,9 @@ final class NavigationSidebarController: NSObject {
 
     /// Update mode-line segments from JSON
     func updateModeLineSegments(_ segmentsJson: String) {
-        print("[Hyalo] updateModeLineSegments called, json length=\(segmentsJson.count)")
-        guard let data = segmentsJson.data(using: .utf8) else {
-            print("[Hyalo] updateModeLineSegments: failed to convert to data")
-            return
-        }
+        guard let data = segmentsJson.data(using: .utf8) else { return }
         do {
             modeLineSegments = try JSONDecoder().decode([ModeLineSegment].self, from: data)
-            print("[Hyalo] updateModeLineSegments: decoded \(modeLineSegments.count) segments")
-            for (i, seg) in modeLineSegments.enumerated() {
-                print("[Hyalo]   seg[\(i)]: side=\(seg.side) '\(seg.text.prefix(25))' menu=\(seg.menuItems?.count ?? 0) help=\(seg.helpEcho != nil)")
-            }
             modeLineGlassOverlay?.updateSegments(modeLineSegments)
         } catch {
             print("[Hyalo] updateModeLineSegments: decode error: \(error)")
@@ -3452,6 +3457,8 @@ final class NavigationSidebarController: NSObject {
 
     /// Show segment menu with Liquid Glass popover (picker style with arrow)
     private func showSegmentMenuDirectly(items: [ModeLineMenuItem], for segment: ModeLineSegment, from view: NSView?) {
+        print("[Hyalo] showSegmentMenuDirectly: segment='\(segment.text.prefix(20))' items=\(items.count)")
+        
         // Close any existing popover
         glassMenuPopover?.close()
 
@@ -3461,7 +3468,7 @@ final class NavigationSidebarController: NSObject {
 
         // Use the segment view or fall back to modeLineView
         guard let anchorView = view ?? modeLineGlassOverlay?.modeLineView else {
-            print("[Hyalo] No anchor view for menu popover")
+            print("[Hyalo] showSegmentMenuDirectly: ERROR - No anchor view for menu popover")
             return
         }
 
@@ -3470,6 +3477,7 @@ final class NavigationSidebarController: NSObject {
             title: segment.text.trimmingCharacters(in: .whitespaces),
             relativeTo: anchorView,
             onSelect: { [weak self] command in
+                print("[Hyalo] showSegmentMenuDirectly: onSelect received command='\(command)'")
                 self?.executeEmacsCommand(command)
             }
         )
@@ -3477,13 +3485,8 @@ final class NavigationSidebarController: NSObject {
 
     /// Execute an Emacs command by name and refresh modeline
     private func executeEmacsCommand(_ command: String) {
-        print("[Hyalo] NavigationSidebarController: executeEmacsCommand '\(command)'")
-        // Post notification for Module.swift to pick up
-        NotificationCenter.default.post(
-            name: NSNotification.Name("HyaloExecuteCommand"),
-            object: nil,
-            userInfo: ["command": command]
-        )
+        print("[Hyalo] executeEmacsCommand: calling directly for '\(command)'")
+        NavigationSidebarManager.shared.executeCommand(command)
     }
 }
 
@@ -3503,6 +3506,36 @@ final class NavigationSidebarManager {
 
     /// Callback for mode-line clicks. Parameters: segment ("lhs" or "rhs"), relative position (0.0-1.0)
     var onModeLineClick: ((String, Double) -> Void)?
+    
+    /// Callback for executing Emacs commands by name
+    /// This is used instead of NotificationCenter to ensure channel hooks work
+    var onExecuteCommand: ((String) -> Void)?
+
+    /// Execute a command - calls the onExecuteCommand callback
+    func executeCommand(_ command: String) {
+        print("[Hyalo] NavigationSidebarManager: executeCommand('\(command)')")
+        if let callback = onExecuteCommand {
+            print("[Hyalo] NavigationSidebarManager: invoking onExecuteCommand callback")
+            callback(command)
+        } else {
+            print("[Hyalo] NavigationSidebarManager: onExecuteCommand is nil!")
+        }
+    }
+
+    /// Execute command asynchronously - escapes the Button action context
+    /// This ensures the channel hook is called from a clean run loop context
+    func executeCommandAsync(_ command: String) {
+        print("[Hyalo] NavigationSidebarManager: executeCommandAsync('\(command)') - scheduling on main queue")
+        DispatchQueue.main.async { [weak self] in
+            print("[Hyalo] NavigationSidebarManager: async block executing for '\(command)'")
+            if let callback = self?.onExecuteCommand {
+                print("[Hyalo] NavigationSidebarManager: invoking onExecuteCommand callback (async)")
+                callback(command)
+            } else {
+                print("[Hyalo] NavigationSidebarManager: onExecuteCommand is nil (async)!")
+            }
+        }
+    }
 
     /// Notify about sidebar visibility change
     func notifySidebarVisibilityChanged(visible: Bool, needsSetup: Bool) {
