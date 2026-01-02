@@ -73,6 +73,7 @@
   :custom
   (exec-path-from-shell-debug t)
   (exec-path-from-shell-check-startup-files nil)
+  (exec-path-from-shell-warn-duration-millis 10000)
   :config
   (when (memq window-system '(mac ns x))
     (exec-path-from-shell-copy-env "PATH")))

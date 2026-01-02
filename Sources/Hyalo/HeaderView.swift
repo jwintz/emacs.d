@@ -102,7 +102,7 @@ struct HeaderView: View {
     
     private var modeLineRow: some View {
         let segments = modeLineSegments
-        
+
         return HStack(spacing: 0) {
             // Traffic lights (animated slide-in from left)
             if showTrafficLights {
@@ -112,18 +112,25 @@ struct HeaderView: View {
                         removal: .move(edge: .leading).combined(with: .opacity)
                     ))
             }
-            
-            // LHS - anchored left, truncates if needed
-            ModeLineTextView(text: segments.lhs, fontSize: 11)
-                .lineLimit(1)
-            
+
+            // LHS - anchored left, has priority (truncates last)
+            ModeLineTextView(text: segments.lhs, fontSize: 11) { relativeX in
+                viewModel.handleModeLineClick(segment: "lhs", relativePosition: relativeX)
+            }
+            .lineLimit(1)
+            .layoutPriority(1)
+
             // Flexible space between LHS and RHS
             Spacer(minLength: 8)
-            
-            // RHS - anchored right
+
+            // RHS - anchored right, truncates first when space is limited
             if !segments.rhs.isEmpty {
-                ModeLineTextView(text: segments.rhs, fontSize: 11)
-                    .lineLimit(1)
+                ModeLineTextView(text: segments.rhs, fontSize: 11) { relativeX in
+                    viewModel.handleModeLineClick(segment: "rhs", relativePosition: relativeX)
+                }
+                .lineLimit(1)
+                .truncationMode(.head)
+                .layoutPriority(0)
             }
         }
         .padding(.leading, showTrafficLights ? 0 : horizontalPadding)
@@ -159,19 +166,22 @@ struct HeaderView: View {
     
     private var headerLineRow: some View {
         let segments = headerLineSegments
-        
+
         return HStack(spacing: 0) {
-            // LHS
+            // LHS - has priority (truncates last)
             ModeLineTextView(text: segments.lhs, fontSize: 10)
                 .lineLimit(1)
+                .layoutPriority(1)
                 .opacity(0.8)
-            
+
             Spacer(minLength: 8)
-            
-            // RHS
+
+            // RHS - truncates first when space is limited
             if !segments.rhs.isEmpty {
                 ModeLineTextView(text: segments.rhs, fontSize: 10)
                     .lineLimit(1)
+                    .truncationMode(.head)
+                    .layoutPriority(0)
                     .opacity(0.8)
             }
         }

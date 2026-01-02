@@ -155,9 +155,21 @@ final class HeaderHostingController {
     }
     
     // MARK: - State
-    
+
     /// Get the view model for external access
     var model: HeaderViewModel? {
         viewModel
+    }
+
+    // MARK: - Mode-line Click Callback
+
+    /// Set callback for mode-line clicks
+    /// Callback receives (segment: String, relativePosition: Double)
+    /// segment is "lhs" or "rhs", relativePosition is 0.0-1.0
+    func setModeLineClickCallback(_ callback: @escaping (String, Double) -> Void) {
+        guard let vm = viewModel else { return }
+        MainActor.assumeIsolated {
+            vm.onModeLineClick = callback
+        }
     }
 }

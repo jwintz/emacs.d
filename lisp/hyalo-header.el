@@ -25,6 +25,7 @@
 
 ;;; Code:
 
+(require 'cl-lib)
 (require 'hyalo)
 
 (defgroup hyalo-header nil
@@ -122,7 +123,14 @@ Skips updates from embedded child-frames (hyalo-embedded parameter)."
         (setq hyalo-header--last-mode-line mode-line-str)
         ;; Update NavigationSplitView toolbar mode-line
         (when (fboundp 'hyalo-sidebar-update-mode-line)
-          (hyalo-sidebar-update-mode-line mode-line-str)))
+          (hyalo-sidebar-update-mode-line mode-line-str))
+        ;; Also send structured segment data for menus/tooltips
+        (when (fboundp 'hyalo-sidebar-update-mode-line-segments)
+          (let ((segments-json (hyalo-header--extract-structured-segments)))
+            (when hyalo-header--debug-extraction
+              (hyalo-debug 'header "segments-json length=%d" (length (or segments-json ""))))
+            (when segments-json
+              (hyalo-sidebar-update-mode-line-segments segments-json)))))
       ;; Update header-line if changed (currently not used in toolbar)
       (when (or header-line-changed window-changed)
         (setq hyalo-header--last-header-line header-line-str))
@@ -201,13 +209,13 @@ Run as :filter-return on `magit-setup-buffer-internal'."
                  hyalo-viewport-mode
                  (fboundp 'hyalo-viewport--update-window))
         ;; Update viewport with a delay to ensure window is displayed
-        (run-at-time 2.5 nil
+        (run-at-time 0.5 nil
                      (lambda (buf)
                        (when (buffer-live-p buf)
                          (let ((wins (get-buffer-window-list buf nil t)))
                            (dolist (w wins)
                              (with-selected-window w
-                               (hyalo-log "Magit Setup (delayed): Updating window %s" w)
+                               (hyalo-debug 'header "Magit Setup (delayed): Updating window %s" w)
                                (goto-char (point-min))
                                (hyalo-viewport--update-window w))))))
                      buffer))))
@@ -302,9 +310,11 @@ Run as :after on `magit-refresh-buffer'."
   ;; Setup Magit support
   (with-eval-after-load 'magit
     (hyalo-header--setup-magit))
+  ;; Setup mode-line click callback
+  (hyalo-header--setup-modeline-click)
   ;; Initial update
   (hyalo-header--update)
-  (hyalo-log "Header: Enabled"))
+  (hyalo-info 'header "Enabled"))
 
 (defun hyalo-header--disable ()
   "Disable header view management."
@@ -326,12 +336,14 @@ Run as :after on `magit-refresh-buffer'."
   ;; Restore frame-title-format
   (when hyalo-header--saved-frame-title-format
     (setq frame-title-format hyalo-header--saved-frame-title-format))
+  ;; Remove modeline click hook
+  (remove-hook 'post-command-hook #'hyalo-header--check-modeline-click)
   ;; Clear state
   (setq hyalo-header--last-mode-line ""
         hyalo-header--last-header-line ""
         hyalo-header--last-window nil
         hyalo-header--saved-frame-title-format nil)
-  (hyalo-log "Header: Disabled"))
+  (hyalo-info 'header "Disabled"))
 
 ;;;###autoload
 (define-minor-mode hyalo-header-mode
@@ -356,8 +368,8 @@ When hidden, provides a minimal chrome experience."
   (if (fboundp 'hyalo-toggle-decorations)
       (progn
         (hyalo-toggle-decorations)
-        (hyalo-log "Decorations %s" (if (hyalo-decorations-visible-p) "shown" "hidden")))
-    (hyalo-log "Hyalo decorations toggle not available - module not loaded")))
+        (hyalo-info 'header "Decorations %s" (if (hyalo-decorations-visible-p) "shown" "hidden")))
+    (hyalo-warn 'header "Hyalo decorations toggle not available - module not loaded")))
 
 ;; Create an alias so M-x hyalo-toggle-decorations works
 (defalias 'hyalo-toggle-chrome 'hyalo-toggle-decorations-command
@@ -367,6 +379,499 @@ When hidden, provides a minimal chrome experience."
 (with-eval-after-load 'magit
   (when hyalo-header-mode
     (hyalo-header--setup-magit)))
+
+;;; Mode-line Click Handling
+
+(defun hyalo-on-modeline-click (segment position)
+  "Handle mode-line click from Swift.
+SEGMENT is \"lhs\" or \"rhs\", POSITION is 0.0-1.0 relative position.
+This simulates a mouse-1 click on the mode-line to trigger native popups."
+  (hyalo-debug 'header "on-modeline-click: segment=%s position=%s" segment position)
+  ;; Schedule the action in Emacs event loop for proper popup display
+  (run-at-time 0 nil
+               (lambda (seg pos)
+                 (let* ((mode-line-str (or (hyalo-header--format-mode-line) ""))
+                        (segments (hyalo-header--parse-mode-line-segments mode-line-str))
+                        (segment-str (if (string= seg "lhs") (car segments) (cdr segments)))
+                        (char-pos (floor (* pos (length segment-str))))
+                        (abs-pos (if (string= seg "lhs")
+                                     char-pos
+                                   (+ (length (car segments)) char-pos))))
+                   (hyalo-trace 'header "on-modeline-click (scheduled): mode-line-str=%s" mode-line-str)
+                   (hyalo-trace 'header "on-modeline-click (scheduled): segments=%s" segments)
+                   (hyalo-trace 'header "on-modeline-click (scheduled): char-pos=%s abs-pos=%s" char-pos abs-pos)
+                   ;; Find clickable spans and match click position to the correct one
+                   (hyalo-header--trigger-mode-line-action-by-span seg pos mode-line-str)))
+               segment position))
+
+
+(defun hyalo--safe-mode-line-command (cmd)
+  "Map mode-line mouse commands to regular commands."
+  (cond
+   ((eq cmd 'mode-line-previous-buffer) 'previous-buffer)
+   ((eq cmd 'mode-line-next-buffer) 'next-buffer)
+   ((eq cmd 'mode-line-toggle-read-only) 'read-only-mode)
+   ((eq cmd 'mode-line-bury-buffer) 'bury-buffer)
+   ((eq cmd 'mode-line-unbury-buffer) 'unbury-buffer)
+   (t cmd)))
+
+(defun hyalo-execute-string-command (command-name)
+  "Execute command from Swift by name.
+Called by HyaloExecuteCommand notification from Swift.
+Triggers modeline refresh after command execution."
+  (let* ((sym (intern-soft command-name))
+         (cmd (hyalo--safe-mode-line-command sym)))
+    (if (and cmd (commandp cmd))
+        ;; Run in timer to ensure we are in valid event context
+        (run-at-time 0 nil
+                     (lambda (c)
+                       (with-demoted-errors "Mode-line command error: %S"
+                         (call-interactively c))
+                       ;; Refresh modeline immediately after command
+                       (hyalo-header--update))
+                     cmd)
+      (hyalo-error 'header "execute-string-command: not a valid command: %s" command-name))))
+
+(defun hyalo-header--invoke-mode-line-binding (map)
+  "Invoke mode-line binding from MAP.
+Tries multiple mouse events to find working binding."
+  ;; Log available bindings in the keymap for debugging
+  (when (keymapp map)
+    )
+  ;; Try different mouse events in order of preference
+  (let* ((events '([down-mouse-1] [mouse-1] [down-mouse-3] [mouse-3]
+                   [mode-line down-mouse-1] [mode-line mouse-1]
+                   [mode-line down-mouse-3] [mode-line mouse-3]))
+         (found nil))
+    (dolist (event events)
+      (unless found
+        (let ((binding (lookup-key map event)))
+          (when binding
+            (setq found t)
+            (cond
+             ;; Keymap = popup menu
+             ((keymapp binding)
+              (let ((choice (x-popup-menu t binding)))
+                (when choice
+                  (let* ((res (lookup-key binding (vconcat choice)))
+                         (cmd (hyalo--safe-mode-line-command res)))
+                    (when (commandp cmd)
+                      (call-interactively cmd))))))
+             ;; menu-item with potential :filter
+             ((and (consp binding) (eq (car binding) 'menu-item))
+              (let* ((menu (nth 2 binding))
+                     (plist (nthcdr 3 binding))
+                     (filter (plist-get plist :filter))
+                     (final-menu (if filter
+                                     (condition-case nil
+                                         (funcall filter menu)
+                                       (error menu))
+                                   menu)))
+                (cond
+                 ((keymapp final-menu)
+                  (let ((choice (x-popup-menu t final-menu)))
+                    (when choice
+                      (let* ((res (lookup-key final-menu (vconcat choice)))
+                             (cmd (hyalo--safe-mode-line-command res)))
+                        (when (commandp cmd)
+                          (call-interactively cmd))))))
+                 ((commandp final-menu)
+                  (call-interactively (hyalo--safe-mode-line-command final-menu))))))
+             ;; Direct command
+             ((commandp binding)
+              (call-interactively (hyalo--safe-mode-line-command binding)))
+             ;; Function
+             ((functionp binding)
+              (funcall binding))
+             ;; Something else - keep looking
+             (t
+              (setq found nil)))))))
+    (unless found
+      (hyalo-warn 'header "invoke-mode-line-binding: no usable binding found"))))
+
+(defun hyalo-header--parse-mode-line-segments (str)
+  "Parse mode-line STR into (LHS . RHS) cons cell.
+Splits at the first occurrence of two or more consecutive spaces."
+  (if (string-match "\\([^ ].*?\\)  +\\(.*[^ ]\\)" str)
+      (cons (match-string 1 str) (match-string 2 str))
+    (cons str "")))
+
+(defun hyalo-header--extract-menu-items (keymap)
+  "Extract menu items from KEYMAP for Swift popup menu.
+Returns list of alists with title, command, checked, enabled keys."
+  (let ((items nil))
+    (when (keymapp keymap)
+      (map-keymap
+       (lambda (key def)
+         (cond
+          ;; menu-item entries
+          ((and (consp def) (eq (car def) 'menu-item))
+           (let* ((title (nth 1 def))
+                  (cmd (nth 2 def))
+                  (plist (nthcdr 3 def))
+                  (button (plist-get plist :button))
+                  (checked (and button
+                                (eq (car button) :toggle)
+                                (eval (cdr button))))
+                  (enabled (let ((en (plist-get plist :enable)))
+                             (if en
+                                 (not (null (ignore-errors (eval en))))
+                               t))))
+             (when (and title (not (eq cmd 'ignore)))
+               (push `((title . ,(if (stringp title) title (format "%s" title)))
+                       (command . ,(if (symbolp cmd) (symbol-name cmd) ""))
+                       (checked . ,checked)
+                       (enabled . ,enabled))
+                     items))))
+          ;; Direct command bindings (not nested keymaps)
+          ((and (symbolp key) (commandp def))
+           (push `((title . ,(symbol-name key))
+                   (command . ,(symbol-name def))
+                   (checked . nil)
+                   (enabled . t))
+                 items))))
+       keymap))
+    (nreverse items)))
+
+(defvar hyalo-header--debug-extraction nil
+  "When non-nil, log extraction debug info.")
+
+(defun hyalo-header-toggle-debug ()
+  "Toggle debug logging for mode-line extraction."
+  (interactive)
+  (setq hyalo-header--debug-extraction (not hyalo-header--debug-extraction))
+  (message "Mode-line extraction debug: %s" (if hyalo-header--debug-extraction "ON" "OFF")))
+
+(defun hyalo-header--find-lhs-rhs-separator (formatted)
+  "Find the LHS/RHS separator position in FORMATTED mode-line string.
+Returns the position where RHS begins, or length if not found.
+Handles doom-modeline style (display property) and standard (multi-space)."
+  (let ((len (length formatted))
+        (sep-pos nil))
+    ;; Method 1: Look for display property with space/align-to (doom-modeline style)
+    (let ((pos 0))
+      (while (and (not sep-pos) (< pos len))
+        (let ((disp (get-text-property pos 'display formatted)))
+          (when (and disp (consp disp) (eq (car disp) 'space))
+            (setq sep-pos pos)))
+        (setq pos (1+ pos))))
+    ;; Method 2: Look for multi-space gap (standard mode-line)
+    (unless sep-pos
+      (let ((match (string-match "[^ ]  +" formatted)))
+        (when match
+          (setq sep-pos (1+ match)))))
+    ;; Return separator position or end of string
+    (or sep-pos len)))
+
+(defun hyalo-header--extract-structured-segments ()
+  "Extract structured segment data from mode-line for Swift.
+Returns JSON string with segment array."
+  (when hyalo-header--debug-extraction
+    (hyalo-debug 'header "extract-structured-segments: saved-format=%S"
+                 (and hyalo-header--saved-mode-line-format t)))
+  (when hyalo-header--saved-mode-line-format
+    (let* ((formatted (format-mode-line hyalo-header--saved-mode-line-format nil nil (current-buffer)))
+           (len (length formatted))
+           ;; Find LHS/RHS separator using improved detection
+           (sep-start (hyalo-header--find-lhs-rhs-separator formatted))
+           (segments nil))
+      ;; Scan for clickable spans with properties
+      (let ((pos 0)
+            (current-start nil)
+            (current-map nil)
+            (current-help nil))
+        (while (< pos len)
+          (let ((km (or (get-text-property pos 'keymap formatted)
+                        (get-text-property pos 'local-map formatted)))
+                (help (get-text-property pos 'help-echo formatted)))
+            (cond
+             ;; Start of new span
+             ((and km (not (eq km current-map)))
+              (when (and current-start current-map)
+                ;; Close previous span
+                (let* ((text (substring formatted current-start pos))
+                       (side (if (< current-start sep-start) "lhs" "rhs"))
+                       ;; Try multiple binding variants
+                       (menu-binding (or (lookup-key current-map [mode-line down-mouse-1])
+                                         (lookup-key current-map [mode-line mouse-1])
+                                         (lookup-key current-map [down-mouse-1])
+                                         (lookup-key current-map [mouse-1])))
+                       (_ (when hyalo-header--debug-extraction
+                            (hyalo-debug 'header "Span %d-%d: binding=%S" current-start pos menu-binding)))
+                       (menu-items (cond
+                                    ((keymapp menu-binding)
+                                     (hyalo-header--extract-menu-items menu-binding))
+                                    ((and (consp menu-binding)
+                                          (eq (car menu-binding) 'menu-item))
+                                     (let* ((filter (plist-get (nthcdr 3 menu-binding) :filter))
+                                            (menu (if filter
+                                                      (condition-case err
+                                                          (funcall filter (nth 2 menu-binding))
+                                                        (error
+                                                         (when hyalo-header--debug-extraction
+                                                           (hyalo-debug 'header "Filter error: %S" err))
+                                                         nil))
+                                                    (nth 2 menu-binding))))
+                                       (when hyalo-header--debug-extraction
+                                         (hyalo-debug 'header "menu-item filter=%S menu=%S keymapp=%S"
+                                                      filter menu (keymapp menu)))
+                                       (when (keymapp menu)
+                                         (hyalo-header--extract-menu-items menu))))
+                                    (t nil)))
+                       (command (when (and (not menu-items) (commandp menu-binding))
+                                  (symbol-name menu-binding))))
+                  (push `((text . ,text)
+                          (relStart . ,(/ (float current-start) len))
+                          (relEnd . ,(/ (float pos) len))
+                          (helpEcho . ,(when (stringp current-help) current-help))
+                          (side . ,side)
+                          (menuItems . ,menu-items)
+                          (command . ,command))
+                        segments)))
+              (setq current-start pos
+                    current-map km
+                    current-help help))
+             ;; End of span
+             ((and current-map (not km))
+              (let* ((text (substring formatted current-start pos))
+                     (side (if (< current-start sep-start) "lhs" "rhs"))
+                     ;; Try multiple binding variants
+                     (menu-binding (or (lookup-key current-map [mode-line down-mouse-1])
+                                       (lookup-key current-map [mode-line mouse-1])
+                                       (lookup-key current-map [down-mouse-1])
+                                       (lookup-key current-map [mouse-1])))
+                     (menu-items (cond
+                                  ((keymapp menu-binding)
+                                   (hyalo-header--extract-menu-items menu-binding))
+                                  ((and (consp menu-binding)
+                                        (eq (car menu-binding) 'menu-item))
+                                   (let* ((filter (plist-get (nthcdr 3 menu-binding) :filter))
+                                          (menu (if filter
+                                                    (condition-case nil
+                                                        (funcall filter (nth 2 menu-binding))
+                                                      (error nil))
+                                                  (nth 2 menu-binding))))
+                                     (when (keymapp menu)
+                                       (hyalo-header--extract-menu-items menu))))
+                                  (t nil)))
+                     (command (when (and (not menu-items) (commandp menu-binding))
+                                (symbol-name menu-binding))))
+                (push `((text . ,text)
+                        (relStart . ,(/ (float current-start) len))
+                        (relEnd . ,(/ (float pos) len))
+                        (helpEcho . ,(when (stringp current-help) current-help))
+                        (side . ,side)
+                        (menuItems . ,menu-items)
+                        (command . ,command))
+                      segments))
+              (setq current-start nil
+                    current-map nil
+                    current-help nil))))
+          (cl-incf pos))
+        ;; Close final span
+        (when (and current-start current-map)
+          (let* ((text (substring formatted current-start pos))
+                 (side (if (< current-start sep-start) "lhs" "rhs"))
+                 ;; Try multiple binding variants
+                 (menu-binding (or (lookup-key current-map [mode-line down-mouse-1])
+                                   (lookup-key current-map [mode-line mouse-1])
+                                   (lookup-key current-map [down-mouse-1])
+                                   (lookup-key current-map [mouse-1])))
+                 (menu-items (when (keymapp menu-binding)
+                               (hyalo-header--extract-menu-items menu-binding)))
+                 (command (when (and (not menu-items) (commandp menu-binding))
+                            (symbol-name menu-binding))))
+            (push `((text . ,text)
+                    (relStart . ,(/ (float current-start) len))
+                    (relEnd . ,(/ (float pos) len))
+                    (helpEcho . ,(when (stringp current-help) current-help))
+                    (side . ,side)
+                    (menuItems . ,menu-items)
+                    (command . ,command))
+                  segments))))
+      ;; Debug output
+      (when hyalo-header--debug-extraction
+        (hyalo-debug 'header "Extracted %d segments" (length segments))
+        (dolist (seg segments)
+          (let ((text (alist-get 'text seg))
+                (items (alist-get 'menuItems seg)))
+            (hyalo-debug 'header "  Segment '%s': menuItems=%d"
+                         (substring text 0 (min 20 (length text)))
+                         (length (or items '()))))))
+      ;; Return JSON
+      (json-encode (nreverse segments)))))
+
+(defun hyalo-header--find-clickable-spans (formatted)
+  "Find all clickable spans in FORMATTED mode-line string.
+Returns list of (START END KEYMAP REL-START REL-END) where REL-* are 0.0-1.0."
+  (let ((len (length formatted))
+        (pos 0)
+        (spans nil)
+        (current-start nil)
+        (current-map nil))
+    (while (< pos len)
+      (let ((km (or (get-text-property pos 'keymap formatted)
+                    (get-text-property pos 'local-map formatted))))
+        (cond
+         ;; Start of new clickable span
+         ((and km (not (eq km current-map)))
+          (when (and current-start current-map)
+            (push (list current-start pos current-map) spans))
+          (setq current-start pos
+                current-map km))
+         ;; End of clickable span
+         ((and current-map (not km))
+          (push (list current-start pos current-map) spans)
+          (setq current-start nil
+                current-map nil))))
+      (cl-incf pos))
+    ;; Close final span
+    (when (and current-start current-map)
+      (push (list current-start pos current-map) spans))
+    ;; Add relative positions
+    (mapcar (lambda (span)
+              (list (nth 0 span) (nth 1 span) (nth 2 span)
+                    (/ (float (nth 0 span)) len)
+                    (/ (float (nth 1 span)) len)))
+            (nreverse spans))))
+
+(defun hyalo-header--trigger-mode-line-action-by-span (segment position mode-line-str)
+  "Trigger mode-line action by matching POSITION to clickable spans.
+SEGMENT is \"lhs\" or \"rhs\", POSITION is 0.0-1.0 relative.
+MODE-LINE-STR is the visual mode-line string."
+  (when (and hyalo-header--saved-mode-line-format mode-line-str)
+    (let* ((formatted (format-mode-line hyalo-header--saved-mode-line-format nil nil (current-buffer)))
+           (spans (hyalo-header--find-clickable-spans formatted))
+           ;; Parse FORMATTED string for separator (not visual string)
+           ;; Find the multi-space gap in the formatted string
+           (sep-match (string-match "  +" formatted))
+           (formatted-lhs-len (or sep-match (length formatted)))
+           (formatted-rhs-start (if sep-match
+                                    (match-end 0)
+                                  (length formatted)))
+           (formatted-rhs-len (- (length formatted) formatted-rhs-start))
+           (total-len (length formatted))
+           ;; Calculate separator position in formatted string
+           (separator-rel (if (> total-len 0)
+                              (/ (float formatted-lhs-len) total-len)
+                            0.5))
+           ;; Convert segment+position to global position in formatted string
+           (global-pos (if (string= segment "lhs")
+                           (* position separator-rel)
+                         ;; RHS: position 0.0 = start of RHS, 1.0 = end
+                         (+ (/ (float formatted-rhs-start) total-len)
+                            (* position (/ (float formatted-rhs-len) total-len)))))
+           ;; Find the span that contains this position
+           (matched-span (cl-find-if
+                          (lambda (span)
+                            (and (>= global-pos (nth 3 span))
+                                 (< global-pos (nth 4 span))))
+                          spans)))
+      (if matched-span
+          (hyalo-header--invoke-mode-line-binding (nth 2 matched-span))
+        ;; No direct match - find nearest span
+        (let ((nearest (cl-reduce
+                        (lambda (a b)
+                          (if (< (abs (- global-pos (/ (+ (nth 3 a) (nth 4 a)) 2)))
+                                 (abs (- global-pos (/ (+ (nth 3 b) (nth 4 b)) 2))))
+                              a b))
+                        spans)))
+          (when nearest
+            (hyalo-header--invoke-mode-line-binding (nth 2 nearest))))))))
+
+(defun hyalo-header--dump-mode-line-properties ()
+  "Debug function to dump all text properties in the formatted mode-line."
+  (interactive)
+  (when hyalo-header--saved-mode-line-format
+    (let ((formatted (format-mode-line hyalo-header--saved-mode-line-format nil nil (current-buffer)))
+          (pos 0)
+          (last-props nil))
+      (hyalo-debug 'header "=== Mode-line properties dump ===")
+      (hyalo-debug 'header "Total length: %s" (length formatted))
+      (while (< pos (length formatted))
+        (let ((props (text-properties-at pos formatted))
+              (char (aref formatted pos)))
+          (unless (equal props last-props)
+            (hyalo-debug 'header "pos %s (char '%c'): %s" pos char props)
+            (setq last-props props)))
+        (setq pos (1+ pos)))
+      (hyalo-debug 'header "=== End dump ==="))))
+
+(defun hyalo-header--trigger-mode-line-action (mode-line-str pos)
+  "Trigger the mode-line action at character position POS in MODE-LINE-STR.
+Try to find and execute the keymap binding at the clicked position."
+  (when (and hyalo-header--saved-mode-line-format
+             mode-line-str (> (length mode-line-str) 0)
+             (>= pos 0) (< pos (length mode-line-str)))
+    ;; Format mode-line with text properties preserved
+    (let* ((formatted (format-mode-line hyalo-header--saved-mode-line-format nil nil (current-buffer))))
+      (hyalo-trace 'header "trigger-mode-line-action: formatted length=%s" (length formatted))
+      ;; Clamp pos to formatted string length
+      (setq pos (min pos (1- (max 1 (length formatted)))))
+      ;; Log text properties at position
+      (let ((props (text-properties-at pos formatted)))
+        (hyalo-trace 'header "trigger-mode-line-action: props at pos=%s: %s" pos props))
+      ;; Find keymap - try current position first, then scan
+      (let* ((map (or (get-text-property pos 'keymap formatted)
+                      (get-text-property pos 'local-map formatted)
+                      (hyalo-header--find-nearest-keymap formatted pos))))
+        (if map
+            (hyalo-header--invoke-mode-line-binding map)
+          (hyalo-warn 'header "trigger-mode-line-action: no keymap found"))))))
+
+(defun hyalo-header--find-nearest-keymap (formatted pos)
+  "Find nearest keymap in FORMATTED string around POS.
+Scans both backwards and forwards, preferring the closest match."
+  (let ((len (length formatted))
+        (found nil)
+        (found-distance most-positive-fixnum))
+    ;; Scan backwards
+    (let ((scan-pos pos))
+      (while (and (not found) (>= scan-pos 0))
+        (let ((km (or (get-text-property scan-pos 'keymap formatted)
+                      (get-text-property scan-pos 'local-map formatted))))
+          (when km
+            (setq found km
+                  found-distance (- pos scan-pos))))
+        (cl-decf scan-pos)))
+    ;; Scan forwards (within a reasonable range)
+    (let ((scan-pos (1+ pos))
+          (max-scan (min len (+ pos 10))))
+      (while (< scan-pos max-scan)
+        (let ((km (or (get-text-property scan-pos 'keymap formatted)
+                      (get-text-property scan-pos 'local-map formatted))))
+          (when (and km (< (- scan-pos pos) found-distance))
+            (setq found km
+                  found-distance (- scan-pos pos))))
+        (cl-incf scan-pos)))
+    found))
+
+
+
+(defun hyalo-header--check-modeline-click ()
+  "Check for pending mode-line clicks from Swift.
+Called from `post-command-hook' to process clicks without polling."
+  (when (fboundp 'hyalo-poll-modeline-click)
+    (when-let* ((click-str (hyalo-poll-modeline-click)))
+      (hyalo-debug 'header "check-modeline-click: received click=%s" click-str)
+      (when (string-match "\\`\\([^:]+\\):\\(.+\\)\\'" click-str)
+        (let ((segment (match-string 1 click-str))
+              (position (string-to-number (match-string 2 click-str))))
+          (hyalo-on-modeline-click segment position))))))
+
+(defun hyalo-header--setup-modeline-click ()
+  "Setup the mode-line click callback.
+Uses `post-command-hook' to check for clicks - no timers."
+  (hyalo-debug 'header "setup-modeline-click: checking if hyalo-setup-modeline-click-callback exists")
+  (if (fboundp 'hyalo-setup-modeline-click-callback)
+      (progn
+        (hyalo-debug 'header "setup-modeline-click: calling hyalo-setup-modeline-click-callback")
+        (let ((result (hyalo-setup-modeline-click-callback)))
+          (hyalo-debug 'header "setup-modeline-click: result=%s" result))
+        ;; Use post-command-hook to check for clicks (no timers)
+        (hyalo-debug 'header "setup-modeline-click: adding post-command-hook")
+        (add-hook 'post-command-hook #'hyalo-header--check-modeline-click))
+    (hyalo-warn 'header "setup-modeline-click: function not available")))
 
 (provide 'hyalo-header)
 ;;; hyalo-header.el ends here

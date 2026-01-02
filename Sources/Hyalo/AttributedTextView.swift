@@ -62,7 +62,8 @@ struct AttributedTextView: NSViewRepresentable {
 struct ModeLineTextView: View {
     let text: String
     let fontSize: CGFloat
-    
+    var onTap: ((CGFloat) -> Void)? = nil
+
     /// Find a suitable nerd font name
     private var fontName: String {
         for name in preferredFonts {
@@ -72,11 +73,22 @@ struct ModeLineTextView: View {
         }
         return "Menlo"  // Fallback
     }
-    
+
     var body: some View {
         Text(text)
             .font(.custom(fontName, size: fontSize))
             .lineLimit(1)
             .truncationMode(.tail)
+            .background(
+                GeometryReader { geometry in
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture { location in
+                            // Calculate relative position (0.0 to 1.0)
+                            let relativeX = location.x / geometry.size.width
+                            onTap?(relativeX)
+                        }
+                }
+            )
     }
 }

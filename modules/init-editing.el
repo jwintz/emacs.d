@@ -70,6 +70,9 @@
   :ensure nil
   :diminish outline-minor-mode
   :hook (prog-mode . outline-minor-mode)
+  :general
+  (:prefix "C-c @"
+   "" '(:ignore t :which-key "outline"))
   :config
   (add-hook 'outline-minor-mode-hook
             (lambda ()

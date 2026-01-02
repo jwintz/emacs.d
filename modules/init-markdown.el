@@ -15,35 +15,7 @@
   :mode (("README\\.md\\'" . markdown-mode)
          ("\\.md\\'" . markdown-mode)
          ("\\.markdown\\'" . markdown-mode))
-  :init
-  (defvar-local hyalo-markdown--code-face-cookies nil
-    "Face remap cookies for markdown code faces.")
-
-  (defun hyalo-markdown--update-code-scale ()
-    "Update markdown code face scaling to match text-scale."
-    (when (derived-mode-p 'markdown-mode 'gfm-mode)
-      (dolist (cookie hyalo-markdown--code-face-cookies)
-        (face-remap-remove-relative cookie))
-      (setq hyalo-markdown--code-face-cookies nil)
-      (let ((scale (if (and (boundp 'text-scale-mode-amount)
-                            (boundp 'text-scale-mode-step)
-                            text-scale-mode-amount)
-                       (expt text-scale-mode-step text-scale-mode-amount)
-                     1.0)))
-        (push (face-remap-add-relative 'markdown-code-face :height scale)
-              hyalo-markdown--code-face-cookies)
-        (push (face-remap-add-relative 'markdown-inline-code-face :height scale)
-              hyalo-markdown--code-face-cookies)
-        (push (face-remap-add-relative 'markdown-pre-face :height scale)
-              hyalo-markdown--code-face-cookies))))
-
-  (defun hyalo-markdown--setup-code-scaling ()
-    "Set up code face scaling for markdown buffers."
-    (add-hook 'text-scale-mode-hook #'hyalo-markdown--update-code-scale nil t)
-    (hyalo-markdown--update-code-scale))
-
-  :hook ((markdown-mode . hyalo-markdown-tags-mode)
-         (markdown-mode . hyalo-markdown--setup-code-scaling))
+  :hook (markdown-mode . hyalo-markdown-tags-mode)
   :config
   (defun hyalo-markdown--setup-pre-face ()
     "Set subtle background for markdown pre blocks based on theme."

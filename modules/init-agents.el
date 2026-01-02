@@ -39,7 +39,14 @@
           (apply orig-fun (plist-put args :stderr stderr-file))
         (apply orig-fun args))))
 
-  (advice-add 'make-process :around #'emacs/copilot-redirect-stderr))
+  (advice-add 'make-process :around #'emacs/copilot-redirect-stderr)
+
+  ;; Suppress "Copilot server started" message
+  (defun emacs/copilot-suppress-log (orig-fun type msg &rest args)
+    (unless (and (eq type 'info) (string-prefix-p "Copilot server started" msg))
+      (apply orig-fun type msg args)))
+
+  (advice-add 'copilot--log :around #'emacs/copilot-suppress-log))
 
 (use-package agent-shell
   :ensure t

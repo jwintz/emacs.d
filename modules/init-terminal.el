@@ -35,6 +35,15 @@
   (add-hook 'eshell-load-hook #'eat-eshell-mode)
   (add-hook 'eshell-load-hook #'eat-eshell-visual-command-mode))
 
+(use-package iota-shell
+  :ensure nil
+  :after eshell
+  :hook (eshell-mode . iota-shell-mode)
+  :config
+  ;; Set global defaults to ensure initial prompt is correct
+  (setq eshell-prompt-function #'iota-shell-prompt)
+  (setq eshell-prompt-regexp "^λ "))
+
 (provide 'init-terminal)
 
 ;;; init-terminal.el ends here

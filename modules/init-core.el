@@ -38,8 +38,8 @@
   :ensure t
   :diminish
   :custom
-  (which-key-idle-delay 0.3)
-  (which-key-separator " -> ")
+  (which-key-idle-delay 1.0)
+  (which-key-separator "  ")
   (which-key-prefix-prefix "")
   (which-key-inhibit-regexps '("^ESC"))
   :config

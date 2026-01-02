@@ -20,9 +20,257 @@ private extension NSToolbarItem.Identifier {
 /// Uses autoresizing to fill available space
 @available(macOS 26.0, *)
 final class ModeLineToolbarItemView: NSView {
-    private let lhsLabel = NSTextField(labelWithString: "")
-    private let rhsLabel = NSTextField(labelWithString: "")
+    
+    // MARK: - Segment View
+    
+    final class SegmentView: NSTextField {
+        var onClick: ((ModeLineSegment, NSView) -> Void)?
+        let segment: ModeLineSegment
 
+        /// Whether the segment is interactive (has menu or command)
+        private var isInteractive: Bool {
+            (segment.menuItems != nil && !segment.menuItems!.isEmpty) || segment.command != nil
+        }
+
+        /// Hover state for visual feedback
+        private var isHovered = false {
+            didSet {
+                if isHovered != oldValue {
+                    updateHoverAppearance()
+                }
+            }
+        }
+
+        init(segment: ModeLineSegment) {
+            self.segment = segment
+            super.init(frame: .zero)
+
+            // Use attributed string for font fallback (Icons)
+            self.attributedStringValue = SegmentView.createAttributedString(from: segment.text, side: segment.side)
+
+            self.isBezeled = false
+            self.drawsBackground = false
+            self.isEditable = false
+            self.isSelectable = false
+            self.wantsLayer = true
+
+            self.cell?.truncatesLastVisibleLine = true
+            self.cell?.lineBreakMode = .byTruncatingTail
+
+            // Allow tooltips and clicks to pass through naturally
+            self.refusesFirstResponder = true
+
+            // Tooltip
+            if let help = segment.helpEcho, !help.isEmpty {
+                self.toolTip = help
+            }
+
+            // NOTE: Tracking areas are set up in updateTrackingAreas() to avoid duplication
+            // and ensure proper lifecycle management
+
+            self.sizeToFit()
+            self.invalidateIntrinsicContentSize()
+        }
+
+        required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+        /// Visual effect view for glass pill hover effect
+        private var hoverEffectView: NSVisualEffectView?
+
+        /// Update visual appearance based on hover state - uses glass pill effect
+        private func updateHoverAppearance() {
+            if isInteractive && isHovered {
+                if hoverEffectView == nil {
+                    let effectView = NSVisualEffectView()
+                    effectView.material = .hudWindow
+                    effectView.blendingMode = .withinWindow
+                    effectView.state = .active
+                    effectView.wantsLayer = true
+                    effectView.layer?.cornerRadius = bounds.height / 2  // Pill shape
+                    effectView.layer?.masksToBounds = true
+                    effectView.alphaValue = 0.6
+                    effectView.autoresizingMask = [.width, .height]
+                    effectView.frame = bounds.insetBy(dx: -4, dy: -2)  // Slightly larger than text
+                    addSubview(effectView, positioned: .below, relativeTo: nil)
+                    hoverEffectView = effectView
+                }
+                hoverEffectView?.isHidden = false
+            } else {
+                hoverEffectView?.isHidden = true
+            }
+        }
+
+        override func layout() {
+            super.layout()
+            // Update hover effect frame when layout changes
+            hoverEffectView?.frame = bounds.insetBy(dx: -4, dy: -2)
+            hoverEffectView?.layer?.cornerRadius = bounds.height / 2
+        }
+
+        private var hoverTrackingArea: NSTrackingArea?
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+
+            // Manage only our specific tracking area
+            if let existing = hoverTrackingArea {
+                removeTrackingArea(existing)
+                hoverTrackingArea = nil
+            }
+
+            // Add new tracking area if needed (for hover and interaction)
+            let hasInteraction = segment.menuItems != nil || segment.command != nil
+            let hasTooltip = segment.helpEcho != nil && !segment.helpEcho!.isEmpty
+            if hasInteraction || hasTooltip {
+                let options: NSTrackingArea.Options = [.activeAlways, .mouseEnteredAndExited, .inVisibleRect, .mouseMoved]
+                let trackingArea = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
+                addTrackingArea(trackingArea)
+                self.hoverTrackingArea = trackingArea
+            }
+        }
+
+        override func mouseEntered(with event: NSEvent) {
+            super.mouseEntered(with: event)
+            isHovered = true
+        }
+
+        override func mouseExited(with event: NSEvent) {
+            super.mouseExited(with: event)
+            isHovered = false
+        }
+
+        override func mouseMoved(with event: NSEvent) {
+            super.mouseMoved(with: event)
+        }
+
+        /// Find a suitable Nerd Font
+        static func findNerdFont(size: CGFloat) -> NSFont? {
+            // Try common Nerd Font names
+            let names = [
+                "Symbols Nerd Font Mono",
+                "SymbolsNerdFontMono-Regular",
+                "SauceCodePro Nerd Font", 
+                "JetBrainsMono Nerd Font",
+                "MesloLGS NF"
+            ]
+            for name in names {
+                if let font = NSFont(name: name, size: size) {
+                    return font
+                }
+            }
+            return nil
+        }
+        
+        /// Create attributed string with Nerd Font fallback for PUA characters
+        static func createAttributedString(from text: String, side: String) -> NSAttributedString {
+            let fontSize: CGFloat = 11
+            let primaryFont = ModeLineToolbarItemView.findModeLineFont(size: fontSize)
+            // Use found Nerd Font or fallback to primary
+            let iconFont = SegmentView.findNerdFont(size: fontSize) ?? primaryFont
+            
+            let color: NSColor = (side == "lhs") ? .labelColor : .secondaryLabelColor
+            
+            let attributed = NSMutableAttributedString(string: text)
+            let fullRange = NSRange(location: 0, length: text.utf16.count)
+            
+            // Default attributes
+            attributed.addAttributes([
+                .font: primaryFont,
+                .foregroundColor: color
+            ], range: fullRange)
+            
+            // Scan for PUA characters (E000-F8FF) and other icon ranges
+            // Also standard symbols if needed
+            let puaSet = CharacterSet(charactersIn: "\u{E000}"..."\u{F8FF}")
+            
+            // Simple iteration through string to find ranges of icons
+            if text.rangeOfCharacter(from: puaSet) != nil {
+                let nsString = text as NSString
+                var index = 0
+                while index < nsString.length {
+                    let range = nsString.rangeOfCharacter(from: puaSet, options: [], range: NSRange(location: index, length: nsString.length - index))
+                    if range.location == NSNotFound {
+                        break
+                    }
+                    // Apply icon font to this character
+                    attributed.addAttribute(.font, value: iconFont, range: range)
+                    index = range.location + range.length
+                }
+            }
+            
+            return attributed
+        }
+        
+        override func mouseDown(with event: NSEvent) {
+            if segment.menuItems != nil || segment.command != nil {
+                onClick?(segment, self)
+            } else {
+                super.mouseDown(with: event)
+            }
+        }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            // Force hit test success if point is within bounds and we have interactions
+            if (segment.menuItems != nil || segment.command != nil || (segment.helpEcho != nil && !segment.helpEcho!.isEmpty)) {
+                let localPoint = convert(point, from: superview)
+                if bounds.contains(localPoint) {
+                    return self
+                }
+            }
+            return super.hitTest(point)
+        }
+        
+        override func resetCursorRects() {
+            if segment.menuItems != nil || segment.command != nil {
+                addCursorRect(bounds, cursor: .pointingHand)
+            }
+        }
+        
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+            return true
+        }
+        
+        override var mouseDownCanMoveWindow: Bool {
+            return false
+        }
+    }
+
+    // MARK: - Properties
+
+    /// Left-hand side stack view (internal for event monitoring access)
+    let lhsStack: NSStackView = {
+        let stack = NSStackView()
+        stack.orientation = .horizontal
+        stack.alignment = .centerY
+        stack.spacing = 6  // Spacing between LHS segments
+        stack.distribution = .fill
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        // LHS can shrink
+        stack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        return stack
+    }()
+
+    /// Right-hand side stack view (internal for event monitoring access)
+    let rhsStack: NSStackView = {
+        let stack = NSStackView()
+        stack.orientation = .horizontal
+        stack.alignment = .centerY
+        stack.spacing = 6  // Spacing between RHS segments
+        stack.distribution = .fill
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        // RHS stays visible
+        stack.setContentCompressionResistancePriority(.required, for: .horizontal)
+        return stack
+    }()
+
+    /// Callback for mode-line clicks (fallback for empty space)
+    var onModeLineClick: ((String, Double) -> Void)?
+
+    /// Callback for specific segment click (includes view for positioning)
+    var onSegmentClick: ((ModeLineSegment, NSView) -> Void)?
+
+    // MARK: - Init
+    
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         setupView()
@@ -33,83 +281,182 @@ final class ModeLineToolbarItemView: NSView {
         setupView()
     }
 
+    private var parentTrackingArea: NSTrackingArea?
+
     private func setupView() {
         // NO background - toolbar provides glass effect
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor
+        autoresizingMask = [.width, .height] // Fill container
 
-        // Use autoresizing to fill container
-        autoresizingMask = [.width, .height]
+        // Ensure we accept mouse events
+        self.allowedTouchTypes = .direct
 
-        // Use nerd font for proper icon rendering
-        let font = findModeLineFont(size: 11)
+        addSubview(lhsStack)
+        addSubview(rhsStack)
+        
+        NSLayoutConstraint.activate([
+            lhsStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            lhsStack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            lhsStack.topAnchor.constraint(greaterThanOrEqualTo: topAnchor),
+            
+            rhsStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            rhsStack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            
+            // Prevent overlap - LHS shrinks if needed
+            // Use greaterThanOrEqualTo for RHS leading against LHS trailing with priority
+            // rhsStack.leading >= lhsStack.trailing + 12
+            rhsStack.leadingAnchor.constraint(greaterThanOrEqualTo: lhsStack.trailingAnchor, constant: 12)
+        ])
+    }
+    
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
 
-        // Configure LHS label - use autoresizing, not constraints
-        lhsLabel.font = font
-        lhsLabel.textColor = .labelColor
-        lhsLabel.backgroundColor = .clear
-        lhsLabel.drawsBackground = false
-        lhsLabel.alignment = .left
-        lhsLabel.lineBreakMode = .byTruncatingTail
-        lhsLabel.autoresizingMask = [.maxXMargin]
+        // Remove old tracking area
+        if let existing = parentTrackingArea {
+            removeTrackingArea(existing)
+            parentTrackingArea = nil
+        }
 
-        // Configure RHS label
-        rhsLabel.font = font
-        rhsLabel.textColor = .secondaryLabelColor
-        rhsLabel.backgroundColor = .clear
-        rhsLabel.drawsBackground = false
-        rhsLabel.alignment = .right
-        rhsLabel.lineBreakMode = .byTruncatingHead
-        rhsLabel.autoresizingMask = [.minXMargin]
-
-        addSubview(lhsLabel)
-        addSubview(rhsLabel)
-
+        // Add tracking area for the whole view to capture enter/exit
+        let options: NSTrackingArea.Options = [.activeAlways, .mouseEnteredAndExited, .mouseMoved, .inVisibleRect]
+        let trackingArea = NSTrackingArea(rect: bounds, options: options, owner: self, userInfo: nil)
+        addTrackingArea(trackingArea)
+        parentTrackingArea = trackingArea
     }
 
-    func updateContent(lhs: String, rhs: String) {
-        lhsLabel.stringValue = lhs
-        rhsLabel.stringValue = rhs
-        layoutLabels()
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        return super.hitTest(point)
     }
 
-    private func layoutLabels() {
-        let margin: CGFloat = 8
-        let spacing: CGFloat = 16
-        let height = bounds.height
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
+        return true
+    }
+    
+    // Prevent the window from moving when clicking the toolbar items
+    override var mouseDownCanMoveWindow: Bool {
+        return false
+    }
 
-        // Size labels to fit content
-        lhsLabel.sizeToFit()
-        rhsLabel.sizeToFit()
+    // MARK: - Mouse Event Handling
 
-        // Position LHS at left
-        let lhsY = (height - lhsLabel.frame.height) / 2
-        lhsLabel.frame = NSRect(x: margin, y: lhsY, width: lhsLabel.frame.width, height: lhsLabel.frame.height)
-
-        // Position RHS at right
-        let rhsY = (height - rhsLabel.frame.height) / 2
-        let rhsX = bounds.width - margin - rhsLabel.frame.width
-        rhsLabel.frame = NSRect(x: rhsX, y: rhsY, width: rhsLabel.frame.width, height: rhsLabel.frame.height)
-
-        // If labels overlap, truncate LHS
-        let lhsRight = lhsLabel.frame.maxX + spacing
-        if lhsRight > rhsLabel.frame.minX {
-            let newLhsWidth = max(0, rhsLabel.frame.minX - spacing - margin)
-            lhsLabel.frame.size.width = newLhsWidth
+    override func mouseDown(with event: NSEvent) {
+        // Find the segment view under the click and forward the event
+        if let hitView = hitTest(convert(event.locationInWindow, from: nil)) as? SegmentView {
+            hitView.mouseDown(with: event)
+        } else {
+            super.mouseDown(with: event)
         }
     }
 
-    override func layout() {
-        super.layout()
-        layoutLabels()
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
     }
 
-    override func resizeSubviews(withOldSize oldSize: NSSize) {
-        super.resizeSubviews(withOldSize: oldSize)
-        layoutLabels()
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
     }
 
-    // Don't override intrinsicContentSize - let toolbar manage sizing
+    override func mouseMoved(with event: NSEvent) {
+        // Find segment under cursor and update hover state
+        for case let segmentView as SegmentView in lhsStack.arrangedSubviews + rhsStack.arrangedSubviews {
+            let segmentLocation = segmentView.convert(event.locationInWindow, from: nil)
+            let isHovered = segmentView.bounds.contains(segmentLocation)
+            if isHovered {
+                // Trigger cursor update
+                segmentView.window?.invalidateCursorRects(for: segmentView)
+            }
+        }
+    }
+
+    // MARK: - Update
+
+    /// Flag to track if we have structured segments with menus
+    private var hasStructuredSegments = false
+
+    /// Update with raw strings (legacy/simple support)
+    /// NOTE: This is a fallback - if we have structured JSON segments, skip this
+    func updateContent(lhs: String, rhs: String) {
+        // Don't overwrite structured segments with plain text
+        if hasStructuredSegments {
+            return
+        }
+
+        var segments: [ModeLineSegment] = []
+
+        if !lhs.isEmpty {
+            segments.append(ModeLineSegment(
+                text: lhs,
+                relStart: 0.0,
+                relEnd: 0.5,
+                helpEcho: nil,
+                side: "lhs",
+                menuItems: nil,
+                command: nil
+            ))
+        }
+
+        if !rhs.isEmpty {
+            segments.append(ModeLineSegment(
+                text: rhs,
+                relStart: 0.5,
+                relEnd: 1.0,
+                helpEcho: nil,
+                side: "rhs",
+                menuItems: nil,
+                command: nil
+            ))
+        }
+
+        updateWithSegmentsInternal(segments)
+    }
+
+    func updateWithSegments(_ segments: [ModeLineSegment]) {
+        // Mark that we have structured segments if any have menus or helpEcho
+        let hasInteractiveContent = segments.contains { seg in
+            (seg.menuItems != nil && !seg.menuItems!.isEmpty) ||
+            seg.helpEcho != nil ||
+            seg.command != nil
+        }
+        if hasInteractiveContent || segments.count > 2 {
+            hasStructuredSegments = true
+        }
+        updateWithSegmentsInternal(segments)
+    }
+
+    private func updateWithSegmentsInternal(_ segments: [ModeLineSegment]) {
+        // Clear stacks
+        lhsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        rhsStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        
+        for segment in segments {
+            let view = SegmentView(segment: segment)
+            view.onClick = { [weak self] seg, segView in
+                self?.onSegmentClick?(seg, segView)
+            }
+
+            if segment.side == "lhs" {
+                lhsStack.addArrangedSubview(view)
+            } else {
+                rhsStack.addArrangedSubview(view)
+            }
+        }
+    }
+    
+    // MARK: - Helpers
+    
+    static func findModeLineFont(size: CGFloat) -> NSFont {
+        return NSFont(name: "SF Mono", size: size) ??
+               NSFont(name: "Symbols Nerd Font Mono", size: size) ??
+               NSFont(name: "Menlo", size: size) ??
+               .monospacedSystemFont(ofSize: size, weight: .medium)
+    }
+
+    // Removed generic mouseDown fallback to prevent duplicate menus
+    // Only structured segments will trigger actions.
+    
+    // Don't override layout manually, AutoLayout handles stacks
 }
 
 // MARK: - Sidebar SwiftUI Views
@@ -422,6 +769,160 @@ struct ModeLineToolbarView: View {
     }
 }
 
+// MARK: - Liquid Glass Menu and Tooltip Views
+
+/// A single menu item row with Liquid Glass styling
+@available(macOS 26.0, *)
+struct GlassMenuItemRow: View {
+    let item: ModeLineMenuItem
+    let onSelect: (String) -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: {
+            if item.enabled ?? true {
+                onSelect(item.command)
+            }
+        }) {
+            HStack(spacing: 8) {
+                if item.checked == true {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.primary)
+                } else {
+                    Spacer().frame(width: 12)
+                }
+
+                Text(item.title)
+                    .font(.system(size: 12))
+                    .foregroundStyle((item.enabled ?? true) ? .primary : .tertiary)
+
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(isHovered ? Color.primary.opacity(0.1) : Color.clear)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+        }
+        .buttonStyle(.plain)
+        .disabled(!(item.enabled ?? true))
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
+}
+
+/// Liquid Glass popup menu for mode-line segments (picker style)
+@available(macOS 26.0, *)
+struct GlassMenuView: View {
+    let title: String
+    let items: [ModeLineMenuItem]
+    let onSelect: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Title header
+            if !title.isEmpty {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, 6)
+
+                Divider()
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 4)
+            }
+
+            // Menu items with proper margins
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                    if item.separator == true {
+                        Divider()
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                    } else {
+                        GlassMenuItemRow(item: item, onSelect: onSelect)
+                            .padding(.horizontal, 6)
+                    }
+                }
+            }
+            .padding(.bottom, 8)
+        }
+        .frame(minWidth: 220)
+        .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 12))
+    }
+}
+
+/// Liquid Glass tooltip for mode-line segments
+@available(macOS 26.0, *)
+struct GlassTooltipView: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 11))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(.ultraThinMaterial)
+            .glassEffect(.regular, in: .capsule)
+    }
+}
+
+/// NSPopover-based picker for mode-line menus with arrow
+@available(macOS 26.0, *)
+final class GlassMenuPopover: NSPopover {
+    private var onCommandSelect: ((String) -> Void)?
+
+    override init() {
+        super.init()
+        self.behavior = .transient
+        self.animates = true
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    /// Show menu as popover below the given view
+    func showMenu(
+        items: [ModeLineMenuItem],
+        title: String,
+        relativeTo view: NSView,
+        onSelect: @escaping (String) -> Void
+    ) {
+        self.onCommandSelect = onSelect
+
+        let menuView = GlassMenuView(
+            title: title,
+            items: items,
+            onSelect: { [weak self] command in
+                self?.close()
+                onSelect(command)
+            }
+        )
+
+        let hostingController = NSHostingController(rootView: menuView)
+        // Make the hosting view transparent so glass effect shows through
+        hostingController.view.wantsLayer = true
+        hostingController.view.layer?.backgroundColor = .clear
+
+        self.contentViewController = hostingController
+
+        // Position at bottom center of the view
+        let rect = NSRect(
+            x: view.bounds.midX - 0.5,
+            y: 0,
+            width: 1,
+            height: 1
+        )
+
+        self.show(relativeTo: rect, of: view, preferredEdge: .minY)
+    }
+}
+
 // MARK: - Titlebar Accessory View for Toolbar Integration
 
 /// NSTitlebarAccessoryViewController that hosts the modeline SwiftUI view
@@ -467,11 +968,12 @@ final class ModeLineTitlebarAccessoryController: NSTitlebarAccessoryViewControll
 @available(macOS 26.0, *)
 final class ModeLineGlassOverlayController {
     private var glassView: NSGlassEffectView?
-    private var modeLineView: ModeLineToolbarItemView?
+    var modeLineView: ModeLineToolbarItemView?  // Internal for popover positioning
     private var modeLineContent: String = ""
     private var frameObserver: NSObjectProtocol?
     private var animationTimer: Timer?
     private var animationEndTime: Date?
+    private var eventMonitor: Any?
     weak var window: NSWindow?
 
     /// Metrics for toolbar glass bar (matching SwiftUI defaults)
@@ -479,8 +981,8 @@ final class ModeLineGlassOverlayController {
     private let glassHeight: CGFloat = 34     // Match toolbar button height
     private let glassCornerRadius: CGFloat = 17  // Half of height for pill shape
     private let verticalCenterOffset: CGFloat = 0  // Center in toolbar area
-    private let leadingPadding: CGFloat = 8   // Padding from left edge
-    private let trailingPadding: CGFloat = 8  // Padding from right edge
+    private let leadingPadding: CGFloat = 12   // Padding from left edge
+    private let trailingPadding: CGFloat = 12  // Padding from right edge
 
     /// Stored geometry for calculations (updated on each call)
     private var sidebarToggleWidth: CGFloat = 116  // traffic lights (69) + toggle (47)
@@ -490,30 +992,71 @@ final class ModeLineGlassOverlayController {
     /// Animation update callback (called by timer during animations)
     var onAnimationUpdate: (() -> Void)?
 
+    /// Callback for mode-line clicks. Parameters: segment ("lhs" or "rhs"), relative position (0.0-1.0)
+    var onModeLineClick: ((String, Double) -> Void)?
+
+    /// Callback for specific segment click (includes view for positioning)
+    var onSegmentClick: ((ModeLineSegment, NSView) -> Void)?
+
+    /// Update segments
+    func updateSegments(_ segments: [ModeLineSegment]) {
+        modeLineView?.updateWithSegments(segments)
+    }
+
     /// Setup the modeline overlay in the window
     func setup(for window: NSWindow) {
         self.window = window
 
         // Create modeline content view
         let modeView = ModeLineToolbarItemView(frame: .zero)
+        modeView.onModeLineClick = { [weak self] segment, position in
+            
+            self?.onModeLineClick?(segment, position)
+        }
+        modeView.onSegmentClick = { [weak self] segment, view in
+            self?.onSegmentClick?(segment, view)
+        }
+        
 
-        // Create glass effect view with proper properties
+        // Create glass effect view
         let glass = NSGlassEffectView()
-        glass.contentView = modeView
-        glass.cornerRadius = glassCornerRadius  // Use native NSGlassEffectView.cornerRadius
+        // glass.contentView = modeView // DECOUPLED: Content is now a sibling on top
+        glass.cornerRadius = glassCornerRadius
         glass.wantsLayer = true
-        glass.autoresizingMask = []  // We manage position manually
+        glass.autoresizingMask = []
 
         // Store references
         self.glassView = glass
         self.modeLineView = modeView
 
-        // Add to window - find the toolbar view or titlebar container
-        if let toolbarView = findToolbarView(in: window) {
-            toolbarView.addSubview(glass)
-        } else if let contentSuperview = window.contentView?.superview {
-            // Fallback: add to theme frame
-            contentSuperview.addSubview(glass)
+        // Ensure layer backing for proper z-ordering
+        modeView.wantsLayer = true
+        glass.wantsLayer = true
+
+        // Add to window's theme frame (contentView.superview)
+        if let themeFrame = window.contentView?.superview {
+            // Add glass first (background)
+            themeFrame.addSubview(glass)
+
+            // Add content view ON TOP of glass (sibling)
+            // This ensures it receives clicks and is not blocked by glass effect internal views
+            themeFrame.addSubview(modeView)
+
+            // CRITICAL: Set explicit z-ordering to ensure modeLineView is ALWAYS on top
+            // The glass effect is visual only; the content view must receive all events
+            glass.layer?.zPosition = 0
+            modeView.layer?.zPosition = 1000
+
+            // IMPORTANT: Bring modeView to front of subviews array for correct hit testing
+            // (z-position only affects rendering, not hit test order!)
+            modeView.removeFromSuperview()
+            themeFrame.addSubview(modeView, positioned: .above, relativeTo: nil)
+
+            // Ensure window accepts mouse moved events for tooltips/hover
+            window.acceptsMouseMovedEvents = true
+
+            // Add local event monitor to intercept mouse events in toolbar area
+            self.setupEventMonitor()
         }
 
         // Observe window frame changes to update geometry
@@ -544,24 +1087,9 @@ final class ModeLineGlassOverlayController {
     private var parentFrameObserver: NSObjectProtocol?
 
     /// Find the toolbar view in the window hierarchy
+    /// Deprecated: We now attach directly to theme frame
     private func findToolbarView(in window: NSWindow) -> NSView? {
-        // The toolbar lives inside NSTitlebarContainerView
-        guard let contentSuperview = window.contentView?.superview else { return nil }
-
-        func findToolbarContainer(in view: NSView) -> NSView? {
-            let className = String(describing: type(of: view))
-            if className.contains("NSTitlebarContainerView") || className.contains("NSToolbarView") {
-                return view
-            }
-            for subview in view.subviews {
-                if let found = findToolbarContainer(in: subview) {
-                    return found
-                }
-            }
-            return nil
-        }
-
-        return findToolbarContainer(in: contentSuperview)
+        return window.contentView?.superview
     }
 
     /// Find the rightmost edge of the sidebar toggle button
@@ -595,10 +1123,7 @@ final class ModeLineGlassOverlayController {
         let buttons = allToolbarItems.filter { $0.frame.width >= 30 }
         let sortedButtons = buttons.sorted { $0.frame.minX < $1.frame.minX }
 
-        // Debug: log all toolbar items
-        for (index, item) in allToolbarItems.enumerated() {
-            let isSeparator = item.frame.width < 30 ? " (separator)" : ""
-        }
+
 
         // The leftmost button (not separator) is the sidebar toggle
         if let first = sortedButtons.first {
@@ -743,11 +1268,30 @@ final class ModeLineGlassOverlayController {
 
         let width = max(100, rightLimit - x)  // Minimum width of 100
 
-        // Set frame
+        // Set frame for glass (background)
         glass.frame = NSRect(x: x, y: y, width: width, height: glassHeight)
+        
+        // print("[Hyalo] ModeLineGlassOverlayController: updateLayout glassFrame=\(glass.frame), parentHeight=\(parentHeight), titlebarHeight=\(titlebarHeight)")
 
-        // Ensure modeline view fills glass
-        modeLineView?.frame = glass.bounds
+        // Set frame for content (on top) - matches glass frame exactly
+        modeLineView?.frame = glass.frame
+
+        // Ensure z-ordering is maintained (macOS may reorder subviews)
+        if let mode = modeLineView {
+            mode.layer?.zPosition = 1000
+            glass.layer?.zPosition = 0
+
+            // Re-add to front of subviews array if not already last
+            // (hit testing uses subviews order, not z-position)
+            if let parent = mode.superview, parent.subviews.last !== mode {
+                mode.removeFromSuperview()
+                parent.addSubview(mode, positioned: .above, relativeTo: nil)
+            }
+        }
+
+        // Force layout pass to ensure subviews (stack items) get their frames assigned
+        // Otherwise they might have intrinsic size (sizing the stack) but 0 frame
+        modeLineView?.layoutSubtreeIfNeeded()
     }
 
     private func parseSegments(_ input: String) -> (lhs: String, rhs: String) {
@@ -760,8 +1304,56 @@ final class ModeLineGlassOverlayController {
         return (trimmed, "")
     }
 
+    // MARK: - Event Monitoring
+
+    private func setupEventMonitor() {
+        // Monitor mouse events to intercept clicks in our view's frame
+        // This bypasses the titlebar's event interception
+        eventMonitor = NSEvent.addLocalMonitorForEvents(matching: [.leftMouseDown, .leftMouseUp]) { [weak self] event in
+            guard let self = self,
+                  let modeView = self.modeLineView,
+                  let window = self.window,
+                  event.window === window else {
+                return event
+            }
+
+            // Convert to modeLineView coordinates
+            let windowLocation = event.locationInWindow
+            let viewLocation = modeView.convert(windowLocation, from: nil)
+
+            // Check if click is within our view's bounds
+            if modeView.bounds.contains(viewLocation) && event.type == .leftMouseDown {
+                // Find the segment view under the click
+                for case let segmentView as ModeLineToolbarItemView.SegmentView in modeView.lhsStack.arrangedSubviews + modeView.rhsStack.arrangedSubviews {
+                    let segmentLocation = segmentView.convert(windowLocation, from: nil)
+                    if segmentView.bounds.contains(segmentLocation) {
+                        let segment = segmentView.segment
+                        print("[Hyalo] Segment clicked: '\(segment.text)' menuItems=\(segment.menuItems?.count ?? 0) helpEcho=\(segment.helpEcho ?? "nil")")
+                        if let items = segment.menuItems {
+                            for (i, item) in items.prefix(3).enumerated() {
+                                print("[Hyalo]   menu[\(i)]: '\(item.title)'")
+                            }
+                        }
+                        self.onSegmentClick?(segment, segmentView)
+                        return nil // Consume the event
+                    }
+                }
+            }
+
+            return event
+        }
+    }
+
+    private func removeEventMonitor() {
+        if let monitor = eventMonitor {
+            NSEvent.removeMonitor(monitor)
+            eventMonitor = nil
+        }
+    }
+
     deinit {
         animationTimer?.invalidate()
+        removeEventMonitor()
         if let observer = frameObserver {
             NotificationCenter.default.removeObserver(observer)
         }
@@ -1243,11 +1835,10 @@ struct HyaloNavigationLayout: View {
             trafficLightWidth = max(trafficLightWidth, frame.maxX)
         }
 
-        for detail in trafficLightDetails {
-        }
+
 
         // Toolbar and its items
-        if let toolbar = window.toolbar {
+        if window.toolbar != nil {
 
             // Find toolbar view in the view hierarchy
             if let contentView = window.contentView {
@@ -2010,6 +2601,9 @@ final class NavigationSidebarController: NSObject {
     var onSidebarVisibilityChanged: ((Bool, Bool) -> Void)?
     var onDetailVisibilityChanged: ((Bool, Bool) -> Void)?
 
+    /// Callback for mode-line clicks. Parameters: segment ("lhs" or "rhs"), relative position (0.0-1.0)
+    var onModeLineClick: ((String, Double) -> Void)?
+
     /// Setup the NavigationSplitView (called at Hyalo initialization)
     /// Sidebar starts collapsed, toolbar is immediately visible
     func setup() {
@@ -2142,6 +2736,25 @@ final class NavigationSidebarController: NSObject {
         overlay.onAnimationUpdate = { [weak self] in
             self?.updateModeLineGeometry()
         }
+
+        // Wire mode-line click callback
+        overlay.onModeLineClick = { [weak self] segment, position in
+            
+            self?.onModeLineClick?(segment, position)
+        }
+        
+        // Wire direct segment click (includes view for popover positioning)
+        overlay.onSegmentClick = { [weak self] segment, view in
+            guard let self = self else { return }
+
+            if let menuItems = segment.menuItems, !menuItems.isEmpty {
+                self.showSegmentMenuDirectly(items: menuItems, for: segment, from: view)
+            } else if let command = segment.command, !command.isEmpty {
+                self.executeEmacsCommand(command)
+            }
+        }
+        
+        
 
         modeLineGlassOverlay = overlay
 
@@ -2688,6 +3301,143 @@ final class NavigationSidebarController: NSObject {
             userInfo: ["slot": slot, "width": width, "height": height]
         )
     }
+
+    // MARK: - Mode-line Segments
+
+    /// Stored segments from Elisp for click handling
+    private var modeLineSegments: [ModeLineSegment] = []
+
+    /// Update mode-line segments from JSON
+    func updateModeLineSegments(_ segmentsJson: String) {
+        print("[Hyalo] updateModeLineSegments called, json length=\(segmentsJson.count)")
+        guard let data = segmentsJson.data(using: .utf8) else {
+            print("[Hyalo] updateModeLineSegments: failed to convert to data")
+            return
+        }
+        do {
+            modeLineSegments = try JSONDecoder().decode([ModeLineSegment].self, from: data)
+            print("[Hyalo] updateModeLineSegments: decoded \(modeLineSegments.count) segments")
+            for (i, seg) in modeLineSegments.enumerated() {
+                print("[Hyalo]   seg[\(i)]: side=\(seg.side) '\(seg.text.prefix(25))' menu=\(seg.menuItems?.count ?? 0) help=\(seg.helpEcho != nil)")
+            }
+            modeLineGlassOverlay?.updateSegments(modeLineSegments)
+        } catch {
+            print("[Hyalo] updateModeLineSegments: decode error: \(error)")
+        }
+    }
+
+    /// Find segment at relative position within side ("lhs" or "rhs")
+    func findSegment(at relativePosition: Double, side: String) -> ModeLineSegment? {
+        return modeLineSegments.first { segment in
+            segment.side == side &&
+            relativePosition >= segment.relStart &&
+            relativePosition < segment.relEnd
+        }
+    }
+
+    /// Show a popup menu from JSON and return the selected command
+    func showSegmentMenu(menuJson: String, at screenPoint: NSPoint) -> String? {
+        guard let data = menuJson.data(using: .utf8) else { return nil }
+        guard let menuData = try? JSONDecoder().decode(ModeLineMenu.self, from: data) else {
+            print("[Hyalo] NavigationSidebarController: failed to decode menu")
+            return nil
+        }
+
+        // Create NSMenu
+        let menu = NSMenu(title: menuData.title ?? "")
+        menu.autoenablesItems = false
+
+        for item in menuData.items {
+            if item.separator == true {
+                menu.addItem(NSMenuItem.separator())
+            } else {
+                let menuItem = NSMenuItem(title: item.title, action: nil, keyEquivalent: "")
+                menuItem.representedObject = item.command
+                menuItem.isEnabled = item.enabled ?? true
+                menuItem.state = (item.checked == true) ? .on : .off
+                menu.addItem(menuItem)
+            }
+        }
+
+        // Show menu at point
+        // Use popUpContextMenu which is more reliable for programmatic display
+        var selectedCommand: String? = nil
+
+        // Add target/action to menu items to capture selection
+        for menuItem in menu.items {
+            menuItem.target = self
+            menuItem.action = #selector(menuItemSelected(_:))
+        }
+
+        // Store for callback
+        pendingMenuSelection = nil
+
+        // Show menu
+        if let window = window {
+            let windowPoint = window.convertPoint(fromScreen: screenPoint)
+            if let contentView = window.contentView {
+                let viewPoint = contentView.convert(windowPoint, from: nil)
+                menu.popUp(positioning: nil, at: viewPoint, in: contentView)
+            }
+        }
+
+        selectedCommand = pendingMenuSelection
+        pendingMenuSelection = nil
+
+        return selectedCommand
+    }
+
+    private var pendingMenuSelection: String? = nil
+
+    @objc private func menuItemSelected(_ sender: NSMenuItem) {
+        pendingMenuSelection = sender.representedObject as? String
+        // If selected during showSegmentMenuDirectly, execute immediately
+        if let command = pendingMenuSelection {
+            executeEmacsCommand(command)
+        }
+    }
+
+    /// Liquid Glass popover for menus
+    private var glassMenuPopover: GlassMenuPopover?
+
+    /// The clicked segment view for popover positioning
+    private weak var clickedSegmentView: NSView?
+
+    /// Show segment menu with Liquid Glass popover (picker style with arrow)
+    private func showSegmentMenuDirectly(items: [ModeLineMenuItem], for segment: ModeLineSegment, from view: NSView?) {
+        // Close any existing popover
+        glassMenuPopover?.close()
+
+        // Create new popover
+        let popover = GlassMenuPopover()
+        glassMenuPopover = popover
+
+        // Use the segment view or fall back to modeLineView
+        guard let anchorView = view ?? modeLineGlassOverlay?.modeLineView else {
+            print("[Hyalo] No anchor view for menu popover")
+            return
+        }
+
+        popover.showMenu(
+            items: items,
+            title: segment.text.trimmingCharacters(in: .whitespaces),
+            relativeTo: anchorView,
+            onSelect: { [weak self] command in
+                self?.executeEmacsCommand(command)
+            }
+        )
+    }
+
+    /// Execute an Emacs command by name and refresh modeline
+    private func executeEmacsCommand(_ command: String) {
+        print("[Hyalo] NavigationSidebarController: executeEmacsCommand '\(command)'")
+        // Post notification for Module.swift to pick up
+        NotificationCenter.default.post(
+            name: NSNotification.Name("HyaloExecuteCommand"),
+            object: nil,
+            userInfo: ["command": command]
+        )
+    }
 }
 
 // MARK: - Manager
@@ -2703,6 +3453,9 @@ final class NavigationSidebarManager {
 
     /// Callback when detail visibility changes (called with "right" or nil)
     var onDetailVisibilityChanged: ((String, Bool) -> Void)?
+
+    /// Callback for mode-line clicks. Parameters: segment ("lhs" or "rhs"), relative position (0.0-1.0)
+    var onModeLineClick: ((String, Double) -> Void)?
 
     /// Notify about sidebar visibility change
     func notifySidebarVisibilityChanged(visible: Bool, needsSetup: Bool) {
@@ -2742,6 +3495,11 @@ final class NavigationSidebarManager {
         controller.onDetailVisibilityChanged = { [weak self] visible, needsSetup in
             self?.notifyDetailVisibilityChanged(visible: visible, needsSetup: needsSetup)
         }
+        controller.onModeLineClick = { [weak self] segment, position in
+            print("[Hyalo] NavigationSidebarManager: received click from controller (segment=\(segment), position=\(position))")
+            self?.onModeLineClick?(segment, position)
+        }
+        print("[Hyalo] NavigationSidebarManager: wired controller.onModeLineClick for window \(key)")
 
         controllers[key] = controller
         return controller
@@ -2884,4 +3642,47 @@ final class NavigationSidebarManager {
             break
         }
     }
+
+    // MARK: - Mode-line Segments
+
+    /// Update mode-line with structured segment data
+    func updateModeLineSegments(for window: NSWindow, segmentsJson: String) {
+        guard let controller = controllers[window.windowNumber] else { return }
+        controller.updateModeLineSegments(segmentsJson)
+    }
+
+    /// Show a popup menu for a mode-line segment
+    /// Returns the selected command string, or nil if cancelled
+    func showSegmentMenu(for window: NSWindow, menuJson: String, at point: NSPoint) -> String? {
+        guard let controller = controllers[window.windowNumber] else { return nil }
+        return controller.showSegmentMenu(menuJson: menuJson, at: point)
+    }
+}
+
+// MARK: - Mode-line Segment Data Structures
+
+/// A clickable segment in the mode-line
+struct ModeLineSegment: Codable {
+    let text: String
+    let relStart: Double
+    let relEnd: Double
+    let helpEcho: String?
+    let side: String  // "lhs" or "rhs"
+    let menuItems: [ModeLineMenuItem]?
+    let command: String?  // Direct command if no menu
+}
+
+/// A menu item for mode-line segment popup
+struct ModeLineMenuItem: Codable {
+    let title: String
+    let command: String
+    let checked: Bool?
+    let enabled: Bool?
+    let separator: Bool?
+}
+
+/// Menu structure for showing popup
+struct ModeLineMenu: Codable {
+    let title: String?
+    let items: [ModeLineMenuItem]
 }

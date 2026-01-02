@@ -51,6 +51,11 @@ final class HyaloModule: Module {
 
     // Static reference to keep channel alive
     static var visibilityChannel: Any?
+    static var modeLineClickChannel: Any?
+    static var commandObserver: Any?
+
+    // Store last modeline click for polling fallback
+    static var lastModeLineClick: (segment: String, position: Double)? = nil
 
     func Init(_ env: Environment) throws {
 
@@ -429,6 +434,90 @@ final class HyaloModule: Module {
             return false
         }
 
+        try env.defun(
+            "hyalo-setup-modeline-click-callback",
+            with: """
+            Setup callback for mode-line clicks.
+            This enables Swift to notify Elisp when the user clicks on the mode-line.
+            The callback calls `hyalo-on-modeline-click' with the segment ("lhs" or "rhs")
+            and the relative position (0.0-1.0) within the segment.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                // Open a channel for async callbacks from Swift to Elisp
+                let channel = try env.openChannel(name: "hyalo-modeline-click")
+
+                // RETAIN the channel to prevent deallocation
+                HyaloModule.modeLineClickChannel = channel
+
+                // Create callback for mode-line clicks
+                let modeLineClickCallback: (String, Double) -> Void = { segment, position in
+                    print("[Hyalo] Module: modeLineClickCallback triggered (segment=\(segment), position=\(position))")
+
+                    // Store click for polling fallback
+                    HyaloModule.lastModeLineClick = (segment: segment, position: position)
+
+                    // First try calling message to see if basic hook works
+                    print("[Hyalo] Module: testing message hook")
+                    let msgHook: (String) -> Void = channel.hook("message")
+                    msgHook("[Hyalo] Mode-line click: \(segment) at \(position)")
+                    print("[Hyalo] Module: message hook called")
+
+                    // Now try our custom hook
+                    print("[Hyalo] Module: getting hook for hyalo-on-modeline-click")
+                    let hook: (String, Double) -> Void = channel.hook("hyalo-on-modeline-click")
+                    print("[Hyalo] Module: calling hook with (\(segment), \(position))")
+                    hook(segment, position)
+                    print("[Hyalo] Module: hook called successfully")
+                }
+
+                // Set the callback on the manager
+                DispatchQueue.main.async {
+                    NavigationSidebarManager.shared.onModeLineClick = modeLineClickCallback
+                    print("[Hyalo] Module: set NavigationSidebarManager.shared.onModeLineClick")
+                }
+
+                // Remove existing observer if any
+                if let observer = HyaloModule.commandObserver {
+                    NotificationCenter.default.removeObserver(observer)
+                    HyaloModule.commandObserver = nil
+                }
+
+                // Setup observer for command execution from menus
+                HyaloModule.commandObserver = NotificationCenter.default.addObserver(
+                    forName: NSNotification.Name("HyaloExecuteCommand"),
+                    object: nil,
+                    queue: .main
+                ) { [weak channel] notification in
+                    guard let channel = channel,
+                          let userInfo = notification.userInfo,
+                          let command = userInfo["command"] as? String else { return }
+                    
+                    print("[Hyalo] Module: executing command via callback: \(command)")
+                    let hook: (String) -> Void = channel.hook("hyalo-execute-string-command")
+                    hook(command)
+                }
+
+                return true
+            }
+            return false
+        }
+
+        // Polling function for mode-line clicks (fallback if channel doesn't work)
+        try env.defun(
+            "hyalo-poll-modeline-click",
+            with: """
+            Poll for pending mode-line clicks.
+            Returns "SEGMENT:POSITION" string if a click is pending, nil otherwise.
+            Clears the pending click after returning it.
+            """
+        ) { (env: Environment) throws -> String? in
+            if let click = HyaloModule.lastModeLineClick {
+                HyaloModule.lastModeLineClick = nil
+                return "\(click.segment):\(click.position)"
+            }
+            return nil
+        }
 
         try env.defun(
             "hyalo-restore-focus",
@@ -525,6 +614,57 @@ final class HyaloModule: Module {
                 return true
             }
             return false
+        }
+
+        try env.defun(
+            "hyalo-sidebar-update-mode-line-segments",
+            with: """
+            Update mode-line with structured segment data for interactive menus.
+            SEGMENTS-JSON is a JSON string with array of segment objects:
+            [{text, relStart, relEnd, helpEcho, side, menuItems: [{title, command}]}]
+            """
+        ) { (env: Environment, segmentsJson: String) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    NavigationSidebarManager.shared.updateModeLineSegments(for: window, segmentsJson: segmentsJson)
+                }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-sidebar-show-segment-menu",
+            with: """
+            Show a popup menu for a mode-line segment.
+            MENU-JSON is a JSON string with menu structure:
+            {title, items: [{title, command, checked?, enabled?}]}
+            X and Y are screen coordinates for the menu.
+            """
+        ) { (env: Environment, menuJson: String, x: Double, y: Double) throws -> String? in
+            if #available(macOS 26.0, *) {
+                // Show menu synchronously and return selected command
+                var selectedCommand: String? = nil
+                let semaphore = DispatchSemaphore(value: 0)
+                
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else {
+                        semaphore.signal()
+                        return
+                    }
+                    selectedCommand = NavigationSidebarManager.shared.showSegmentMenu(
+                        for: window,
+                        menuJson: menuJson,
+                        at: NSPoint(x: x, y: y)
+                    )
+                    semaphore.signal()
+                }
+                
+                _ = semaphore.wait(timeout: .now() + 30) // 30 second timeout
+                return selectedCommand
+            }
+            return nil
         }
 
         try env.defun(
@@ -1143,7 +1283,7 @@ final class HyaloModule: Module {
                     guard let window = findEmacsWindow() else {
                         return
                     }
-                    let result = EmbeddedFrameManager.shared.embedFrames(for: panel, parentWindow: window)
+                    _ = EmbeddedFrameManager.shared.embedFrames(for: panel, parentWindow: window)
                 }
                 return true
             }

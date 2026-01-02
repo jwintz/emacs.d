@@ -24,7 +24,6 @@
 
 (use-package hyalo-sidebar
   :ensure nil
-
   :after hyalo
   :demand t
   :custom
@@ -37,7 +36,8 @@
     "t e" '(hyalo-sidebar-toggle-left :wk "sidebar (left)")
     "t i" '(hyalo-sidebar-toggle-right :wk "inspector (right)")
     "t E" '(hyalo-sidebar-focus-left :wk "focus sidebar")
-    "t I" '(hyalo-sidebar-focus-right :wk "focus inspector")))
+    "t I" '(hyalo-sidebar-focus-right :wk "focus inspector")
+    "t m" '(demap-toggle :wk "minimap")))
 
 (provide 'init-dired)
 

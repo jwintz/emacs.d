@@ -83,6 +83,11 @@
                '("recentf" "bookmarks" ".local/"))
      ,(rx bos "/tmp/")))
   :config
+  ;; Suppress "Loading .../recentf.eld...done" message
+  (advice-add 'recentf-load-list :around
+              (lambda (orig-fun &rest args)
+                (let ((inhibit-message t))
+                  (apply orig-fun args))))
   (recentf-mode 1))
 
 (use-package saveplace
