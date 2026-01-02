@@ -54,7 +54,7 @@ final class HyaloModule: Module {
     static var modeLineClickChannel: Any?
     static var commandObserver: Any?
 
-    // Store last modeline click for polling fallback
+    // NOTE: lastModeLineClick is only used during click handling, not for polling
     static var lastModeLineClick: (segment: String, position: Double)? = nil
 
     func Init(_ env: Environment) throws {
@@ -484,18 +484,46 @@ final class HyaloModule: Module {
                 }
 
                 // Setup observer for command execution from menus
+                // NOTE: We capture `channel` strongly here since it's already retained
+                // in HyaloModule.modeLineClickChannel. Using weak caused nil issues.
                 HyaloModule.commandObserver = NotificationCenter.default.addObserver(
                     forName: NSNotification.Name("HyaloExecuteCommand"),
                     object: nil,
                     queue: .main
-                ) { [weak channel] notification in
-                    guard let channel = channel,
-                          let userInfo = notification.userInfo,
-                          let command = userInfo["command"] as? String else { return }
+                ) { notification in
+                    print("[Hyalo] Module: HyaloExecuteCommand notification received")
+                    guard let userInfo = notification.userInfo,
+                          let command = userInfo["command"] as? String else {
+                        print("[Hyalo] Module: ERROR - no command in userInfo")
+                        return
+                    }
                     
-                    print("[Hyalo] Module: executing command via callback: \(command)")
-                    let hook: (String) -> Void = channel.hook("hyalo-execute-string-command")
-                    hook(command)
+                    print("[Hyalo] Module: executing command: \(command)")
+                    
+                    // CRITICAL: Focus restoration sequence for channel hooks
+                    // The popover closing may have temporarily unfocused Emacs.
+                    // We need to ensure Emacs is fully focused before calling the hook.
+                    if #available(macOS 26.0, *) {
+                        if let window = findEmacsWindow() {
+                            // Step 1: Make sure window is key
+                            window.makeKeyAndOrderFront(nil)
+                            
+                            // Step 2: Restore Emacs first responder
+                            let controller = NavigationSidebarManager.shared.getController(for: window)
+                            controller.restoreEmacsFocus()
+                            print("[Hyalo] Module: focus restored to Emacs")
+                        }
+                    }
+                    
+                    // Step 3: Allow event loop to process focus change,
+                    // then call the hook. Use asyncAfter to ensure Emacs
+                    // has time to process the focus restoration events.
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                        print("[Hyalo] Module: calling hook hyalo-execute-string-command (after focus delay)")
+                        let hook: (String) -> Void = channel.hook("hyalo-execute-string-command")
+                        hook(command)
+                        print("[Hyalo] Module: hook called")
+                    }
                 }
 
                 return true
@@ -503,21 +531,8 @@ final class HyaloModule: Module {
             return false
         }
 
-        // Polling function for mode-line clicks (fallback if channel doesn't work)
-        try env.defun(
-            "hyalo-poll-modeline-click",
-            with: """
-            Poll for pending mode-line clicks.
-            Returns "SEGMENT:POSITION" string if a click is pending, nil otherwise.
-            Clears the pending click after returning it.
-            """
-        ) { (env: Environment) throws -> String? in
-            if let click = HyaloModule.lastModeLineClick {
-                HyaloModule.lastModeLineClick = nil
-                return "\(click.segment):\(click.position)"
-            }
-            return nil
-        }
+        // NOTE: Polling functions removed per AGENTS.md constraints
+        // Channel hooks are used instead for command execution
 
         try env.defun(
             "hyalo-restore-focus",

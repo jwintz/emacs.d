@@ -418,18 +418,31 @@ This simulates a mouse-1 click on the mode-line to trigger native popups."
 (defun hyalo-execute-string-command (command-name)
   "Execute command from Swift by name.
 Called by HyaloExecuteCommand notification from Swift.
-Triggers modeline refresh after command execution."
+Triggers modeline refresh immediately after command execution."
+  (message "[Hyalo] hyalo-execute-string-command called with: %s" command-name)
   (let* ((sym (intern-soft command-name))
          (cmd (hyalo--safe-mode-line-command sym)))
+    (message "[Hyalo] sym=%S cmd=%S commandp=%S" sym cmd (and cmd (commandp cmd)))
     (if (and cmd (commandp cmd))
         ;; Run in timer to ensure we are in valid event context
-        (run-at-time 0 nil
-                     (lambda (c)
-                       (with-demoted-errors "Mode-line command error: %S"
-                         (call-interactively c))
-                       ;; Refresh modeline immediately after command
-                       (hyalo-header--update))
-                     cmd)
+        (progn
+          (message "[Hyalo] Scheduling command execution via timer")
+          (run-at-time 0 nil
+                       (lambda (c)
+                         (message "[Hyalo] Timer fired, executing: %S" c)
+                         (with-demoted-errors "Mode-line command error: %S"
+                           (call-interactively c))
+                         (message "[Hyalo] Command executed, refreshing modeline")
+                         ;; Clear cache to force full refresh
+                         (setq hyalo-header--last-mode-line nil)
+                         ;; Force immediate modeline refresh
+                         (hyalo-header--update)
+                         ;; Force Emacs to redisplay
+                         (force-mode-line-update t)
+                         (redisplay t)
+                         (message "[Hyalo] Modeline refresh complete"))
+                       cmd))
+      (message "[Hyalo] ERROR: not a valid command: %s" command-name)
       (hyalo-error 'header "execute-string-command: not a valid command: %s" command-name))))
 
 (defun hyalo-header--invoke-mode-line-binding (map)
@@ -565,7 +578,8 @@ Handles doom-modeline style (display property) and standard (multi-space)."
 
 (defun hyalo-header--extract-structured-segments ()
   "Extract structured segment data from mode-line for Swift.
-Returns JSON string with segment array."
+Returns JSON string with segment array.
+Extracts ALL text, including non-interactive spans (for icons)."
   (when hyalo-header--debug-extraction
     (hyalo-debug 'header "extract-structured-segments: saved-format=%S"
                  (and hyalo-header--saved-mode-line-format t)))
@@ -575,29 +589,28 @@ Returns JSON string with segment array."
            ;; Find LHS/RHS separator using improved detection
            (sep-start (hyalo-header--find-lhs-rhs-separator formatted))
            (segments nil))
-      ;; Scan for clickable spans with properties
+      ;; Scan ALL text, grouping by changes in keymap OR help-echo
+      ;; This ensures icons (which may lack keymaps) are still captured
       (let ((pos 0)
-            (current-start nil)
+            (current-start 0)
             (current-map nil)
             (current-help nil))
         (while (< pos len)
           (let ((km (or (get-text-property pos 'keymap formatted)
                         (get-text-property pos 'local-map formatted)))
                 (help (get-text-property pos 'help-echo formatted)))
-            (cond
-             ;; Start of new span
-             ((and km (not (eq km current-map)))
-              (when (and current-start current-map)
-                ;; Close previous span
+            ;; When properties change, close current span and start new one
+            (when (or (not (eq km current-map))
+                      (not (equal help current-help)))
+              ;; Close previous span if it has content
+              (when (and (> pos current-start))
                 (let* ((text (substring formatted current-start pos))
                        (side (if (< current-start sep-start) "lhs" "rhs"))
-                       ;; Try multiple binding variants
-                       (menu-binding (or (lookup-key current-map [mode-line down-mouse-1])
-                                         (lookup-key current-map [mode-line mouse-1])
-                                         (lookup-key current-map [down-mouse-1])
-                                         (lookup-key current-map [mouse-1])))
-                       (_ (when hyalo-header--debug-extraction
-                            (hyalo-debug 'header "Span %d-%d: binding=%S" current-start pos menu-binding)))
+                       (menu-binding (when current-map
+                                       (or (lookup-key current-map [mode-line down-mouse-1])
+                                           (lookup-key current-map [mode-line mouse-1])
+                                           (lookup-key current-map [down-mouse-1])
+                                           (lookup-key current-map [mouse-1]))))
                        (menu-items (cond
                                     ((keymapp menu-binding)
                                      (hyalo-header--extract-menu-items menu-binding))
@@ -605,90 +618,52 @@ Returns JSON string with segment array."
                                           (eq (car menu-binding) 'menu-item))
                                      (let* ((filter (plist-get (nthcdr 3 menu-binding) :filter))
                                             (menu (if filter
-                                                      (condition-case err
+                                                      (condition-case nil
                                                           (funcall filter (nth 2 menu-binding))
-                                                        (error
-                                                         (when hyalo-header--debug-extraction
-                                                           (hyalo-debug 'header "Filter error: %S" err))
-                                                         nil))
+                                                        (error nil))
                                                     (nth 2 menu-binding))))
-                                       (when hyalo-header--debug-extraction
-                                         (hyalo-debug 'header "menu-item filter=%S menu=%S keymapp=%S"
-                                                      filter menu (keymapp menu)))
                                        (when (keymapp menu)
                                          (hyalo-header--extract-menu-items menu))))
                                     (t nil)))
                        (command (when (and (not menu-items) (commandp menu-binding))
                                   (symbol-name menu-binding))))
-                  (push `((text . ,text)
-                          (relStart . ,(/ (float current-start) len))
-                          (relEnd . ,(/ (float pos) len))
-                          (helpEcho . ,(when (stringp current-help) current-help))
-                          (side . ,side)
-                          (menuItems . ,menu-items)
-                          (command . ,command))
-                        segments)))
+                  ;; Only add non-empty, non-whitespace-only segments
+                  (when (string-match-p "[^ \t]" text)
+                    (push `((text . ,text)
+                            (relStart . ,(/ (float current-start) len))
+                            (relEnd . ,(/ (float pos) len))
+                            (helpEcho . ,(when (stringp current-help) current-help))
+                            (side . ,side)
+                            (menuItems . ,menu-items)
+                            (command . ,command))
+                          segments))))
+              ;; Start new span
               (setq current-start pos
                     current-map km
-                    current-help help))
-             ;; End of span
-             ((and current-map (not km))
-              (let* ((text (substring formatted current-start pos))
-                     (side (if (< current-start sep-start) "lhs" "rhs"))
-                     ;; Try multiple binding variants
-                     (menu-binding (or (lookup-key current-map [mode-line down-mouse-1])
-                                       (lookup-key current-map [mode-line mouse-1])
-                                       (lookup-key current-map [down-mouse-1])
-                                       (lookup-key current-map [mouse-1])))
-                     (menu-items (cond
-                                  ((keymapp menu-binding)
-                                   (hyalo-header--extract-menu-items menu-binding))
-                                  ((and (consp menu-binding)
-                                        (eq (car menu-binding) 'menu-item))
-                                   (let* ((filter (plist-get (nthcdr 3 menu-binding) :filter))
-                                          (menu (if filter
-                                                    (condition-case nil
-                                                        (funcall filter (nth 2 menu-binding))
-                                                      (error nil))
-                                                  (nth 2 menu-binding))))
-                                     (when (keymapp menu)
-                                       (hyalo-header--extract-menu-items menu))))
-                                  (t nil)))
-                     (command (when (and (not menu-items) (commandp menu-binding))
-                                (symbol-name menu-binding))))
-                (push `((text . ,text)
-                        (relStart . ,(/ (float current-start) len))
-                        (relEnd . ,(/ (float pos) len))
-                        (helpEcho . ,(when (stringp current-help) current-help))
-                        (side . ,side)
-                        (menuItems . ,menu-items)
-                        (command . ,command))
-                      segments))
-              (setq current-start nil
-                    current-map nil
-                    current-help nil))))
+                    current-help help)))
           (cl-incf pos))
         ;; Close final span
-        (when (and current-start current-map)
+        (when (> pos current-start)
           (let* ((text (substring formatted current-start pos))
                  (side (if (< current-start sep-start) "lhs" "rhs"))
-                 ;; Try multiple binding variants
-                 (menu-binding (or (lookup-key current-map [mode-line down-mouse-1])
-                                   (lookup-key current-map [mode-line mouse-1])
-                                   (lookup-key current-map [down-mouse-1])
-                                   (lookup-key current-map [mouse-1])))
+                 (menu-binding (when current-map
+                                 (or (lookup-key current-map [mode-line down-mouse-1])
+                                     (lookup-key current-map [mode-line mouse-1])
+                                     (lookup-key current-map [down-mouse-1])
+                                     (lookup-key current-map [mouse-1]))))
                  (menu-items (when (keymapp menu-binding)
                                (hyalo-header--extract-menu-items menu-binding)))
                  (command (when (and (not menu-items) (commandp menu-binding))
                             (symbol-name menu-binding))))
-            (push `((text . ,text)
-                    (relStart . ,(/ (float current-start) len))
-                    (relEnd . ,(/ (float pos) len))
-                    (helpEcho . ,(when (stringp current-help) current-help))
-                    (side . ,side)
-                    (menuItems . ,menu-items)
-                    (command . ,command))
-                  segments))))
+            (when (string-match-p "[^ \t]" text)
+              (push `((text . ,text)
+                      (relStart . ,(/ (float current-start) len))
+                      (relEnd . ,(/ (float pos) len))
+                      (helpEcho . ,(when (stringp current-help) current-help))
+                      (side . ,side)
+                      (menuItems . ,menu-items)
+                      (command . ,command))
+                    segments)))))
       ;; Debug output
       (when hyalo-header--debug-extraction
         (hyalo-debug 'header "Extracted %d segments" (length segments))
@@ -847,7 +822,6 @@ Scans both backwards and forwards, preferring the closest match."
     found))
 
 
-
 (defun hyalo-header--check-modeline-click ()
   "Check for pending mode-line clicks from Swift.
 Called from `post-command-hook' to process clicks without polling."
@@ -859,18 +833,19 @@ Called from `post-command-hook' to process clicks without polling."
               (position (string-to-number (match-string 2 click-str))))
           (hyalo-on-modeline-click segment position))))))
 
+;; NOTE: Command execution uses channel hooks directly from Swift
+;; hyalo-execute-string-command is called via channel.hook() mechanism
+
 (defun hyalo-header--setup-modeline-click ()
   "Setup the mode-line click callback.
-Uses `post-command-hook' to check for clicks - no timers."
+Uses channel hooks for command execution - no timers or polling."
   (hyalo-debug 'header "setup-modeline-click: checking if hyalo-setup-modeline-click-callback exists")
   (if (fboundp 'hyalo-setup-modeline-click-callback)
       (progn
         (hyalo-debug 'header "setup-modeline-click: calling hyalo-setup-modeline-click-callback")
         (let ((result (hyalo-setup-modeline-click-callback)))
           (hyalo-debug 'header "setup-modeline-click: result=%s" result))
-        ;; Use post-command-hook to check for clicks (no timers)
-        (hyalo-debug 'header "setup-modeline-click: adding post-command-hook")
-        (add-hook 'post-command-hook #'hyalo-header--check-modeline-click))
+        (hyalo-debug 'header "setup-modeline-click: channel hooks installed"))
     (hyalo-warn 'header "setup-modeline-click: function not available")))
 
 (provide 'hyalo-header)

@@ -156,7 +156,7 @@
 
 (defun iota-shell--lang ()
   "Return 'via lang'."
-  (let ((lang nil)))
+  (let ((lang nil))
     (cond
      ((file-exists-p "Package.swift") (setq lang "swift"))
      ((file-exists-p "Cargo.toml")    (setq lang "rust"))
@@ -186,6 +186,7 @@
 
 (defun iota-shell--draw-right-prompt ()
   "Draw the right prompt using an overlay at the very end."
+  (message "[iota-shell] Draw Right Prompt called in buffer %s" (current-buffer))
   (save-excursion
     (goto-char (point-max))
     (let ((p (point)))
@@ -193,7 +194,7 @@
       (when (> p (point-min))
         (let* ((right-string (iota-shell--make-right-prompt-string))
                (right-len (length (substring-no-properties right-string)))
-               ;; Create zero-width overlay at the very end
+               ;; Create zero-width overlay at the very end, explicitly in current buffer
                (ov (make-overlay p p nil t nil)))
           (overlay-put ov 'after-string
                        (concat
@@ -201,17 +202,17 @@
                         right-string))
           (overlay-put ov 'evaporate t)
           (overlay-put ov 'iota-shell-right-prompt t)
-          (iota-shell-debug 'prompt "Overlay created: %s" ov))))))
-
-(defun iota-shell--on-emit-prompt (&rest _)
-  "Advice to draw right prompt after Eshell emits the main prompt."
-  (iota-shell-debug 'prompt "on-emit-prompt called")
-  (iota-shell--draw-right-prompt))
+          (message "[iota-shell] Overlay created: %s at %d with string '%s'" ov p right-string))))))
 
 ;;; Left Prompt Function
 
 (defun iota-shell-prompt ()
-  "Generate the left prompt."
+  "Generate the left prompt and schedule right prompt drawing."
+  (message "[iota-shell] Generating prompt")
+  ;; Schedule right prompt drawing immediately after this function returns
+  ;; and Eshell inserts the string.
+  (run-at-time 0 nil #'iota-shell--draw-right-prompt)
+  
   (concat
    "\n" ;; Spacing from previous command
    (iota-shell--user-host)
@@ -240,8 +241,6 @@
             (defalias 'eshell/ls-orig (symbol-function 'eshell/ls))))
         (defalias 'eshell/ls #'iota-shell-ls)
         
-        ;; Hook right prompt generation
-        (advice-add 'eshell-emit-prompt :after #'iota-shell--on-emit-prompt)
         ;; Set prompt
         (setq eshell-prompt-function #'iota-shell-prompt)
         (setq eshell-highlight-prompt nil)
@@ -249,8 +248,8 @@
         (setq eshell-prompt-regexp (concat "^.*" (regexp-quote iota-shell-prompt-char) " ")))
     ;; Restore
     (iota-shell-log 'core "Disabled")
-    (advice-remove 'eshell-emit-prompt #'iota-shell--on-emit-prompt)
     (setq eshell-prompt-function #'eshell-default-prompt-function)))
 
+(message "Loading iota-shell.el")
 (provide 'iota-shell)
 ;;; iota-shell.el ends here

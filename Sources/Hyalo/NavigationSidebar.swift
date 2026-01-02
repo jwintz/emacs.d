@@ -32,14 +32,8 @@ final class ModeLineToolbarItemView: NSView {
             (segment.menuItems != nil && !segment.menuItems!.isEmpty) || segment.command != nil
         }
 
-        /// Hover state for visual feedback
-        private var isHovered = false {
-            didSet {
-                if isHovered != oldValue {
-                    updateHoverAppearance()
-                }
-            }
-        }
+        // NOTE: Hover pill effect removed per user request
+
 
         init(segment: ModeLineSegment) {
             self.segment = segment
@@ -74,38 +68,7 @@ final class ModeLineToolbarItemView: NSView {
 
         required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-        /// Visual effect view for glass pill hover effect
-        private var hoverEffectView: NSVisualEffectView?
-
-        /// Update visual appearance based on hover state - uses glass pill effect
-        private func updateHoverAppearance() {
-            if isInteractive && isHovered {
-                if hoverEffectView == nil {
-                    let effectView = NSVisualEffectView()
-                    effectView.material = .hudWindow
-                    effectView.blendingMode = .withinWindow
-                    effectView.state = .active
-                    effectView.wantsLayer = true
-                    effectView.layer?.cornerRadius = bounds.height / 2  // Pill shape
-                    effectView.layer?.masksToBounds = true
-                    effectView.alphaValue = 0.6
-                    effectView.autoresizingMask = [.width, .height]
-                    effectView.frame = bounds.insetBy(dx: -4, dy: -2)  // Slightly larger than text
-                    addSubview(effectView, positioned: .below, relativeTo: nil)
-                    hoverEffectView = effectView
-                }
-                hoverEffectView?.isHidden = false
-            } else {
-                hoverEffectView?.isHidden = true
-            }
-        }
-
-        override func layout() {
-            super.layout()
-            // Update hover effect frame when layout changes
-            hoverEffectView?.frame = bounds.insetBy(dx: -4, dy: -2)
-            hoverEffectView?.layer?.cornerRadius = bounds.height / 2
-        }
+        // NOTE: Hover pill effect removed per user request - clean look preferred
 
         private var hoverTrackingArea: NSTrackingArea?
 
@@ -131,33 +94,47 @@ final class ModeLineToolbarItemView: NSView {
 
         override func mouseEntered(with event: NSEvent) {
             super.mouseEntered(with: event)
-            isHovered = true
+            // No visual effect, just tracking for cursor change
         }
 
         override func mouseExited(with event: NSEvent) {
             super.mouseExited(with: event)
-            isHovered = false
         }
 
         override func mouseMoved(with event: NSEvent) {
             super.mouseMoved(with: event)
         }
 
-        /// Find a suitable Nerd Font
+        /// Cached Nerd Font for performance
+        private static var cachedNerdFont: NSFont?
+        private static var cachedNerdFontSize: CGFloat = 0
+
+        /// Find a suitable Nerd Font (with caching)
         static func findNerdFont(size: CGFloat) -> NSFont? {
-            // Try common Nerd Font names
+            // Return cached font if size matches
+            if let cached = cachedNerdFont, cachedNerdFontSize == size {
+                return cached
+            }
+            
+            // Try common Nerd Font names - Symbols Nerd Font Mono is the dedicated icon font
             let names = [
                 "Symbols Nerd Font Mono",
                 "SymbolsNerdFontMono-Regular",
-                "SauceCodePro Nerd Font", 
+                "Symbols Nerd Font",
+                "SauceCodePro Nerd Font Mono",
+                "JetBrainsMono Nerd Font Mono",
                 "JetBrainsMono Nerd Font",
                 "MesloLGS NF"
             ]
             for name in names {
                 if let font = NSFont(name: name, size: size) {
+                    print("[Hyalo] SegmentView: Found Nerd Font '\(name)'")
+                    cachedNerdFont = font
+                    cachedNerdFontSize = size
                     return font
                 }
             }
+            print("[Hyalo] SegmentView: WARNING - No Nerd Font found!")
             return nil
         }
         
@@ -179,16 +156,22 @@ final class ModeLineToolbarItemView: NSView {
                 .foregroundColor: color
             ], range: fullRange)
             
-            // Scan for PUA characters (E000-F8FF) and other icon ranges
-            // Also standard symbols if needed
-            let puaSet = CharacterSet(charactersIn: "\u{E000}"..."\u{F8FF}")
+            // Build comprehensive Nerd Font icon character set:
+            // - E000-F8FF: Private Use Area (main Nerd Font icons)
+            // - F0000-FFFFF: Supplementary Private Use Area-A (extended icons)
+            // - 23FB-23FE: Power symbols
+            // - 2B58: Heavy circle (power symbol)
+            var iconCharSet = CharacterSet(charactersIn: "\u{E000}"..."\u{F8FF}")
+            iconCharSet.insert(charactersIn: "\u{F0000}"..."\u{FFFFF}")
+            iconCharSet.insert(charactersIn: "\u{23FB}"..."\u{23FE}")
+            iconCharSet.insert(Unicode.Scalar(0x2B58)!)
             
-            // Simple iteration through string to find ranges of icons
-            if text.rangeOfCharacter(from: puaSet) != nil {
+            // Scan for icon characters and apply Nerd Font
+            if text.rangeOfCharacter(from: iconCharSet) != nil {
                 let nsString = text as NSString
                 var index = 0
                 while index < nsString.length {
-                    let range = nsString.rangeOfCharacter(from: puaSet, options: [], range: NSRange(location: index, length: nsString.length - index))
+                    let range = nsString.rangeOfCharacter(from: iconCharSet, options: [], range: NSRange(location: index, length: nsString.length - index))
                     if range.location == NSNotFound {
                         break
                     }
@@ -840,17 +823,19 @@ struct GlassMenuView: View {
                 ForEach(Array(items.enumerated()), id: \.offset) { index, item in
                     if item.separator == true {
                         Divider()
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
+                            .padding(.horizontal, 16)  // More padding around separator
+                            .padding(.vertical, 8)     // Vertical spacing around separator
                     } else {
                         GlassMenuItemRow(item: item, onSelect: onSelect)
-                            .padding(.horizontal, 6)
+                            .padding(.horizontal, 8)   // Consistent horizontal margins
                     }
                 }
             }
-            .padding(.bottom, 8)
+            .padding(.horizontal, 4)  // Left/right margins for the menu content
+            .padding(.bottom, 10)
         }
         .frame(minWidth: 220)
+        // NOTE: No background - popover provides glass effect
         .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 12))
     }
 }
@@ -872,18 +857,62 @@ struct GlassTooltipView: View {
 }
 
 /// NSPopover-based picker for mode-line menus with arrow
+/// Uses transparent background to let the glass effect show through
 @available(macOS 26.0, *)
-final class GlassMenuPopover: NSPopover {
+final class GlassMenuPopover: NSPopover, NSPopoverDelegate {
     private var onCommandSelect: ((String) -> Void)?
 
     override init() {
         super.init()
         self.behavior = .transient
         self.animates = true
+        self.delegate = self
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+    
+    // MARK: - NSPopoverDelegate
+    
+    func popoverWillShow(_ notification: Notification) {
+        // Make popover window transparent immediately when it appears
+        makePopoverTransparent()
+    }
+    
+    private func makePopoverTransparent() {
+        guard let popoverWindow = self.contentViewController?.view.window else { return }
+        
+        // Make window fully transparent
+        popoverWindow.isOpaque = false
+        popoverWindow.backgroundColor = .clear
+        popoverWindow.hasShadow = true
+        
+        // Recursively make all background views transparent
+        if let contentView = popoverWindow.contentView {
+            makeViewsTransparent(contentView)
+        }
+    }
+    
+    private func makeViewsTransparent(_ view: NSView) {
+        let className = String(describing: type(of: view))
+        
+        // Hide popover chrome views (background, border, etc.)
+        if className.contains("Background") || 
+           className.contains("Chrome") ||
+           className.contains("_NSPopoverFrame") {
+            view.isHidden = true
+        }
+        
+        // Hide NSVisualEffectView (the popover's default material)
+        if view is NSVisualEffectView {
+            view.isHidden = true
+        }
+        
+        // Process subviews
+        for subview in view.subviews {
+            makeViewsTransparent(subview)
+        }
     }
 
     /// Show menu as popover below the given view
@@ -905,16 +934,17 @@ final class GlassMenuPopover: NSPopover {
         )
 
         let hostingController = NSHostingController(rootView: menuView)
-        // Make the hosting view transparent so glass effect shows through
         hostingController.view.wantsLayer = true
         hostingController.view.layer?.backgroundColor = .clear
+        hostingController.view.layer?.isOpaque = false
 
         self.contentViewController = hostingController
 
-        // Position at bottom center of the view
+        // Position at bottom center of the segment view
+        // Use a 1x1 rect centered at the bottom edge
         let rect = NSRect(
             x: view.bounds.midX - 0.5,
-            y: 0,
+            y: 0,  // Bottom edge
             width: 1,
             height: 1
         )
@@ -1067,6 +1097,16 @@ final class ModeLineGlassOverlayController {
         ) { [weak self] _ in
             self?.updateLayout()
         }
+        
+        // Also observe window move to fix coordinate computation after repositioning
+        windowMoveObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification,
+            object: window,
+            queue: .main
+        ) { [weak self] _ in
+            // Update layout after window move to ensure hit testing works correctly
+            self?.updateLayout()
+        }
 
         // Also observe parent view frame changes for real-time animation updates
         if let glass = glassView, let parentView = glass.superview {
@@ -1085,6 +1125,7 @@ final class ModeLineGlassOverlayController {
     }
 
     private var parentFrameObserver: NSObjectProtocol?
+    private var windowMoveObserver: NSObjectProtocol?
 
     /// Find the toolbar view in the window hierarchy
     /// Deprecated: We now attach directly to theme frame
@@ -1355,6 +1396,12 @@ final class ModeLineGlassOverlayController {
         animationTimer?.invalidate()
         removeEventMonitor()
         if let observer = frameObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = windowMoveObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        if let observer = parentFrameObserver {
             NotificationCenter.default.removeObserver(observer)
         }
     }
