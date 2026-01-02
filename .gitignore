@@ -1,6 +1,8 @@
 .build
 .local
 .agent-shell
-AGENT*
+#CLAUDE.md
+#GEMINI.md
+#AGENT*
 FONTS*
 README.md

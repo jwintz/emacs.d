@@ -46,8 +46,23 @@
   :general
   ("M-<up>"   'move-dup-move-lines-up)
   ("M-<down>" 'move-dup-move-lines-down)
-  ("M-s-<up>"   'move-dup-duplicate-up)
-  ("M-s-<down>" 'move-dup-duplicate-down))
+  (:prefix "C-c e"
+   "l" 'move-dup-duplicate-down
+   "L" 'move-dup-duplicate-up))
+
+(use-package multiple-cursors
+  :ensure t
+  :general
+  ("M-s-<down>" 'mc/mark-next-like-this)
+  ("M-s-<up>"   'mc/mark-previous-like-this)
+  :config
+  (with-eval-after-load 'multiple-cursors-core
+    (define-key mc/keymap (kbd "C-g") 'mc/keyboard-quit))
+  ;; Match (cursor-type '(hbar . 2)) from init-emacs.el
+  (set-face-attribute 'mc/cursor-face nil
+                      :underline t
+                      :inverse-video nil
+                      :background nil))
 
 (use-package windmove
   :ensure nil
