@@ -110,13 +110,15 @@
               (theme (plist-get profile :theme))
               (vibrancy (plist-get profile :vibrancy))
               (opacity (plist-get profile :opacity)))
-          (when appearance
-            (hyalo-appearance-set appearance))
+          ;; Load theme first
           (when theme
             (mapc #'disable-theme custom-enabled-themes)
             (load-theme theme t)
             (hyalo-set-highlights)
             (customize-save-variable 'hyalo-appearance-current-theme theme))
+          ;; Apply appearance (won't reload theme since not in auto mode)
+          (when appearance
+            (hyalo-appearance-set appearance))
           (when vibrancy
             (hyalo-appearance-set-vibrancy vibrancy))
           (when opacity

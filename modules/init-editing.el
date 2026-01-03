@@ -128,10 +128,51 @@
   :diminish whitespace-mode
   :custom
   (whitespace-line-column 100)
-  (whitespace-style '(face
-                      trailing              ; Trailing whitespace
-                      tabs                  ; Tab characters
-                      lines-tail))          ; Lines exceeding whitespace-line-column
+  :config
+  ;; Define the whitespace style.
+  (setq-default whitespace-style
+		'(face spaces empty tabs newline trailing space-mark tab-mark newline-mark))
+
+  ;; Make these characters represent whitespace.
+  (setq-default whitespace-display-mappings
+		'(
+		  ;; space -> · else .
+		  (space-mark 32 [183] [46])
+		  ;; new line -> ¬ else $
+		  (newline-mark ?\n [172 ?\n] [36 ?\n])
+		  ;; carriage return (Windows) -> ¶ else #
+		  (newline-mark ?\r [182] [35])
+		  ;; tabs -> » else >
+		  (tab-mark ?\t [187 ?\t] [62 ?\t])))
+
+  (defun hyalo-set-dimmed-whitespace-faces (&rest _)
+    "Dim whitespace faces to 10% of the default foreground color."
+    (let* ((fg-color (face-attribute 'default :foreground nil t))
+           (bg-color (face-attribute 'default :background nil t))
+           (alpha 0.2))
+
+      ;; Ensure we have valid colors (sometimes nil during early init)
+      (when (and (stringp fg-color) (stringp bg-color))
+	(let* ((blended-list (color-blend (color-name-to-rgb fg-color)
+                                          (color-name-to-rgb bg-color)
+                                          alpha))
+               (ws-color (apply 'color-rgb-to-hex blended-list)))
+
+          (custom-set-faces
+           `(whitespace-newline                ((t (:foreground ,ws-color))))
+           `(whitespace-missing-newline-at-eof ((t (:foreground ,ws-color))))
+           `(whitespace-space                  ((t (:foreground ,ws-color))))
+           `(whitespace-space-after-tab        ((t (:foreground ,ws-color))))
+           `(whitespace-space-before-tab       ((t (:foreground ,ws-color))))
+           `(whitespace-tab                    ((t (:foreground ,ws-color))))
+           `(whitespace-trailing               ((t (:foreground ,ws-color)))))))))
+
+  ;;
+  (when (boundp 'enable-theme-functions)
+    (add-hook 'enable-theme-functions #'hyalo-set-dimmed-whitespace-faces))
+
+  ;;
+  (hyalo-set-dimmed-whitespace-faces)
   :hook
   ((prog-mode conf-mode) . whitespace-mode))
 

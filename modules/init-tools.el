@@ -69,6 +69,7 @@
   :mode "\\.swift\\'")
 
 (use-package eglot
+  :disabled t
   :ensure nil
   :hook (swift-mode . eglot-ensure)
   :config
