@@ -292,7 +292,7 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
   "Scan region from START to END for words.
 Call COLLECTOR with uncached words found."
   (goto-char start)
-  (while (re-search-forward "\\([a-zA-Z0-9']+\\|[[:punct:]]\\)" end t)
+  (while (re-search-forward "\\(\\*?[a-zA-Z0-9'-]+\\|[[:punct:]]\\)" end t)
     (let* ((word-start (match-beginning 0))
            (word-end (match-end 0))
            (word (match-string-no-properties 0))
