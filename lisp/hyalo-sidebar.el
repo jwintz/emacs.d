@@ -431,9 +431,19 @@ In non-embedded frames, returns original result unchanged."
   ;; Hide dired details (permissions, size, date) for cleaner display
   (when (derived-mode-p 'dired-mode 'dired-sidebar-mode)
     (dired-hide-details-mode 1)
-    ;; Hide the 2-char mark column at start of lines (space + permission char)
-    (setq-local dired-listing-switches "-l --group-directories-first")
-    (font-lock-add-keywords nil '(("^.." 0 '(face nil display ""))))
+    ;; Remove all margins
+    (setq-local left-margin-width 0)
+    (setq-local right-margin-width 0)
+    (set-window-margins (selected-window) 0 0)
+    ;; Hide the leading 2-char mark/flag column completely
+    (setq-local dired-marker-char ?\s)
+    ;; Use display property to hide first 2 chars (mark + type indicator)
+    (font-lock-add-keywords
+     nil
+     '(("^\\(.\\).\\( *\\)"
+        (1 '(face nil display ""))
+        (2 '(face nil display "")))) ; No space before icon
+     'append)
     (font-lock-flush))
   ;; Enable our keymap override - MUST set the variable to t for the keymap to be active
   (setq-local hyalo-sidebar-embedded t)

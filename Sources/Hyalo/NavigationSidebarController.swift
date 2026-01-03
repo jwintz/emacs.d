@@ -475,6 +475,16 @@ final class NavigationSidebarController: NSObject {
         state.detailVisible
     }
 
+    /// Get the current content area width in pixels
+    var contentWidth: CGFloat {
+        state.contentWidth
+    }
+
+    /// Get the current sidebar width in pixels
+    var sidebarWidth: CGFloat {
+        state.sidebarWidth
+    }
+
     // MARK: - Decorations (Toolbar & Traffic Lights)
 
     /// Set visibility of decorations (toolbar area and traffic lights)

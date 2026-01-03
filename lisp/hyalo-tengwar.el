@@ -74,6 +74,11 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
                  (const "beleriand"))
   :group 'hyalo-tengwar)
 
+(defcustom hyalo-tengwar-partial-delimiters '("{{" . "}}")
+  "Start and end delimiters for `hyalo-tengwar-partial-mode`."
+  :type '(cons string string)
+  :group 'hyalo-tengwar)
+
 ;;; Internal State
 
 (defvar hyalo-tengwar--process nil
@@ -243,7 +248,8 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
   
   ;; Refresh buffer if still live and mode active
   (when (and (buffer-live-p buffer)
-             (buffer-local-value 'hyalo-tengwar-minor-mode buffer))
+             (or (buffer-local-value 'hyalo-tengwar-minor-mode buffer)
+                 (buffer-local-value 'hyalo-tengwar-partial-mode buffer)))
     (with-current-buffer buffer
       (hyalo-tengwar--update-visible))))
 
@@ -282,34 +288,85 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
 
 ;;; Overlay Management
 
+(defun hyalo-tengwar--scan-region (start end collector)
+  "Scan region from START to END for words.
+Call COLLECTOR with uncached words found."
+  (goto-char start)
+  (while (re-search-forward "\\([a-zA-Z0-9']+\\|[[:punct:]]\\)" end t)
+    (let* ((word-start (match-beginning 0))
+           (word-end (match-end 0))
+           (word (match-string-no-properties 0))
+           (existing-ov (cl-find-if
+                         (lambda (ov) (overlay-get ov 'hyalo-tengwar))
+                         (overlays-at word-start)))
+           (trans (gethash word hyalo-tengwar--cache)))
+      
+      (cond
+       ;; Cached - apply overlay if not present
+       (trans
+        (unless existing-ov
+          (hyalo-tengwar--apply-overlay word-start word-end trans)))
+       
+       ;; Not cached, not pending - queue for fetch
+       ((not (gethash word hyalo-tengwar--pending))
+        (funcall collector word))))))
+
 (defun hyalo-tengwar--update-visible ()
   "Scan visible region and apply tengwar overlays."
-  (when (and (bound-and-true-p hyalo-tengwar-minor-mode)
+  (when (and (or (bound-and-true-p hyalo-tengwar-minor-mode)
+                 (bound-and-true-p hyalo-tengwar-partial-mode))
              (not (minibufferp)))
-    (let ((start (window-start))
-          (end (window-end nil t))
-          (words-to-fetch nil))
+    (let* ((start (window-start))
+           (end (window-end nil t))
+           (pt (point))
+           (words-to-fetch nil)
+           (collector (lambda (w) (push w words-to-fetch))))
       (save-excursion
         (save-match-data
-          (goto-char start)
-          (while (re-search-forward "\\([a-zA-Z0-9']+\\|[[:punct:]]\\)" end t)
-            (let* ((word-start (match-beginning 0))
-                   (word-end (match-end 0))
-                   (word (match-string-no-properties 0))
-                   (existing-ov (cl-find-if
-                                 (lambda (ov) (overlay-get ov 'hyalo-tengwar))
-                                 (overlays-at word-start)))
-                   (trans (gethash word hyalo-tengwar--cache)))
-              
-              (cond
-               ;; Cached - apply overlay if not present
-               (trans
-                (unless existing-ov
-                  (hyalo-tengwar--apply-overlay word-start word-end trans)))
-               
-               ;; Not cached, not pending - queue for fetch
-               ((not (gethash word hyalo-tengwar--pending))
-                (push word words-to-fetch)))))))
+          (cond
+           ((bound-and-true-p hyalo-tengwar-minor-mode)
+            (hyalo-tengwar--scan-region start end collector))
+           
+           ((bound-and-true-p hyalo-tengwar-partial-mode)
+            (let ((delim-start (car hyalo-tengwar-partial-delimiters))
+                  (delim-end (cdr hyalo-tengwar-partial-delimiters)))
+              (goto-char start)
+              (while (search-forward delim-start end t)
+                (let* ((d-start-beg (match-beginning 0))
+                       (d-start-end (match-end 0))
+                       (region-content-start d-start-end))
+                  (if (search-forward delim-end end t)
+                      (let* ((d-end-beg (match-beginning 0))
+                             (d-end-end (match-end 0))
+                             (region-content-end d-end-beg)
+                             (is-active (and (>= pt d-start-beg)
+                                             (<= pt d-end-end))))
+                        
+                        (if is-active
+                            ;; Cursor is inside: clear all overlays in this block to reveal text/delimiters
+                            (remove-overlays d-start-beg d-end-end 'hyalo-tengwar t)
+                          
+                          ;; Cursor is outside: Transliterate content
+                          (hyalo-tengwar--scan-region region-content-start region-content-end collector)
+                          
+                          ;; Hide start delimiter
+                          (unless (cl-find-if (lambda (ov) (overlay-get ov 'hyalo-tengwar-delimiter))
+                                              (overlays-at d-start-beg))
+                            (let ((ov (make-overlay d-start-beg d-start-end)))
+                              (overlay-put ov 'hyalo-tengwar t)
+                              (overlay-put ov 'hyalo-tengwar-delimiter t)
+                              (overlay-put ov 'evaporate t)
+                              (overlay-put ov 'display "")))
+                          
+                          ;; Hide end delimiter
+                          (unless (cl-find-if (lambda (ov) (overlay-get ov 'hyalo-tengwar-delimiter))
+                                              (overlays-at d-end-beg))
+                            (let ((ov (make-overlay d-end-beg d-end-end)))
+                              (overlay-put ov 'hyalo-tengwar t)
+                              (overlay-put ov 'hyalo-tengwar-delimiter t)
+                              (overlay-put ov 'evaporate t)
+                              (overlay-put ov 'display "")))))
+                    (goto-char end)))))))))
       
       ;; Fetch uncached words
       (when words-to-fetch
@@ -345,20 +402,52 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
 (defvar-local hyalo-tengwar--last-window-end nil
   "Last window-end position when update was run.")
 
+(defvar-local hyalo-tengwar--last-point nil
+  "Last point position when update was run.")
+
 (defun hyalo-tengwar--on-post-command ()
   "Post-command hook to update visible overlays."
   (let ((start (window-start))
-        (end (window-end nil t)))
-    ;; Only update if visible region changed
+        (end (window-end nil t))
+        (pt (point)))
+    ;; Update if visible region OR point changed
     (unless (and (eq start hyalo-tengwar--last-window-start)
-                 (eq end hyalo-tengwar--last-window-end))
+                 (eq end hyalo-tengwar--last-window-end)
+                 (eq pt hyalo-tengwar--last-point))
       (setq hyalo-tengwar--last-window-start start
             hyalo-tengwar--last-window-end end)
+      (setq hyalo-tengwar--last-point pt)
       (hyalo-tengwar--update-visible))))
 
 (defun hyalo-tengwar--on-window-scroll (_win _start)
   "Window scroll hook to update visible overlays."
   (hyalo-tengwar--on-post-command))
+
+;;; Minor Mode
+
+(defun hyalo-tengwar--enable ()
+  "Enable tengwar mode (start process, hooks)."
+  (hyalo-tengwar--log "Enabled in %s" (buffer-name))
+  (hyalo-tengwar--start-process)
+  (hyalo-tengwar--update-visible)
+  (setq hyalo-tengwar--last-window-start nil
+        hyalo-tengwar--last-window-end nil
+        hyalo-tengwar--last-point nil)
+  (add-hook 'post-command-hook #'hyalo-tengwar--on-post-command nil t)
+  (add-hook 'window-scroll-functions #'hyalo-tengwar--on-window-scroll nil t))
+
+(defun hyalo-tengwar--disable ()
+  "Disable tengwar mode (remove overlays, hooks, maybe stop process)."
+  (hyalo-tengwar--log "Disabled in %s" (buffer-name))
+  (hyalo-tengwar--remove-overlays)
+  (remove-hook 'post-command-hook #'hyalo-tengwar--on-post-command t)
+  (remove-hook 'window-scroll-functions #'hyalo-tengwar--on-window-scroll t)
+  (unless (cl-some (lambda (buf)
+                     (and (not (eq buf (current-buffer)))
+                          (or (buffer-local-value 'hyalo-tengwar-minor-mode buf)
+                              (buffer-local-value 'hyalo-tengwar-partial-mode buf))))
+                   (buffer-list))
+    (hyalo-tengwar--stop-process)))
 
 ;;; Minor Mode
 
@@ -368,29 +457,17 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
   :lighter " Tengwar"
   :group 'hyalo-tengwar
   (if hyalo-tengwar-minor-mode
-      (progn
-        (hyalo-tengwar--log "Enabled in %s" (buffer-name))
-        ;; Start subprocess if not running
-        (hyalo-tengwar--start-process)
-        ;; Initial update
-        (hyalo-tengwar--update-visible)
-        ;; Reset tracking state
-        (setq hyalo-tengwar--last-window-start nil
-              hyalo-tengwar--last-window-end nil)
-        ;; Hook for updates
-        (add-hook 'post-command-hook #'hyalo-tengwar--on-post-command nil t)
-        (add-hook 'window-scroll-functions #'hyalo-tengwar--on-window-scroll nil t))
-    ;; Cleanup
-    (hyalo-tengwar--log "Disabled in %s" (buffer-name))
-    (hyalo-tengwar--remove-overlays)
-    (remove-hook 'post-command-hook #'hyalo-tengwar--on-post-command t)
-    (remove-hook 'window-scroll-functions #'hyalo-tengwar--on-window-scroll t)
-    ;; Stop subprocess if no other buffers using it
-    (unless (cl-some (lambda (buf)
-                       (and (not (eq buf (current-buffer)))
-                            (buffer-local-value 'hyalo-tengwar-minor-mode buf)))
-                     (buffer-list))
-      (hyalo-tengwar--stop-process))))
+      (hyalo-tengwar--enable)
+    (hyalo-tengwar--disable)))
+
+;;;###autoload
+(define-minor-mode hyalo-tengwar-partial-mode
+  "Minor mode to render visible text in Tengwar script between delimiters."
+  :lighter " Tengwar-Partial"
+  :group 'hyalo-tengwar
+  (if hyalo-tengwar-partial-mode
+      (hyalo-tengwar--enable)
+    (hyalo-tengwar--disable)))
 
 (provide 'hyalo-tengwar)
 ;;; hyalo-tengwar.el ends here

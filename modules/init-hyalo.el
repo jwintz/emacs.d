@@ -54,9 +54,8 @@
   :demand t
   :preface
   (defvar hyalo-profiles
-    '((focus . (:appearance light :theme modus-operandi :vibrancy "none"      :opacity 1.0))
-      (glass . (:appearance dark  :theme modus-vivendi  :vibrancy "ultraThin" :opacity 0.85))
-      (void  . (:appearance dark  :theme ef-winter      :vibrancy "thick"     :opacity 0.80)))
+    '((light . (:appearance light :theme ef-summer        :vibrancy "regular" :opacity 0.6))
+      (dark  . (:appearance dark  :theme ef-melissa-dark  :vibrancy "regular" :opacity 0.6)))
     "Alist of Hyalo appearance profiles.")
 
   (defun hyalo-set-highlights (&rest _)
@@ -75,6 +74,7 @@
         (set-face-attribute 'highlight nil :weight m))
       (when (facep 'vertico-current)
         (set-face-attribute 'vertico-current nil :weight b))
+      ;; Completion faces
       (dolist (face '(orderless-match-face-0
                       orderless-match-face-1
                       orderless-match-face-2
@@ -83,11 +83,24 @@
                       consult-preview-match))
         (when (facep face)
           (set-face-attribute face nil :weight wb)))
+      ;; Magit faces
       (dolist (mface '(magit-section-highlight
                        magit-diff-hunk-heading-highlight
                        magit-diff-context-highlight))
         (when (facep mface)
-          (set-face-attribute mface nil :weight wb)))))
+          (set-face-attribute mface nil :weight wb)))
+      ;; Markdown faces
+      (dolist (mdface '(markdown-bold-face
+                        markdown-italic-face
+                        markdown-header-face
+                        markdown-header-face-1
+                        markdown-header-face-2
+                        markdown-header-face-3
+                        markdown-header-face-4
+                        markdown-link-face
+                        markdown-url-face))
+        (when (facep mdface)
+          (set-face-attribute mdface nil :weight b)))))
 
   (defun hyalo-load-profile (name)
     "Load the profile NAME and persist settings."

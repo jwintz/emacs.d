@@ -300,6 +300,35 @@ final class HyaloModule: Module {
         }
 
         try env.defun(
+            "hyalo-content-width",
+            with: """
+            Return the content area width in pixels.
+            This is the width of the main Emacs content area (excluding sidebar/inspector).
+            """
+        ) { (env: Environment) throws -> Int in
+            if #available(macOS 26.0, *) {
+                guard let window = findEmacsWindow() else { return 0 }
+                return Int(NavigationSidebarManager.shared.getContentWidth(for: window))
+            }
+            return 0
+        }
+
+        try env.defun(
+            "hyalo-sidebar-width",
+            with: """
+            Return the sidebar width in pixels when visible, 0 otherwise.
+            """
+        ) { (env: Environment) throws -> Int in
+            if #available(macOS 26.0, *) {
+                guard let window = findEmacsWindow() else { return 0 }
+                if NavigationSidebarManager.shared.isSidebarVisible(for: window) {
+                    return Int(NavigationSidebarManager.shared.getSidebarWidth(for: window))
+                }
+            }
+            return 0
+        }
+
+        try env.defun(
             "hyalo-detail-show",
             with: """
             Show the native SwiftUI detail/inspector panel.

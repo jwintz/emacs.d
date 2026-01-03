@@ -123,6 +123,30 @@
   (stripspace-only-if-initially-clean nil)
   (stripspace-restore-column t))
 
+(use-package whitespace
+  :ensure nil
+  :diminish whitespace-mode
+  :custom
+  (whitespace-line-column 100)
+  (whitespace-style '(face
+                      trailing              ; Trailing whitespace
+                      tabs                  ; Tab characters
+                      lines-tail))          ; Lines exceeding whitespace-line-column
+  :hook
+  ((prog-mode conf-mode) . whitespace-mode))
+
+(use-package hl-todo
+  :ensure t
+  :custom
+  (hl-todo-keyword-faces
+   '(("TODO"  . (:inherit warning :weight semibold))
+     ("FIXME" . (:inherit error :weight semibold))
+     ("HACK"  . (:inherit warning :weight semibold))
+     ("NOTE"  . (:inherit success :weight semibold))
+     ("XXX"   . (:inherit error :weight semibold))))
+  :hook
+  ((prog-mode conf-mode) . hl-todo-mode))
+
 (use-package outline
   :ensure nil
   :diminish outline-minor-mode

@@ -11,6 +11,14 @@
   (dired-auto-revert-buffer t)
   (delete-by-moving-to-trash t))
 
+;; Use Emacs' built-in ls emulation for portable directory-first sorting
+(use-package ls-lisp
+  :ensure nil
+  :custom
+  (ls-lisp-use-insert-directory-program nil)  ; Use ls-lisp instead of external ls
+  (ls-lisp-dirs-first t)                      ; Folders on top
+  (ls-lisp-use-string-collate nil))
+
 (use-package dired-sidebar
   :ensure t
   :defer t
@@ -26,9 +34,10 @@
   :ensure nil
   :after hyalo
   :demand t
-  :custom
-  (hyalo-sidebar-font nil)
-  (hyalo-sidebar-internal-border-width 0)
+  :init
+  ;; Set BEFORE load to ensure frame creation uses these values
+  (setq hyalo-sidebar-internal-border-width 0)
+  (setq hyalo-sidebar-font nil)
   :config
   (hyalo-sidebar-mode 1)
   :general

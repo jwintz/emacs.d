@@ -12,7 +12,7 @@
 
 (use-package hyalo-tengwar
   :ensure nil
-  :commands hyalo-tengwar-minor-mode
+  :commands (hyalo-tengwar-minor-mode hyalo-tengwar-partial-mode)
   :custom
   (hyalo-tengwar-font-family "Tengwar Annatar")
   (hyalo-tengwar-font-height 1.0)

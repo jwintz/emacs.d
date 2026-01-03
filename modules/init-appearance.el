@@ -4,8 +4,11 @@
 
 ;;;; Fonts
 
-;; Fonts are managed by hyalo-fonts.el using Fontaine.
-;; See lisp/hyalo-fonts.el for configuration.
+(use-package fontaine
+  :ensure t
+  :demand t
+  :config
+  (require 'hyalo-fonts))
 
 ;;;; Icons
 
@@ -38,6 +41,47 @@
   :config
   (global-hl-line-mode 1))
 
+;;;; Ligatures
+
+(use-package ligature
+  :ensure t
+  :config
+  ;; Monaspace ligatures - comprehensive set for programming
+  ;; Reference: https://github.com/githubnext/monaspace#ligatures
+  (ligature-set-ligatures 'prog-mode
+                          '(;; Arrows
+                            "->" "-->" "--->" "-<" "-<<" "-~"
+                            "<-" "<--" "<---" "<->" "<-->" "<-<"
+                            "=>" "==>" "===>" "=>>" "=<<"
+                            ">-" ">>" ">>>" ">>-" ">>="
+                            "<=" "<==" "<===" "<=>" "<==>" "<=<"
+                            ;; Comparisons
+                            "==" "!=" "===" "!==" "=/="
+                            "<=" ">=" "<>" "<=>"
+                            ;; Logic and math
+                            "&&" "||" "??" "?:" "?."
+                            "++" "--" "**" "***"
+                            "//" "///" "/*" "*/" "/="
+                            ;; Pipes and composition
+                            "|>" "<|" "<|>" "||>" "|>>"
+                            "<:" ":>" "::" ":::" "::::"
+                            ;; Brackets and tags
+                            "</" "</>" "/>" "<>"
+                            "<!--" "-->"
+                            ;; Other common ligatures
+                            "..." ".." ".=" "..<"
+                            "!!" "##" "###" "####"
+                            "#{" "#[" "#(" "#?" "#_" "#_("
+                            "~@" "~=" "~>" "~~>" "~-"
+                            ;; Assignment and binding
+                            ":=" "::=" "<->" "<<-" "->>"
+                            ;; Haskell/functional
+                            ">>=" "=<<" ">>" "<<"
+                            "<*>" "<$>" "<+>"
+                            ;; F#/ML
+                            "|]" "[|" "||]" "[||"))
+  (global-ligature-mode t))
+
 ;;;; Themes
 
 (use-package modus-themes
@@ -51,16 +95,28 @@
   (modus-themes-completions '((t . (semibold))))
   (modus-themes-prompts '(semibold))
   :config
+  (defun hyalo/current-theme ()
+    "Display the currently enabled themes in the echo area."
+    (interactive)
+    (if custom-enabled-themes
+	(message "Current theme(s): %s"
+		 (mapconcat #'symbol-name custom-enabled-themes ", "))
+      (message "No custom themes are currently enabled.")))
+
   (defun hyalo-switch-to-dark (&rest _)
     (when (fboundp 'hyalo-appearance-set)
       (hyalo-appearance-set 'dark)
       (hyalo-footer-set-pattern-alpha 0.02)))
+
+  (advice-add 'modus-themes-select-dark :after #'hyalo-switch-to-dark)
   (advice-add 'modus-themes-load-random-dark :after #'hyalo-switch-to-dark)
 
   (defun hyalo-switch-to-light (&rest _)
     (when (fboundp 'hyalo-appearance-set)
       (hyalo-appearance-set 'light)
       (hyalo-footer-set-pattern-alpha 0.06)))
+
+  (advice-add 'modus-themes-select-light :after #'hyalo-switch-to-light)
   (advice-add 'modus-themes-load-random-light :after #'hyalo-switch-to-light))
 
 (use-package ef-themes
@@ -106,7 +162,29 @@
   (setq demap-track-window-mode-update-p-func
         (lambda (&rest _) t))
   (add-hook 'demap-minimap-construct-hook #'hyalo-minimap-setup)
-  (add-hook 'demap-minimap-window-set-hook #'hyalo-minimap-setup))
+  (add-hook 'demap-minimap-window-set-hook #'hyalo-minimap-setup)
+
+  ;; Debounced demap update for smooth text-scale changes
+  (defvar iota/demap-update-timer nil
+    "Timer for debounced demap updates.")
+
+  (defun iota/demap-update-debounced ()
+    "Schedule a debounced demap minimap update."
+    (when (and (bound-and-true-p demap-minimap-window)
+               (window-live-p demap-minimap-window))
+      ;; Cancel any pending update
+      (when (timerp iota/demap-update-timer)
+        (cancel-timer iota/demap-update-timer))
+      ;; Schedule new update after user stops changing scale
+      (setq iota/demap-update-timer
+            (run-with-idle-timer 0.3 nil
+                                 (lambda ()
+                                   (when (and (bound-and-true-p demap-minimap-window)
+                                              (window-live-p demap-minimap-window))
+                                     (demap-minimap-update)))))))
+
+  ;; Use text-scale-mode-hook which fires on each scale change (including CMD-+/-)
+  (add-hook 'text-scale-mode-hook #'iota/demap-update-debounced))
 
 (use-package olivetti
   :ensure t)

@@ -25,10 +25,13 @@
   :after nerd-icons
   :config
   (doom-modeline-mode 1)
+
   :custom
   (doom-modeline-height 22)
   (doom-modeline-bar-width 4)
   (doom-modeline-hud t)
+  ;; Set reasonable limit - segments collapse when window narrower than this
+  (doom-modeline-window-width-limit 85)
   (doom-modeline-icon t)
   (doom-modeline-major-mode-icon t)
   (doom-modeline-major-mode-color-icon t)

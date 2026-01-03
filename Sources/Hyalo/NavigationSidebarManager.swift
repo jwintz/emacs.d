@@ -125,6 +125,16 @@ final class NavigationSidebarManager {
         controllers[window.windowNumber]?.isDetailVisible ?? false
     }
 
+    /// Get the current content area width in pixels
+    func getContentWidth(for window: NSWindow) -> CGFloat {
+        controllers[window.windowNumber]?.contentWidth ?? 0
+    }
+
+    /// Get the current sidebar width in pixels
+    func getSidebarWidth(for window: NSWindow) -> CGFloat {
+        controllers[window.windowNumber]?.sidebarWidth ?? 0
+    }
+
     func setProjectName(for window: NSWindow, name: String) {
         controllers[window.windowNumber]?.setProjectName(name)
     }

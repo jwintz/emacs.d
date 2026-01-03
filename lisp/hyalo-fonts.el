@@ -35,17 +35,17 @@
   (setq fontaine-presets
         '((default
            ;; Default code: Monaspace Neon
-           :default-family "Monaspace Neon Var"
+           :default-family "Monaspace Neon Frozen"
            :default-height 110
            :line-spacing 0.1
-           :fixed-pitch-family "Monaspace Neon Var"
+           :fixed-pitch-family "Monaspace Neon Frozen"
 
            ;; Prose, documentation: Monaspace Xenon Var
-           :variable-pitch-family "Monaspace Xenon Var"
+           :variable-pitch-family "Monaspace Xenon Frozen"
            :variable-pitch-height 1.0  ; Relative height (1.0x) ensures scaling with text-scale-increase
 
            ;; Comments, italics: Monaspace Radon (handwriting style)
-           :italic-family "Monaspace Radon Var"
+           :italic-family "Monaspace Radon Frozen"
            :italic-slant normal  ; Radon is inherently italic-looking
 	   )
 
@@ -70,10 +70,10 @@
     "Apply Monaspace Radon to comment faces."
     (when (display-graphic-p)
       (set-face-attribute 'font-lock-comment-face nil
-                          :family "Monaspace Radon Var"
+                          :family "Monaspace Radon Frozen"
                           :slant 'normal)
       (set-face-attribute 'font-lock-comment-delimiter-face nil
-                          :family "Monaspace Radon Var"
+                          :family "Monaspace Radon Frozen"
                           :slant 'normal)))
   (add-hook 'fontaine-set-preset-hook #'hyalo-fonts--apply-comment-font)
   (add-hook 'after-init-hook #'hyalo-fonts--apply-comment-font)
@@ -112,9 +112,9 @@ This ensures they match the prose size exactly."
   (let ((height (if (boundp 'hyalo-sidebar-font-height)
                     hyalo-sidebar-font-height
                   100)))
-    (face-remap-add-relative 'default :family "Monaspace Krypton Var" :height height)
-    (face-remap-add-relative 'markdown-code-face :family "Monaspace Krypton Var" :height height)
-    (face-remap-add-relative 'markdown-inline-code-face :family "Monaspace Krypton Var" :height height)))
+    (face-remap-add-relative 'default :family "Monaspace Krypton Frozen" :height height)
+    (face-remap-add-relative 'markdown-code-face :family "Monaspace Krypton Frozen" :height height)
+    (face-remap-add-relative 'markdown-inline-code-face :family "Monaspace Krypton Frozen" :height height)))
 
 (with-eval-after-load 'agent-shell
   (add-hook 'agent-shell-mode-hook #'hyalo-fonts--agent-shell-fonts))
@@ -130,7 +130,7 @@ This ensures they match the prose size exactly."
 ;; Magit
 (defun hyalo-fonts--magit-fonts ()
   "Set Magit buffers to use Monaspace Neon for italics (avoiding Radon)."
-  (face-remap-add-relative 'italic :family "Monaspace Neon Var" :slant 'italic))
+  (face-remap-add-relative 'italic :family "Monaspace Neon Frozen" :slant 'italic))
 
 (add-hook 'magit-mode-hook #'hyalo-fonts--magit-fonts)
 (add-hook 'magit-status-mode-hook #'hyalo-fonts--magit-fonts)
@@ -146,9 +146,9 @@ Git commit messages should use monospace font for proper formatting."
   (when (bound-and-true-p mixed-pitch-mode)
     (mixed-pitch-mode -1))
   ;; Ensure fixed-pitch
-  (face-remap-add-relative 'default :family "Monaspace Neon Var")
+  (face-remap-add-relative 'default :family "Monaspace Neon Frozen")
   ;; Remove variable-pitch inheritance
-  (face-remap-add-relative 'variable-pitch :family "Monaspace Neon Var"))
+  (face-remap-add-relative 'variable-pitch :family "Monaspace Neon Frozen"))
 
 (add-hook 'git-commit-mode-hook #'hyalo-fonts--git-commit-fonts)
 
@@ -174,7 +174,7 @@ Git commit messages should use monospace font for proper formatting."
 ;; Terminals
 (defun hyalo-fonts--terminal-fonts ()
   "Set terminal buffers to use Monaspace Argon."
-  (face-remap-add-relative 'default :family "Monaspace Argon Var"))
+  (face-remap-add-relative 'default :family "Monaspace Argon Frozen"))
 
 (add-hook 'eshell-mode-hook #'hyalo-fonts--terminal-fonts)
 (add-hook 'eat-mode-hook #'hyalo-fonts--terminal-fonts)
@@ -184,7 +184,7 @@ Git commit messages should use monospace font for proper formatting."
 ;; Info
 (defun hyalo-fonts--info-fonts ()
   "Set Info buffers to use Monaspace Xenon."
-  (face-remap-add-relative 'default :family "Monaspace Xenon Var"))
+  (face-remap-add-relative 'default :family "Monaspace Xenon Frozen"))
 
 (add-hook 'Info-mode-hook #'hyalo-fonts--info-fonts)
 

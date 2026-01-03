@@ -45,6 +45,7 @@
   :config
   (setq visible-bell nil)
   (setq ring-bell-function 'ignore)
+  (setq inhibit-compacting-font-caches t)
   (advice-add 'display-startup-echo-area-message :override #'ignore)
   (blink-cursor-mode 0)
   (show-paren-mode 1)
