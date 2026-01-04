@@ -339,7 +339,7 @@ Call COLLECTOR with uncached words found."
 
 (defun hyalo-tengwar--scan-partial-zones (start end pt collector)
   "Scan for delimited zones from START to END, with point at PT.
-Call COLLECTOR for uncached words in inactive zones."
+Call COLLECTOR for uncached zone content in inactive zones."
   (let ((delim-start (car hyalo-tengwar-partial-delimiters))
         (delim-end (cdr hyalo-tengwar-partial-delimiters)))
     (hyalo-tengwar--debug "Partial mode: delimiters='%s'...'%s'" delim-start delim-end)
@@ -353,18 +353,36 @@ Call COLLECTOR for uncached words in inactive zones."
           (let* ((d-end-beg (match-beginning 0))
                  (d-end-end (match-end 0))
                  (region-content-end d-end-beg)
+                 (content (buffer-substring-no-properties region-content-start region-content-end))
                  (is-active (and (>= pt d-start-beg) (<= pt d-end-end))))
-            (hyalo-tengwar--trace "Found end delim at %d-%d, active=%s"
-                                  d-end-beg d-end-end is-active)
+            (hyalo-tengwar--trace "Found end delim at %d-%d, content='%s', active=%s"
+                                  d-end-beg d-end-end content is-active)
             (if is-active
                 ;; Cursor inside: clear overlays to reveal source text
                 (remove-overlays d-start-beg d-end-end 'hyalo-tengwar t)
-              ;; Cursor outside: transliterate and hide delimiters
-              (hyalo-tengwar--scan-region region-content-start region-content-end collector)
+              ;; Cursor outside: transliterate entire zone content as single unit
+              (hyalo-tengwar--apply-zone-overlay region-content-start region-content-end content collector)
               (hyalo-tengwar--hide-delimiter d-start-beg d-start-end)
               (hyalo-tengwar--hide-delimiter d-end-beg d-end-end))
             ;; CRITICAL: Skip past end delimiter to prevent reusing it as start
             (goto-char d-end-end)))))))
+
+(defun hyalo-tengwar--apply-zone-overlay (start end content collector)
+  "Apply overlay for zone from START to END with CONTENT.
+Use cached translation or call COLLECTOR to fetch."
+  (let ((existing-ov (cl-find-if
+                      (lambda (ov) (and (overlay-get ov 'hyalo-tengwar)
+                                        (not (overlay-get ov 'hyalo-tengwar-delimiter))))
+                      (overlays-at start)))
+        (trans (gethash content hyalo-tengwar--cache)))
+    (cond
+     ;; Cached - apply overlay if not present
+     (trans
+      (unless existing-ov
+        (hyalo-tengwar--apply-overlay start end trans)))
+     ;; Not cached, not pending - queue for fetch
+     ((not (gethash content hyalo-tengwar--pending))
+      (funcall collector content)))))
 
 (defun hyalo-tengwar--hide-delimiter (start end)
   "Hide delimiter from START to END with invisible overlay."
