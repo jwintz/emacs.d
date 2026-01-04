@@ -57,11 +57,54 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
   :type 'string
   :group 'hyalo-tengwar)
 
-(defcustom hyalo-tengwar-use-csur nil
-  "If non-nil, use CSUR Unicode font (Tengwar Telcontar).
-Otherwise use ASCII Dan Smith font (Tengwar Annatar)."
-  :type 'boolean
+(defconst hyalo-tengwar-fonts
+  '(("Tengwar Annatar"   . (:family "Tengwar Annatar"   :encoding ascii))
+    ("Tengwar Parmaite"  . (:family "Tengwar Parmaite"  :encoding ascii))
+    ("Tengwar Telcontar" . (:family "Tengwar Telcontar" :encoding csur))
+    ("FreeMonoTengwar"   . (:family "FreeMonoTengwar"   :encoding csur))
+    ("FreeMonoTengwar (ASCII)" . (:family "FreeMonoTengwar" :encoding ascii))
+    ("Tengwar Eldamar"   . (:family "Tengwar Eldamar"   :encoding ascii))
+    ("Tengwar Sindarin"  . (:family "Tengwar Sindarin"  :encoding ascii))
+    ("Tengwar Quenya"    . (:family "Tengwar Quenya"    :encoding ascii))
+    ("Tengwar Gothika"   . (:family "Tengwar Gothika"   :encoding ascii))
+    ("Tengwar Formal"    . (:family "Tengwar Formal"    :encoding ascii))
+    ("Tengwar Beleriand" . (:family "Tengwar Beleriand" :encoding ascii))
+    ("Tengwar Cursive"   . (:family "Tengwar Cursive"   :encoding ascii))
+    ("Tengwar Elfica"    . (:family "Tengwar Elfica"    :encoding ascii))
+    ("Tengwar Galvorn"   . (:family "Tengwar Galvorn"   :encoding ascii))
+    ("Tengwar Gothika"   . (:family "Tengwar Gothika"   :encoding ascii))
+    ("Tengwar Hereno"    . (:family "Tengwar Hereno"    :encoding ascii))
+    ("Tengwar Mornedhel" . (:family "Tengwar Mornedhel" :encoding ascii))
+    ("Tengwar Naive"     . (:family "Tengwar Naive"     :encoding ascii))
+    ("Tengwar Noldor"    . (:family "Tengwar Noldor"    :encoding ascii))
+    ("Tengwar Telerin"   . (:family "Tengwar Telerin"   :encoding ascii))
+    ("Tengwar Optime"    . (:family "Tengwar Optime"    :encoding ascii)))
+  "List of supported Tengwar fonts and their encoding types.")
+
+(defcustom hyalo-tengwar-font "Tengwar Annatar"
+  "Current Tengwar font configuration."
+  :type (cons 'choice (mapcar (lambda (f) (list 'const (car f))) hyalo-tengwar-fonts))
   :group 'hyalo-tengwar)
+
+(defun hyalo-tengwar-select-font (font-name)
+  "Select a Tengwar font from supported list."
+  (interactive
+   (list (completing-read "Select Tengwar Font: " (mapcar #'car hyalo-tengwar-fonts) nil t)))
+  (setq hyalo-tengwar-font font-name)
+  (set-default 'hyalo-tengwar-font font-name)
+  (customize-save-variable 'hyalo-tengwar-font font-name)
+  ;; Clear cache as encoding might differ (ASCII vs CSUR)
+  (clrhash hyalo-tengwar--cache)
+  (clrhash hyalo-tengwar--pending)
+  ;; Force update by resetting last state
+  (hyalo-tengwar--remove-overlays)
+  (setq hyalo-tengwar--last-window-start nil
+        hyalo-tengwar--last-window-end nil
+        hyalo-tengwar--last-word-bounds nil)
+  (hyalo-tengwar--on-post-command)
+  (message "Selected font: %s (%s)"
+           font-name
+           (plist-get (cdr (assoc font-name hyalo-tengwar-fonts)) :encoding)))
 
 (defcustom hyalo-tengwar-mode "general-use"
   "Transcription mode: general-use, classical, or beleriand."
@@ -272,15 +315,17 @@ Otherwise use ASCII Dan Smith font (Tengwar Annatar)."
   (when (and hyalo-tengwar--process
              (process-live-p hyalo-tengwar--process))
     (let* ((id (format "req-%d" (cl-incf hyalo-tengwar--request-id)))
+           (font-config (cdr (assoc hyalo-tengwar-font hyalo-tengwar-fonts)))
+           (encoding (plist-get font-config :encoding))
            (request `((id . ,id)
                       (words . ,(vconcat words))
                       (language . ,hyalo-tengwar-language)
-                      (format . ,(if hyalo-tengwar-use-csur "csur" "ascii"))
+                      (format . ,(symbol-name encoding))
                       (mode . ,hyalo-tengwar-mode))))
       (puthash id (cons words buffer) hyalo-tengwar--callbacks)
       (process-send-string hyalo-tengwar--process
                            (concat (json-encode request) "\n"))
-      (hyalo-tengwar--trace "Sent request %s for %d words" id (length words)))))
+      (hyalo-tengwar--trace "Sent request %s for %d words (encoding: %s)" id (length words) encoding))))
 
 ;;; Overlay Management
 
@@ -396,9 +441,8 @@ Use cached translation or call COLLECTOR to fetch."
 
 (defun hyalo-tengwar--apply-overlay (start end trans)
   "Apply tengwar overlay from START to END displaying TRANS."
-  (let* ((font-family (if hyalo-tengwar-use-csur
-                          "Tengwar Telcontar"
-                        "Tengwar Annatar"))
+  (let* ((font-config (cdr (assoc hyalo-tengwar-font hyalo-tengwar-fonts)))
+         (font-family (plist-get font-config :family))
          (ov (make-overlay start end))
          (display-string (propertize trans
                                      'face `(:family ,font-family

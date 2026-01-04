@@ -14,8 +14,8 @@
   :ensure nil
   :commands (hyalo-tengwar-minor-mode hyalo-tengwar-partial-mode)
   :custom
-  ;; Font derived from use-csur: nil = Tengwar Annatar, t = Tengwar Telcontar
-  (hyalo-tengwar-use-csur nil)
+  ;; Font configuration: select from hyalo-tengwar-fonts
+  (hyalo-tengwar-font "Tengwar Annatar")
   (hyalo-tengwar-font-height 1.2)
   (hyalo-tengwar-language "english")
   (hyalo-tengwar-mode "general-use")

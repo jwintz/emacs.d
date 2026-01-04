@@ -22,8 +22,9 @@ to write many languages, including Quenya, Sindarin, and English.
 A Tengwar mode is a set of conventions used to transcribe a specific language.
 Here is the same sentence transcribed using different modes:
 
-- **English orthographic:** @@mae govannen@@
-- **Sindarin (Gondor):** @@sindarin:mae govannen@@
+- **English orthographic:** @@Not all those who wander are lost@@
+- **English phonemic:** @@Not ool dhouz huu wonder ar lost@@
+- **Sindarin (Gondor):** @@Law ill idh reniar gwenwin@@
 
 ---
 
@@ -86,6 +87,7 @@ Some tengwar have an extended form with the stem extending above and below:
 | @@{{extended-quesse}}@@ | extended quesse | /ch/ → /k/ |
 | @@{{extended-ando}}@@ | extended ando | "the" shorthand |
 | @@{{extended-umbar}}@@ | extended umbar | "of" shorthand |
+| @@{{extended-anga}}@@ | extended anga | ??? |
 | @@{{extended-ungwe}}@@ | extended ungwe | silent /gh/ |
 
 ### Carriers
@@ -113,9 +115,18 @@ Numbers are typically written in base-12 (duodecimal), least significant digit f
 
 | Number | Tengwar |
 |--------|---------|
+| 0 | @@0@@ |
 | 1 | @@1@@ |
 | 2 | @@2@@ |
 | 3 | @@3@@ |
+| 4 | @@4@@ |
+| 5 | @@5@@ |
+| 6 | @@6@@ |
+| 7 | @@7@@ |
+| 8 | @@8@@ |
+| 9 | @@9@@ |
+| 10 | @@10@@ |
+| 11 | @@11@@ |
 | 12 | @@12@@ |
 | 144 | @@144@@ |
 | 1st | @@1st@@ |
@@ -232,6 +243,9 @@ Vowel diphthongs use special combinations:
 | oi / oy | @@coin@@ @@boy@@ |
 | ou | @@found@@ |
 | au | @@cause@@ |
+| eu | @@feud@@ |
+| iu | @@iu@@ |
+| ui | @@quit@@ |
 
 ### The Letter Y
 
@@ -261,7 +275,7 @@ Common words have shorthand representations:
 | the | @@the@@ |
 | of | @@of@@ |
 | and | @@and@@ |
-| of the | @@of the@@ |
+| of the | @@"of the" rings@@ |
 
 ### Sample Words
 
@@ -280,6 +294,9 @@ Common words have shorthand representations:
 
 ### Sample Sentences
 
+**The lord of the rings:**
+@@The lord of the rings@@
+
 **The ring of the elves:**
 @@The ring of the elves@@
 
@@ -288,6 +305,9 @@ Common words have shorthand representations:
 
 **In the darkness bind them:**
 @@In the darkness bind them@@
+
+**You shall not pass:**
+@@You shall not pass@@
 
 ---
 
