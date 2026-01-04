@@ -13,11 +13,11 @@
 ;;
 ;; Usage:
 ;;   M-x hyalo-tengwar-minor-mode
+;;   M-x hyalo-tengwar-partial-mode
 ;;
 ;; Requirements:
 ;;   - bun runtime (https://bun.sh)
-;;   - tengwar npm package (npm install tengwar)
-;;   - Tengwar font installed (e.g., Tengwar Annatar)
+;;   - Tengwar font installed (e.g., Tengwar Annatar, Tengwar Telcontar)
 
 ;;; Code:
 
@@ -46,11 +46,6 @@
   :type 'string
   :group 'hyalo-tengwar)
 
-(defcustom hyalo-tengwar-font-family "Tengwar Annatar"
-  "Font family to use for Tengwar display."
-  :type 'string
-  :group 'hyalo-tengwar)
-
 (defcustom hyalo-tengwar-font-height 1.0
   "Font height for Tengwar display.
 Float: relative to underlying text. Integer: absolute in 1/10pt."
@@ -63,7 +58,8 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
   :group 'hyalo-tengwar)
 
 (defcustom hyalo-tengwar-use-csur nil
-  "If non-nil, use CSUR unicode mapping. Otherwise ASCII (Dan Smith)."
+  "If non-nil, use CSUR Unicode font (Tengwar Telcontar).
+Otherwise use ASCII Dan Smith font (Tengwar Annatar)."
   :type 'boolean
   :group 'hyalo-tengwar)
 
@@ -74,7 +70,7 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
                  (const "beleriand"))
   :group 'hyalo-tengwar)
 
-(defcustom hyalo-tengwar-partial-delimiters '("{{" . "}}")
+(defcustom hyalo-tengwar-partial-delimiters '("@@" . "@@")
   "Start and end delimiters for `hyalo-tengwar-partial-mode`."
   :type '(cons string string)
   :group 'hyalo-tengwar)
@@ -132,17 +128,17 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
          (process-live-p hyalo-tengwar--process))
     (hyalo-tengwar--trace "Process already running")
     hyalo-tengwar--process)
-   
+
    ;; bun not found
    ((not (file-executable-p hyalo-tengwar-bun-command))
     (hyalo-error 'tengwar "bun not found: %s" hyalo-tengwar-bun-command)
     nil)
-   
+
    ;; Script not found
    ((not (file-exists-p hyalo-tengwar-script))
     (hyalo-error 'tengwar "Script not found: %s" hyalo-tengwar-script)
     nil)
-   
+
    ;; Start subprocess
    (t
     (hyalo-tengwar--log "Starting subprocess: %s %s --server"
@@ -193,7 +189,7 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
   "Handle OUTPUT from subprocess."
   (setq hyalo-tengwar--output-buffer
         (concat hyalo-tengwar--output-buffer output))
-  
+
   ;; Process complete lines
   (while (string-match "\n" hyalo-tengwar--output-buffer)
     (let* ((line-end (match-end 0))
@@ -216,12 +212,12 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
           (dolist (req (nreverse hyalo-tengwar--pending-requests))
             (hyalo-tengwar--send-request (car req) (cdr req)))
           (setq hyalo-tengwar--pending-requests nil))
-         
+
          ;; Error response
          ((assoc 'error json)
           (hyalo-warn 'tengwar "Subprocess error: %s"
                       (cdr (assoc 'error json))))
-         
+
          ;; Normal response with id and results
          ((and (assoc 'id json) (assoc 'results json))
           (let* ((id (cdr (assoc 'id json)))
@@ -238,14 +234,14 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
 (defun hyalo-tengwar--handle-results (words results buffer)
   "Process RESULTS for WORDS, updating cache and BUFFER."
   (hyalo-tengwar--trace "Received %d results" (length results))
-  
+
   ;; Update cache
   (cl-loop for word in words
            for trans across results
            do (progn
                 (puthash word trans hyalo-tengwar--cache)
                 (remhash word hyalo-tengwar--pending)))
-  
+
   ;; Refresh buffer if still live and mode active
   (when (and (buffer-live-p buffer)
              (or (buffer-local-value 'hyalo-tengwar-minor-mode buffer)
@@ -289,27 +285,33 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
 ;;; Overlay Management
 
 (defun hyalo-tengwar--scan-region (start end collector)
-  "Scan region from START to END for words.
+  "Scan region from START to END for words, skipping word at point.
 Call COLLECTOR with uncached words found."
-  (goto-char start)
-  (while (re-search-forward "\\(\\*?[a-zA-Z0-9'-]+\\|[[:punct:]]\\)" end t)
-    (let* ((word-start (match-beginning 0))
-           (word-end (match-end 0))
-           (word (match-string-no-properties 0))
-           (existing-ov (cl-find-if
-                         (lambda (ov) (overlay-get ov 'hyalo-tengwar))
-                         (overlays-at word-start)))
-           (trans (gethash word hyalo-tengwar--cache)))
-      
-      (cond
-       ;; Cached - apply overlay if not present
-       (trans
-        (unless existing-ov
-          (hyalo-tengwar--apply-overlay word-start word-end trans)))
-       
-       ;; Not cached, not pending - queue for fetch
-       ((not (gethash word hyalo-tengwar--pending))
-        (funcall collector word))))))
+  (let ((pt-word-bounds (bounds-of-thing-at-point 'word)))
+    (goto-char start)
+    (while (re-search-forward "\\({{[^}]+}}\\(\\[[^]]+\\]\\)?\\|{[^}]+}\\(\\[[^]]+\\]\\)?\\|\\*?[a-zA-Z0-9'-]+\\|[[:punct:]]\\)" end t)
+      (let* ((word-start (match-beginning 0))
+             (word-end (match-end 0))
+             (word (match-string-no-properties 0))
+             (existing-ov (cl-find-if
+                           (lambda (ov) (overlay-get ov 'hyalo-tengwar))
+                           (overlays-at word-start)))
+             (trans (gethash word hyalo-tengwar--cache))
+             ;; Skip if this word intersects with cursor position
+             (at-point-p (and pt-word-bounds
+                              (>= word-end (car pt-word-bounds))
+                              (<= word-start (cdr pt-word-bounds)))))
+        (cond
+         ;; Skip word at point - clear any existing overlay
+         (at-point-p
+          (when existing-ov (delete-overlay existing-ov)))
+         ;; Cached - apply overlay if not present
+         (trans
+          (unless existing-ov
+            (hyalo-tengwar--apply-overlay word-start word-end trans)))
+         ;; Not cached, not pending - queue for fetch
+         ((not (gethash word hyalo-tengwar--pending))
+          (funcall collector word)))))))
 
 (defun hyalo-tengwar--update-visible ()
   "Scan visible region and apply tengwar overlays."
@@ -324,71 +326,68 @@ Call COLLECTOR with uncached words found."
       (save-excursion
         (save-match-data
           (cond
+           ;; Full buffer mode
            ((bound-and-true-p hyalo-tengwar-minor-mode)
             (hyalo-tengwar--scan-region start end collector))
-           
+           ;; Partial mode with delimiters
            ((bound-and-true-p hyalo-tengwar-partial-mode)
-            (let ((delim-start (car hyalo-tengwar-partial-delimiters))
-                  (delim-end (cdr hyalo-tengwar-partial-delimiters)))
-              (goto-char start)
-              (while (search-forward delim-start end t)
-                (let* ((d-start-beg (match-beginning 0))
-                       (d-start-end (match-end 0))
-                       (region-content-start d-start-end))
-                  (if (search-forward delim-end end t)
-                      (let* ((d-end-beg (match-beginning 0))
-                             (d-end-end (match-end 0))
-                             (region-content-end d-end-beg)
-                             (is-active (and (>= pt d-start-beg)
-                                             (<= pt d-end-end))))
-                        
-                        (if is-active
-                            ;; Cursor is inside: clear all overlays in this block to reveal text/delimiters
-                            (remove-overlays d-start-beg d-end-end 'hyalo-tengwar t)
-                          
-                          ;; Cursor is outside: Transliterate content
-                          (hyalo-tengwar--scan-region region-content-start region-content-end collector)
-                          
-                          ;; Hide start delimiter
-                          (unless (cl-find-if (lambda (ov) (overlay-get ov 'hyalo-tengwar-delimiter))
-                                              (overlays-at d-start-beg))
-                            (let ((ov (make-overlay d-start-beg d-start-end)))
-                              (overlay-put ov 'hyalo-tengwar t)
-                              (overlay-put ov 'hyalo-tengwar-delimiter t)
-                              (overlay-put ov 'evaporate t)
-                              (overlay-put ov 'display "")))
-                          
-                          ;; Hide end delimiter
-                          (unless (cl-find-if (lambda (ov) (overlay-get ov 'hyalo-tengwar-delimiter))
-                                              (overlays-at d-end-beg))
-                            (let ((ov (make-overlay d-end-beg d-end-end)))
-                              (overlay-put ov 'hyalo-tengwar t)
-                              (overlay-put ov 'hyalo-tengwar-delimiter t)
-                              (overlay-put ov 'evaporate t)
-                              (overlay-put ov 'display "")))))
-                    (goto-char end)))))))))
-      
+            (hyalo-tengwar--scan-partial-zones start end pt collector)))))
       ;; Fetch uncached words
       (when words-to-fetch
         (setq words-to-fetch (cl-remove-duplicates words-to-fetch :test 'equal))
         (hyalo-tengwar--fetch-words words-to-fetch)))))
 
+(defun hyalo-tengwar--scan-partial-zones (start end pt collector)
+  "Scan for delimited zones from START to END, with point at PT.
+Call COLLECTOR for uncached words in inactive zones."
+  (let ((delim-start (car hyalo-tengwar-partial-delimiters))
+        (delim-end (cdr hyalo-tengwar-partial-delimiters)))
+    (hyalo-tengwar--debug "Partial mode: delimiters='%s'...'%s'" delim-start delim-end)
+    (goto-char start)
+    (while (search-forward delim-start end t)
+      (let* ((d-start-beg (match-beginning 0))
+             (d-start-end (match-end 0))
+             (region-content-start d-start-end))
+        (hyalo-tengwar--trace "Found start delim at %d-%d" d-start-beg d-start-end)
+        (when (search-forward delim-end end t)
+          (let* ((d-end-beg (match-beginning 0))
+                 (d-end-end (match-end 0))
+                 (region-content-end d-end-beg)
+                 (is-active (and (>= pt d-start-beg) (<= pt d-end-end))))
+            (hyalo-tengwar--trace "Found end delim at %d-%d, active=%s"
+                                  d-end-beg d-end-end is-active)
+            (if is-active
+                ;; Cursor inside: clear overlays to reveal source text
+                (remove-overlays d-start-beg d-end-end 'hyalo-tengwar t)
+              ;; Cursor outside: transliterate and hide delimiters
+              (hyalo-tengwar--scan-region region-content-start region-content-end collector)
+              (hyalo-tengwar--hide-delimiter d-start-beg d-start-end)
+              (hyalo-tengwar--hide-delimiter d-end-beg d-end-end))
+            ;; CRITICAL: Skip past end delimiter to prevent reusing it as start
+            (goto-char d-end-end)))))))
+
+(defun hyalo-tengwar--hide-delimiter (start end)
+  "Hide delimiter from START to END with invisible overlay."
+  (unless (cl-find-if (lambda (ov) (overlay-get ov 'hyalo-tengwar-delimiter))
+                      (overlays-at start))
+    (let ((ov (make-overlay start end)))
+      (overlay-put ov 'hyalo-tengwar t)
+      (overlay-put ov 'hyalo-tengwar-delimiter t)
+      (overlay-put ov 'evaporate t)
+      (overlay-put ov 'display ""))))
+
 (defun hyalo-tengwar--apply-overlay (start end trans)
   "Apply tengwar overlay from START to END displaying TRANS."
-  (let ((ov (make-overlay start end)))
+  (let* ((font-family (if hyalo-tengwar-use-csur
+                          "Tengwar Telcontar"
+                        "Tengwar Annatar"))
+         (ov (make-overlay start end))
+         (display-string (propertize trans
+                                     'face `(:family ,font-family
+                                             :height ,hyalo-tengwar-font-height))))
     (overlay-put ov 'hyalo-tengwar t)
     (overlay-put ov 'evaporate t)
-    (overlay-put ov 'face `(:family ,hyalo-tengwar-font-family
-                            :height ,hyalo-tengwar-font-height))
-    ;; Handle CSUR composition
-    (if hyalo-tengwar-use-csur
-        (let ((composed (copy-sequence trans)))
-          (with-temp-buffer
-            (insert trans)
-            (compose-region (point-min) (point-max))
-            (setq composed (buffer-string)))
-          (overlay-put ov 'display composed))
-      (overlay-put ov 'display trans))))
+    (overlay-put ov 'display display-string)))
 
 (defun hyalo-tengwar--remove-overlays ()
   "Remove all tengwar overlays in buffer."
@@ -405,18 +404,27 @@ Call COLLECTOR with uncached words found."
 (defvar-local hyalo-tengwar--last-point nil
   "Last point position when update was run.")
 
+(defvar-local hyalo-tengwar--last-word-bounds nil
+  "Bounds (start . end) of word at point during last update.")
+
 (defun hyalo-tengwar--on-post-command ()
   "Post-command hook to update visible overlays."
   (let ((start (window-start))
         (end (window-end nil t))
-        (pt (point)))
-    ;; Update if visible region OR point changed
-    (unless (and (eq start hyalo-tengwar--last-window-start)
-                 (eq end hyalo-tengwar--last-window-end)
-                 (eq pt hyalo-tengwar--last-point))
+        (word-bounds (bounds-of-thing-at-point 'word)))
+    ;; Update if visible region OR word-at-point changed
+    (when (or (not (eq start hyalo-tengwar--last-window-start))
+              (not (eq end hyalo-tengwar--last-window-end))
+              (not (equal word-bounds hyalo-tengwar--last-word-bounds)))
+      ;; Clear overlays from previous word-at-point if it changed
+      (when (and hyalo-tengwar--last-word-bounds
+                 (not (equal word-bounds hyalo-tengwar--last-word-bounds)))
+        (remove-overlays (car hyalo-tengwar--last-word-bounds)
+                         (cdr hyalo-tengwar--last-word-bounds)
+                         'hyalo-tengwar t))
       (setq hyalo-tengwar--last-window-start start
-            hyalo-tengwar--last-window-end end)
-      (setq hyalo-tengwar--last-point pt)
+            hyalo-tengwar--last-window-end end
+            hyalo-tengwar--last-word-bounds word-bounds)
       (hyalo-tengwar--update-visible))))
 
 (defun hyalo-tengwar--on-window-scroll (_win _start)
@@ -457,7 +465,12 @@ Call COLLECTOR with uncached words found."
   :lighter " Tengwar"
   :group 'hyalo-tengwar
   (if hyalo-tengwar-minor-mode
-      (hyalo-tengwar--enable)
+      (progn
+        ;; Disable partial mode if active (mutex)
+        (when (bound-and-true-p hyalo-tengwar-partial-mode)
+          (hyalo-tengwar-partial-mode -1))
+        (hyalo-tengwar--log "Minor mode enabled (whole buffer)")
+        (hyalo-tengwar--enable))
     (hyalo-tengwar--disable)))
 
 ;;;###autoload
@@ -466,7 +479,14 @@ Call COLLECTOR with uncached words found."
   :lighter " Tengwar-Partial"
   :group 'hyalo-tengwar
   (if hyalo-tengwar-partial-mode
-      (hyalo-tengwar--enable)
+      (progn
+        ;; Disable minor mode if active (mutex)
+        (when (bound-and-true-p hyalo-tengwar-minor-mode)
+          (hyalo-tengwar-minor-mode -1))
+        (hyalo-tengwar--log "Partial mode enabled (delimiters: %s ... %s)"
+                            (car hyalo-tengwar-partial-delimiters)
+                            (cdr hyalo-tengwar-partial-delimiters))
+        (hyalo-tengwar--enable))
     (hyalo-tengwar--disable)))
 
 (provide 'hyalo-tengwar)

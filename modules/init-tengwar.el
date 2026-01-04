@@ -14,11 +14,12 @@
   :ensure nil
   :commands (hyalo-tengwar-minor-mode hyalo-tengwar-partial-mode)
   :custom
-  (hyalo-tengwar-font-family "Tengwar Annatar")
-  (hyalo-tengwar-font-height 1.0)
+  ;; Font derived from use-csur: nil = Tengwar Annatar, t = Tengwar Telcontar
+  (hyalo-tengwar-use-csur nil)
+  (hyalo-tengwar-font-height 1.2)
   (hyalo-tengwar-language "english")
   (hyalo-tengwar-mode "general-use")
-  (hyalo-tengwar-use-csur nil))
+  (hyalo-tengwar-partial-delimiters '("@@" . "@@")))
 
 (provide 'init-tengwar)
 
