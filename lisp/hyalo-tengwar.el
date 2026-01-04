@@ -59,32 +59,35 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
 
 (defconst hyalo-tengwar-fonts
   '(("Tengwar Annatar"   . (:family "Tengwar Annatar"   :encoding ascii))
-    ("Tengwar Parmaite"  . (:family "Tengwar Parmaite"  :encoding ascii))
-    ("Tengwar Telcontar" . (:family "Tengwar Telcontar" :encoding csur))
-    ("FreeMonoTengwar"   . (:family "FreeMonoTengwar"   :encoding csur))
-    ("FreeMonoTengwar (ASCII)" . (:family "FreeMonoTengwar" :encoding ascii))
-    ("Tengwar Eldamar"   . (:family "Tengwar Eldamar"   :encoding ascii))
-    ("Tengwar Sindarin"  . (:family "Tengwar Sindarin"  :encoding ascii))
-    ("Tengwar Quenya"    . (:family "Tengwar Quenya"    :encoding ascii))
-    ("Tengwar Gothika"   . (:family "Tengwar Gothika"   :encoding ascii))
-    ("Tengwar Formal"    . (:family "Tengwar Formal"    :encoding ascii))
     ("Tengwar Beleriand" . (:family "Tengwar Beleriand" :encoding ascii))
-    ("Tengwar Cursive"   . (:family "Tengwar Cursive"   :encoding ascii))
+    ("Tengwar Eldamar"   . (:family "Tengwar Eldamar"   :encoding ascii))
     ("Tengwar Elfica"    . (:family "Tengwar Elfica"    :encoding ascii))
+    ("Tengwar Formal"    . (:family "Tengwar Formal"    :encoding ascii))
     ("Tengwar Galvorn"   . (:family "Tengwar Galvorn"   :encoding ascii))
     ("Tengwar Gothika"   . (:family "Tengwar Gothika"   :encoding ascii))
     ("Tengwar Hereno"    . (:family "Tengwar Hereno"    :encoding ascii))
     ("Tengwar Mornedhel" . (:family "Tengwar Mornedhel" :encoding ascii))
     ("Tengwar Naive"     . (:family "Tengwar Naive"     :encoding ascii))
     ("Tengwar Noldor"    . (:family "Tengwar Noldor"    :encoding ascii))
+    ("Tengwar Parmaite"  . (:family "Tengwar Parmaite"  :encoding ascii))
+    ("Tengwar Quenya"    . (:family "Tengwar Quenya"    :encoding ascii))
+    ("Tengwar Sindarin"  . (:family "Tengwar Sindarin"  :encoding ascii))
     ("Tengwar Telerin"   . (:family "Tengwar Telerin"   :encoding ascii))
-    ("Tengwar Optime"    . (:family "Tengwar Optime"    :encoding ascii)))
+    ("FreeMonoTengwar"   . (:family "FreeMonoTengwar"   :encoding csur)))
   "List of supported Tengwar fonts and their encoding types.")
 
 (defcustom hyalo-tengwar-font "Tengwar Annatar"
   "Current Tengwar font configuration."
   :type (cons 'choice (mapcar (lambda (f) (list 'const (car f))) hyalo-tengwar-fonts))
   :group 'hyalo-tengwar)
+
+(defun hyalo-tengwar--configure-fontset (font-family encoding)
+  "Configure fontset for FONT-FAMILY with ENCODING.
+For CSUR encoding, map PUA range (E000-E07F) to the font."
+  (when (eq encoding 'csur)
+    ;; Map Tengwar CSUR range to this font in the default fontset
+    (set-fontset-font t '(#xE000 . #xE07F) font-family nil 'prepend)
+    (hyalo-tengwar--log "Configured fontset: PUA E000-E07F -> %s" font-family)))
 
 (defun hyalo-tengwar-select-font (font-name)
   "Select a Tengwar font from supported list."
@@ -96,6 +99,11 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
   ;; Clear cache as encoding might differ (ASCII vs CSUR)
   (clrhash hyalo-tengwar--cache)
   (clrhash hyalo-tengwar--pending)
+  ;; Configure fontset for CSUR fonts
+  (let* ((font-config (cdr (assoc font-name hyalo-tengwar-fonts)))
+         (font-family (plist-get font-config :family))
+         (encoding (plist-get font-config :encoding)))
+    (hyalo-tengwar--configure-fontset font-family encoding))
   ;; Force update by resetting last state
   (hyalo-tengwar--remove-overlays)
   (setq hyalo-tengwar--last-window-start nil
@@ -274,15 +282,23 @@ Float: relative to underlying text. Integer: absolute in 1/10pt."
     (error
      (hyalo-warn 'tengwar "JSON parse error: %s" (error-message-string err)))))
 
+(defun hyalo-tengwar--normalize-spaces (str)
+  "Replace non-breaking spaces with regular spaces in STR.
+Tecendil uses U+00A0 to join words, which causes display issues:
+- CSUR fonts lack glyphs at U+00A0, causing font fallback
+- Emacs `nobreak-char-display' highlights them (often as red underscores)"
+  (replace-regexp-in-string "\u00A0" " " str))
+
 (defun hyalo-tengwar--handle-results (words results buffer)
   "Process RESULTS for WORDS, updating cache and BUFFER."
   (hyalo-tengwar--trace "Received %d results" (length results))
 
-  ;; Update cache
+  ;; Update cache (normalize spaces to fix CSUR font display)
   (cl-loop for word in words
            for trans across results
            do (progn
-                (puthash word trans hyalo-tengwar--cache)
+                (puthash word (hyalo-tengwar--normalize-spaces trans)
+                         hyalo-tengwar--cache)
                 (remhash word hyalo-tengwar--pending)))
 
   ;; Refresh buffer if still live and mode active
@@ -498,6 +514,11 @@ Use cached translation or call COLLECTOR to fetch."
 (defun hyalo-tengwar--enable ()
   "Enable tengwar mode (start process, hooks)."
   (hyalo-tengwar--log "Enabled in %s" (buffer-name))
+  ;; Configure fontset for CSUR fonts
+  (let* ((font-config (cdr (assoc hyalo-tengwar-font hyalo-tengwar-fonts)))
+         (font-family (plist-get font-config :family))
+         (encoding (plist-get font-config :encoding)))
+    (hyalo-tengwar--configure-fontset font-family encoding))
   (hyalo-tengwar--start-process)
   (hyalo-tengwar--update-visible)
   (setq hyalo-tengwar--last-window-start nil

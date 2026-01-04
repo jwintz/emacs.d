@@ -16,7 +16,7 @@
   :custom
   ;; Font configuration: select from hyalo-tengwar-fonts
   (hyalo-tengwar-font "Tengwar Annatar")
-  (hyalo-tengwar-font-height 1.2)
+  (hyalo-tengwar-font-height 1.0)
   (hyalo-tengwar-language "english")
   (hyalo-tengwar-mode "general-use")
   (hyalo-tengwar-partial-delimiters '("@@" . "@@")))
