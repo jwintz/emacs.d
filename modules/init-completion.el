@@ -7,8 +7,12 @@
 
 (use-package vertico
   :ensure t
+  :custom
+  (vertico-preselect 'prompt)
   :init
-  (vertico-mode))
+  (vertico-mode)
+  :bind (:map vertico-map
+              ("TAB" . minibuffer-complete)))  ; prefix expansion instead of insert
 
 (use-package marginalia
   :ensure t
@@ -20,7 +24,9 @@
   :ensure t
   :custom
   (completion-styles '(orderless basic))
-  (completion-category-overrides '((file (styles basic partial-completion)))))
+  (completion-category-defaults nil)
+  (completion-category-overrides '((file (styles partial-completion orderless))))
+  (orderless-component-separator #'orderless-escapable-split-on-space))
 
 (use-package consult
   :ensure t

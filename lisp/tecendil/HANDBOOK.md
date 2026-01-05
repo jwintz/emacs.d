@@ -315,3 +315,113 @@ Common words have shorthand representations:
 
 Try placing your cursor inside any `@@...@@` block - the original text should appear.
 Move the cursor out, and the Tengwar transliteration should render again.
+
+---
+
+## Exercices
+
+### English Mode: Writing 1
+
+- mom: `@@mom@@`
+- dad: `@@dad@@`
+- cat: `@@cat@@`
+- dog: `@@dog@@`
+- orc: `@@orc@@`
+- fig: `@@fig@@`
+- big: `@@big@@`
+- bug: `@@bug@@`
+- bag: `@@bag@@`
+- gold: `@@gold@@`
+- gap: `@@gap@@`
+- car: `@@car@@`
+- ark: `@@ark@@`
+- my: `@@my@@`
+- was: `@@was@@`
+
+### English Mode: Writing 2
+
+- all: `@@all@@`
+- wet: `@@wet@@`
+- paw: `@@paw@@`
+- zoo: `@@zoo@@` #FIXME
+- toe: `@@toe@@`
+- now: `@@now@@`
+- then: `@@then@@`
+- there: `@@there@@`
+- look: `@@look@@` #FIXME
+- good: `@@good@@` #FIXME
+- only: `@@only@@`
+- hole: `@@hole@@`
+- from: `@@from@@`
+
+## English Mode: Writing 3
+
+- the: `@@the@@`
+- of: `@@of@@`
+- with: `@@with@@`
+- one: `@@one@@`
+- time: `@@time@@`
+- think: `@@think@@`
+- make: `@@make@@`
+- ant: `@@ant@@`
+- day: `@@day@@`
+- bye: `@@bye@@`
+- ink: `@@ink@@`
+- mix: `@@mix@@`
+- her: `@@her@@`
+- ray: `@@ray@@`
+
+## English Mode: Writing 4
+
+- ball: `@@ball@@`
+- door: `@@door@@` #FIXME
+- house: `@@house@@`
+- know: `@@know@@`
+- again: `@@again@@`
+- before: `@@before@@`
+- when: `@@when@@`
+- away: `@@away@@`
+- eyes: `@@eyes@@`
+- Frodo: `@@Frodo@@`
+- Gandalf: `@@Gandalf@@`
+- Aragorn: `@@Aragorn@@`
+- hobbits: `@@hobbits@@`
+- Gimli: `@@Gimli@@`
+- Legolas: `@@Legolas@@`
+- rings: `@@rings@@`
+
+## English Mode: Reading
+
+
+- @@In a hole in the ground there lived a hobbit@@
+- **In a hole in the ground there lived a hobbit**
+
+- @@You shall not pass@@
+- **You shall not pass**
+
+- @@It's the job that never started that takes the longest to finish@@
+- **It's the job that never started that takes the longest to finish**
+
+- @@Home is behind, the world ahead@@
+- **Home is behind, the world ahead**
+
+- @@All you have to decide is what to do with the time that is given to you@@
+- **All you have to decide is what to do with the time that is given to you**
+
+- @@A wizard is never late. Nor is he early. He arrives precisely when he means to@@
+- **A wizard is never late. Nor is he early. He arrives precisely when he means to**
+
+- @@Even the smallest person can change the course of the future@@
+- **Even the smallest person can change the course of the future**
+
+- @@One does not simply walk into Mordor@@
+- **One does not simply walk into Mordor**
+
+- @@Moonlight drowns out all but the brightest stars@@
+- **Moonlight drowns out all but the brightest stars**
+
+- @@But in the end it's only a passing thing, this shadow; even darkness must pass@@
+- **But in the end it's only a passing thing, this shadow; even darkness must pass**
+
+- @@His old life lay behind in the mists, dark adventure lay in front@@
+- **His old life lay behind in the mists, dark adventure lay in front**
