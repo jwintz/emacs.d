@@ -343,13 +343,13 @@ Move the cursor out, and the Tengwar transliteration should render again.
 - all: `@@all@@`
 - wet: `@@wet@@`
 - paw: `@@paw@@`
-- zoo: `@@zoo@@` #FIXME
+- zoo: `@@zoo@@`
 - toe: `@@toe@@`
 - now: `@@now@@`
 - then: `@@then@@`
 - there: `@@there@@`
-- look: `@@look@@` #FIXME
-- good: `@@good@@` #FIXME
+- look: `@@look@@`
+- good: `@@good@@`
 - only: `@@only@@`
 - hole: `@@hole@@`
 - from: `@@from@@`
@@ -374,7 +374,7 @@ Move the cursor out, and the Tengwar transliteration should render again.
 ## English Mode: Writing 4
 
 - ball: `@@ball@@`
-- door: `@@door@@` #FIXME
+- door: `@@door@@`
 - house: `@@house@@`
 - know: `@@know@@`
 - again: `@@again@@`

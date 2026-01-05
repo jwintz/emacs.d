@@ -4,21 +4,10 @@
 
 (defvar rcirc-track-minor-mode nil) ;; Fix doom-modeline error
 
-(use-package keycast
-  :ensure t
+(use-package which-func
+  :ensure nil
   :config
-  ;; Keycast uses mode-line-misc-info, which doom-modeline displays via misc-info segment
-  (define-minor-mode keycast-mode
-    "Show current command and its key binding in the mode line."
-    :global t
-    (if keycast-mode
-        (progn
-          (add-hook 'pre-command-hook 'keycast--update t)
-          ;; Push to front of mode-line-misc-info for first position in RHS
-          (push '("" keycast-mode-line " ") mode-line-misc-info))
-      (progn
-        (remove-hook 'pre-command-hook 'keycast--update)
-        (setq mode-line-misc-info (delete '("" keycast-mode-line " ") mode-line-misc-info))))))
+  (which-function-mode 1))
 
 (use-package doom-modeline
   :ensure t
