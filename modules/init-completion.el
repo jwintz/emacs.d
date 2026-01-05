@@ -7,12 +7,13 @@
 
 (use-package vertico
   :ensure t
-  :custom
-  (vertico-preselect 'prompt)
+  ;; :custom
+  ;; (vertico-preselect 'prompt)
   :init
   (vertico-mode)
-  :bind (:map vertico-map
-              ("TAB" . minibuffer-complete)))  ; prefix expansion instead of insert
+  ;; :bind (:map vertico-map
+  ;;             ("TAB" . minibuffer-complete))
+  )
 
 (use-package marginalia
   :ensure t

@@ -1,4 +1,6 @@
-# Tengwar Handbook
+<!-- -*- eval: (hyalo-tengwar-partial-mode) -*- -->
+
+# Tengwar Handbook - @@Tengwar Handbook@@
 
 This handbook demonstrates the Tengwar writing system using `hyalo-tengwar-partial-mode`.
 Text within `@@...@@` delimiters will be rendered in Tengwar script when the mode is active.
@@ -40,32 +42,32 @@ The shape of the tengwa corresponds to the distinctive feature of the sound it r
 |--------|------|-------|
 | @@{{tinco}}@@ | tinco | /t/ |
 | @@{{parma}}@@ | parma | /p/ |
-| @@{{calma}}@@ | calma | /k/ or /ch/ |
-| @@{{quesse}}@@ | quesse | /kw/ or /k/ |
+| @@{{calma}}@@ | calma | /ch/ |
+| @@{{quesse}}@@ | quesse | /c/ or /k/ |
 | @@{{ando}}@@ | ando | /d/ |
 | @@{{umbar}}@@ | umbar | /b/ |
-| @@{{anga}}@@ | anga | /g/ or /ng/ |
-| @@{{ungwe}}@@ | ungwe | /gw/ or /g/ |
-| @@{{thuule}}@@ | thúle | /th/ (voiceless) |
+| @@{{anga}}@@ | anga | /j/ |
+| @@{{ungwe}}@@ | ungwe | /g/ |
+| @@{{thuule}}@@ | thúle | /th/ (voiceless) | `thing`
 | @@{{formen}}@@ | formen | /f/ |
-| @@{{harma}}@@ | harma | /ch/ or /sh/ |
-| @@{{hwesta}}@@ | hwesta | /ch/ or /hw/ |
-| @@{{anto}}@@ | anto | /th/ (voiced) |
+| @@{{harma}}@@ | harma | /sh/ |
+| @@{{hwesta}}@@ | hwesta | /ch/, /k/ | `echo`
+| @@{{anto}}@@ | anto | /th/ (voiced) | `this`
 | @@{{ampa}}@@ | ampa | /v/ |
-| @@{{anca}}@@ | anca | /j/ or /zh/ |
-| @@{{unque}}@@ | unque | /gh/ |
+| @@{{anca}}@@ | anca | /j/ or /zh/ | ⟨g⟩ as in `mirage`, ⟨si⟩ as in `illusion` or ⟨su⟩ as in `treasure`
+| @@{{unque}}@@ | unque | /gh/ | <gh⟩ pronounced /g/ + /h/ as in `ghost`
 | @@{{nuumen}}@@ | númen | /n/ |
 | @@{{malta}}@@ | malta | /m/ |
 | @@{{noldo}}@@ | noldo | /nd/ |
 | @@{{nwalme}}@@ | nwalme | /ng/ |
-| @@{{oore}}@@ | óre | /r/ (final) |
+| @@{{oore}}@@ | óre | /r/ (final) | Used for final ⟨r⟩ or when preceding a consonant
 | @@{{vala}}@@ | vala | /w/ |
 | @@{{anna}}@@ | anna | /y/ |
 | @@{{vilya}}@@ | vilya | /v/ or silent |
-| @@{{roomen}}@@ | rómen | /r/ (initial) |
+| @@{{roomen}}@@ | rómen | /r/ (initial) | Used for ⟨r⟩ preceding a vowel
 | @@{{arda}}@@ | arda | /rd/ |
 | @@{{lambe}}@@ | lambe | /l/ |
-| @@{{alda}}@@ | alda | /ld/ |
+| @@{{alda}}@@ | alda | /ll/ /ld/ |
 | @@{{silme}}@@ | silme | /s/ |
 | @@{{silme-nuquerna}}@@ | silme nuquerna | /s/ |
 | @@{{esse}}@@ | esse | /z/ |
@@ -84,11 +86,11 @@ Some tengwar have an extended form with the stem extending above and below:
 | @@{{extended-tinco}}@@ | extended tinco | ordinal suffix (1st, 2nd) |
 | @@{{extended-parma}}@@ | extended parma | /ph/ → /f/ |
 | @@{{extended-calma}}@@ | extended calma | /kh/ → /k/ |
-| @@{{extended-quesse}}@@ | extended quesse | /ch/ → /k/ |
+| @@{{extended-quesse}}@@ | extended quesse | /ch/ → /k/ | /k/ sound, also ⟨ck⟩ as in `black`, ⟨ch⟩ as in `chaos`
 | @@{{extended-ando}}@@ | extended ando | "the" shorthand |
 | @@{{extended-umbar}}@@ | extended umbar | "of" shorthand |
 | @@{{extended-anga}}@@ | extended anga | ??? |
-| @@{{extended-ungwe}}@@ | extended ungwe | silent /gh/ |
+| @@{{extended-ungwe}}@@ | extended ungwe | silent /gh/ | ⟨gh⟩ when silent, as in "Hugh"
 
 ### Carriers
 
@@ -143,40 +145,40 @@ for example, ph or gh for a /f/ sound in "phone" or "cough".
 
 | Letter | Tengwa | Example |
 |--------|--------|---------|
-| b | @@{{umbar}}@@ | @@book@@ |
-| c | @@{{quesse}}@@ | @@cat@@ |
-| d | @@{{ando}}@@ | @@dog@@ |
-| f | @@{{formen}}@@ | @@fish@@ |
-| g | @@{{ungwe}}@@ | @@go@@ |
-| h | @@{{hyarmen}}@@ | @@hat@@ |
-| j | @@{{anga}}@@ | @@jump@@ |
-| k | @@{{quesse}}@@ | @@king@@ |
-| l | @@{{lambe}}@@ | @@love@@ |
-| m | @@{{malta}}@@ | @@man@@ |
-| n | @@{{nuumen}}@@ | @@no@@ |
-| p | @@{{parma}}@@ | @@pen@@ |
-| q | @@{{quesse}}@@ | @@queen@@ |
-| r | @@{{oore}}@@ / @@{{roomen}}@@ | @@run@@ |
-| s | @@{{silme}}@@ | @@sun@@ |
-| t | @@{{tinco}}@@ | @@top@@ |
-| v | @@{{ampa}}@@ | @@van@@ |
-| w | @@{{vala}}@@ | @@win@@ |
-| x | @@x@@ | @@box@@ |
-| y | @@{{anna}}@@ | @@yes@@ |
-| z | @@{{esse}}@@ | @@zoo@@ |
+| b | @@{{umbar}}@@ | @@book@@ - `book` |
+| c | @@{{quesse}}@@ | @@cat@@ - `cat` |
+| d | @@{{ando}}@@ | @@dog@@ - `dog` |
+| f | @@{{formen}}@@ | @@fish@@ - `dog` |
+| g | @@{{ungwe}}@@ | @@go@@ - `go` |
+| h | @@{{hyarmen}}@@ | @@hat@@ - `hat` |
+| j | @@{{anga}}@@ | @@jump@@ - `jump` |
+| k | @@{{quesse}}@@ | @@king@@ - `king` |
+| l | @@{{lambe}}@@ | @@love@@ - `love` |
+| m | @@{{malta}}@@ | @@man@@ - `man` |
+| n | @@{{nuumen}}@@ | @@no@@ - `no` |
+| p | @@{{parma}}@@ | @@pen@@ - `pen` |
+| q | @@{{quesse}}@@ | @@queen@@ - `queen` |
+| r | @@{{oore}}@@ / @@{{roomen}}@@ | @@run@@ - `run` |
+| s | @@{{silme}}@@ | @@sun@@ - `sun` |
+| t | @@{{tinco}}@@ | @@top@@ - `top` |
+| v | @@{{ampa}}@@ | @@van@@ - `van` |
+| w | @@{{vala}}@@ | @@win@@ - `win` |
+| x | @@x@@ | @@box@@ - `box` |
+| y | @@{{anna}}@@ | @@yes@@ - `yes` |
+| z | @@{{esse}}@@ | @@zoo@@ - `zoo` |
 
 ### Digraphs
 
 | Digraph | Tengwa | Example |
 |---------|--------|---------|
-| ch | @@{{calma}}@@ | @@church@@ |
-| sh | @@{{harma}}@@ | @@ship@@ |
-| th (soft) | @@{{thuule}}@@ | @@thing@@ |
-| th (hard) | @@{{anto}}@@ | @@this@@ |
-| ng | @@{{nwalme}}@@ | @@ring@@ |
-| wh | @@{{hwesta-sindarinwa}}@@ | @@white@@ |
-| ph | @@{{extended-parma}}@@ | @@phone@@ |
-| gh | @@{{unque}}@@ | @@ghost@@ |
+| ch | @@{{calma}}@@ | @@church@@ - `church` |
+| sh | @@{{harma}}@@ | @@ship@@ - `ship` |
+| th (soft) | @@{{thuule}}@@ | @@thing@@ - `thing` |
+| th (hard) | @@{{anto}}@@ | @@this@@ - `this` |
+| ng | @@{{nwalme}}@@ | @@ring@@ - `ring` |
+| wh | @@{{hwesta-sindarinwa}}@@ | @@white@@ - `white` |
+| ph | @@{{extended-parma}}@@ | @@phone@@ - `phone` |
+| gh | @@{{unque}}@@ | @@ghost@@ - `host` |
 
 ### Doubled Consonants
 
@@ -208,17 +210,23 @@ Nasalized consonants (nt, mp, nk) have a bar above:
 | mb | @@mb@@ |
 | nc / nk | @@nk@@ |
 
+### Labialized Consonants
+
+| Example | Tengwar |
+|---------|---------|
+| qw | @@q@@ with tilde above | `quiet`: @@quiet@@, `queen`: @@queen@@
+
 ### The Vowels
 
 In this mode, vowels are represented by diacritics (tehtar) on the following consonant:
 
 | Vowel | Tehta | Example |
 |-------|-------|---------|
-| a | @@{{telco}[triple-dot-above]@@ | @@cat@@ |
-| e | @@{{telco}[acute]@@ | @@pet@@ |
-| i | @@{{telco}[dot-above]@@ | @@sit@@ |
-| o | @@{{telco}[right-curl]@@ | @@dog@@ |
-| u | @@{{telco}[left-curl]@@ | @@cup@@ |
+| a | @@{{telco}[triple-dot-above]@@ | @@cat@@ - `cat` |
+| e | @@{{telco}[acute]@@ | @@pet@@ - `pet` |
+| i | @@{{telco}[dot-above]@@ | @@sit@@ - `sit` |
+| o | @@{{telco}[right-curl]@@ | @@dog@@ - `dog` |
+| u | @@{{telco}[left-curl]@@ | @@cup@@ - `cup` |
 
 ### Silent E
 
@@ -238,14 +246,14 @@ Vowel diphthongs use special combinations:
 
 | Diphthong | Example |
 |-----------|---------|
-| ai / ay | @@main@@ @@day@@ |
-| ei / ey | @@their@@ @@they@@ |
-| oi / oy | @@coin@@ @@boy@@ |
-| ou | @@found@@ |
-| au | @@cause@@ |
-| eu | @@feud@@ |
-| iu | @@iu@@ |
-| ui | @@quit@@ |
+| ai / ay | @@main@@ @@day@@ - `main` `day` |
+| ei / ey | @@their@@ @@they@@ - `their` `they` |
+| oi / oy | @@coin@@ @@boy@@ - `coin` `boy` |
+| ou | @@found@@ - `found` |
+| au | @@cause@@ - `cause` |
+| eu | @@feud@@ - `feud` |
+| iu | @@iu@@ - `iu` |
+| ui | @@quit@@ - `quit` |
 
 ### The Letter Y
 
