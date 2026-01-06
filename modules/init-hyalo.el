@@ -234,7 +234,7 @@
       (message "Footer pattern set to: %s" choice)))
 
   (hyalo-footer-mode 1)
-  (hyalo-footer-set-pattern "hexagons")
+  (hyalo-footer-set-pattern "tiny-checkers")
   (hyalo-footer-set-background-alpha 0.1))
 
 (provide 'init-hyalo)

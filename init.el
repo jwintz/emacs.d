@@ -33,7 +33,21 @@
 (when (file-exists-p custom-file)
   (load custom-file 'noerror 'nomessage))
 
-;;;; Package System
+;;; ===========================================================================
+;;; Performance Profiling
+;;; ===========================================================================
+
+;; (require 'profiler)
+
+;; (profiler-start 'cpu)
+;; (add-hook 'after-init-hook
+;;           (lambda ()
+;;             (profiler-stop)
+;;             (profiler-report)))
+
+;;; ===========================================================================
+;;; Package System
+;;; ===========================================================================
 
 (defvar demap--tools-demap-defined-start-p t)
 

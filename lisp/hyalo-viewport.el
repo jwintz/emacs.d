@@ -45,7 +45,8 @@
 
 (defcustom hyalo-viewport-excluded-modes '(agent-shell-mode
                                            agent-shell-viewport-view-mode
-                                           agent-shell-viewport-edit-mode)
+                                           agent-shell-viewport-edit-mode
+                                           eat-mode)
   "List of major modes where viewport offset should NOT be applied."
   :type '(repeat symbol)
   :group 'hyalo-viewport)
@@ -96,15 +97,17 @@ Queries the Swift module for the authoritative value."
 
 (defun hyalo-viewport--window-eligible-p (window)
   "Return non-nil if WINDOW should have viewport offset applied."
-  (let ((graphic (display-graphic-p))
-        (live (window-live-p window))
-        (minibuf (window-minibuffer-p window))
-        (eq-mini (eq window (minibuffer-window)))
-        (sidebar (hyalo-viewport--window-sidebar-p window))
-        (mode (buffer-local-value 'major-mode (window-buffer window)))
-        (excluded (memq (buffer-local-value 'major-mode (window-buffer window))
-                        hyalo-viewport-excluded-modes))
-        (intersects (hyalo-viewport--window-intersects-header-p window)))
+  (let* ((graphic (display-graphic-p))
+         (live (window-live-p window))
+         (minibuf (window-minibuffer-p window))
+         (eq-mini (eq window (minibuffer-window)))
+         (sidebar (hyalo-viewport--window-sidebar-p window))
+         (mode (buffer-local-value 'major-mode (window-buffer window)))
+         (excluded (or (apply #'provided-mode-derived-p
+                              mode
+                              hyalo-viewport-excluded-modes)
+                       (provided-mode-derived-p mode 'eat-mode)))
+         (intersects (hyalo-viewport--window-intersects-header-p window)))
     (when hyalo-viewport-debug
       (hyalo-log 'viewport "Eligible check win=%s: graphic=%s live=%s minibuf=%s eq-mini=%s sidebar=%s mode=%s excluded=%s intersects=%s"
                         window graphic live minibuf eq-mini sidebar mode excluded intersects))

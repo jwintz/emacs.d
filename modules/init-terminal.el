@@ -38,11 +38,7 @@
 (use-package iota-shell
   :ensure nil
   :after eshell
-  :hook (eshell-mode . iota-shell-mode)
-  :config
-  ;; Set global defaults to ensure initial prompt is correct
-  (setq eshell-prompt-function #'iota-shell-prompt)
-  (setq eshell-prompt-regexp "^λ "))
+  :hook (eshell-mode . iota-shell-mode))
 
 (provide 'init-terminal)
 
