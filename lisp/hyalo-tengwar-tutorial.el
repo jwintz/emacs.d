@@ -98,6 +98,15 @@ A plist with keys:
 ;; Items: list of (:glyph :name :sound :example :accepts)
 ;;   - :glyph is the tengwar name for {{...}} syntax
 ;;   - :accepts is list of acceptable answers
+;;
+;; IMPORTANT: Exercise words must ONLY use letters/rules introduced up to that lesson!
+;; - No doubled consonants before Phase 6
+;; - No ck before Phase 3 (Extended Tengwar)
+;; - No silent-e before Phase 11
+;; - Each lesson's words are manually curated to respect this constraint
+;;
+;; TODO: Future enhancement - dynamic word lookup from a dictionary with
+;; constraint-based filtering (letters available, rules introduced)
 
 (defconst hyalo-tengwar-tutorial--curriculum
   `(
@@ -135,138 +144,141 @@ Note: 'tehta' (plural 'tehtar') is the correct term, not 'theta'."
 
     ;; =========================================================================
     ;; PHASE 2: PRIMARY TENGWAR (Groups of 4)
-    ;; Available after each lesson: vowels + all previous consonants
+    ;; RULES: No doubled consonants, no silent-e, no ck until taught
     ;; =========================================================================
 
-    ;; After: a e i o u + t p c/k (ch excluded - digraph)
+    ;; Available: a e i o u + t p c k (NO: ch, ck, doubled, silent-e)
     (:id primary-1
-     :title "Primary Tengwar: T, P, C/K"
+     :title "Primary Tengwar: T, P, CH, C/K"
      :type glyphs
      :explanation
      "The first row of Tengwar. The shape encodes sound features:
 • Tinco (t) - voiceless alveolar stop
 • Parma (p) - voiceless bilabial stop
 • Quesse (c/k) - used for c, k, and q sounds
-• Calma (ch) - the 'church' sound (digraph, tested later)"
+• Calma (ch) - the 'church' sound (digraph)"
      :items
      ((:glyph "{{tinco}}" :name "tinco" :sound "/t/" :example "top" :accepts ("t" "tinco"))
-      (:glyph "{{parma}}" :name "parma" :sound "/p/" :example "pen" :accepts ("p" "parma"))
-      (:glyph "{{quesse}}" :name "quesse" :sound "/c/ or /k/" :example "cat" :accepts ("c" "k" "q" "quesse"))
-      (:glyph "{{calma}}" :name "calma" :sound "/ch/" :example "church" :accepts ("ch" "calma")))
-     ;; Words using only: a e i o u t p c k
-     :exercise-words ("at" "it" "up" "cup" "cat" "cut" "pat" "pit" "pot" "tap" "tip" "top" "cap" "kit" "pick"))
+      (:glyph "{{parma}}" :name "parma" :sound "/p/" :example "pup" :accepts ("p" "parma"))
+      (:glyph "{{calma}}" :name "calma" :sound "/ch/" :example "chap" :accepts ("ch" "calma"))
+      (:glyph "{{quesse}}" :name "quesse" :sound "/c/ or /k/" :example "cat" :accepts ("c" "k" "q" "quesse")))
+     ;; Words: a e i o u t p c k ch (NO: ck, doubled, silent-e)
+     :exercise-words ("at" "it" "up" "cup" "cat" "cut" "pat" "pit" "pot" "tap" "tip" "top" "cap" "pup" "chap" "chip" "chop"))
 
-    ;; After: + d b g (j excluded - rare)
+    ;; Available: + d b g j
     (:id primary-2
-     :title "Primary Tengwar: D, B, G, J"
+     :title "Primary Tengwar: D, B, J, G"
      :type glyphs
      :explanation
      "The voiced counterparts of the first row:
 • Ando (d) - voiced version of tinco
 • Umbar (b) - voiced version of parma
-• Ungwe (g) - hard g as in 'go'
-• Anga (j) - the 'jump' sound"
+• Anga (j) - the 'jump' sound
+• Ungwe (g) - hard g as in 'go'"
      :items
      ((:glyph "{{ando}}" :name "ando" :sound "/d/" :example "dog" :accepts ("d" "ando"))
-      (:glyph "{{umbar}}" :name "umbar" :sound "/b/" :example "book" :accepts ("b" "umbar"))
-      (:glyph "{{ungwe}}" :name "ungwe" :sound "/g/" :example "go" :accepts ("g" "ungwe"))
-      (:glyph "{{anga}}" :name "anga" :sound "/j/" :example "jab" :accepts ("j" "anga")))
-     ;; Words using: a e i o u t p c k d b g
-     :exercise-words ("dog" "bad" "bag" "big" "bit" "but" "cub" "dab" "dig" "dot" "dug" "got" "gut" "jab" "job" "jug" "tab" "tub" "tug"))
+      (:glyph "{{umbar}}" :name "umbar" :sound "/b/" :example "bud" :accepts ("b" "umbar"))
+      (:glyph "{{anga}}" :name "anga" :sound "/j/" :example "jab" :accepts ("j" "anga"))
+      (:glyph "{{ungwe}}" :name "ungwe" :sound "/g/" :example "gab" :accepts ("g" "ungwe")))
+     ;; Words: + d b g j (NO: ck, doubled, silent-e)
+     :exercise-words ("dog" "bad" "bag" "big" "bit" "bud" "but" "cub" "dab" "dig" "dot" "dug" "gab" "got" "gut" "jab" "jig" "job" "jog" "jug" "tab" "tub" "tug"))
 
-    ;; After: + f (th/sh/hw are digraphs - tested later)
+    ;; Available: + th f sh (hwesta)
     (:id primary-3
-     :title "Primary Tengwar: TH, F, SH"
+     :title "Primary Tengwar: TH, F, SH, CH/K"
      :type glyphs
      :explanation
      "The aspirated consonants:
 • Thúle (th) - voiceless 'th' as in 'thing' (not 'this')
 • Formen (f) - the 'f' sound
 • Harma (sh) - the 'sh' sound as in 'ship'
-• Hwesta (ch/k) - variant k sound, as in 'echo'"
+• Hwesta - variant ch/k sound, as in 'echo'"
      :items
-     ((:glyph "{{thuule}}" :name "thúle" :sound "/th/ (voiceless)" :example "bath" :accepts ("th" "thule" "thuule"))
-      (:glyph "{{formen}}" :name "formen" :sound "/f/" :example "fit" :accepts ("f" "formen"))
-      (:glyph "{{harma}}" :name "harma" :sound "/sh/" :example "ship" :accepts ("sh" "harma"))
+     ((:glyph "{{thuule}}" :name "thúle" :sound "/th/ (voiceless)" :example "thud" :accepts ("th" "thule" "thuule"))
+      (:glyph "{{formen}}" :name "formen" :sound "/f/" :example "fig" :accepts ("f" "formen"))
+      (:glyph "{{harma}}" :name "harma" :sound "/sh/" :example "shag" :accepts ("sh" "harma"))
       (:glyph "{{hwesta}}" :name "hwesta" :sound "/ch/, /k/" :example "echo" :accepts ("ch" "k" "hwesta")))
-     ;; Words using: a e i o u t p c k d b g f
-     :exercise-words ("fat" "fig" "fit" "fog" "fad" "gift" "tuft" "daft" "buff" "cuff" "puff"))
+     ;; Words: + th f sh (NO: m n s h z w y r l; no doubled)
+     ;; Available: a e i o u t p ch c k d b j g th f sh
+     :exercise-words ("fat" "fig" "fit" "fog" "fad" "fib" "fob" "fug" "thud" "thug" "shag" "ship" "shop" "shot" "shod" "shut" "gush" "bash" "cash" "dash" "gash" "josh" "posh" "tush"))
 
-    ;; After: + v (th-voiced, zh, gh are rare/digraphs)
+    ;; Available: + th(voiced) v (anca, unque rare)
     (:id primary-4
-     :title "Primary Tengwar: TH (voiced), V"
+     :title "Primary Tengwar: TH (voiced), V, ZH, GH"
      :type glyphs
      :explanation
      "More voiced consonants:
 • Anto (th) - voiced 'th' as in 'this' (not 'thing')
 • Ampa (v) - the 'v' sound
-• Anca (zh) - rare sound in 'mirage', 'vision'
+• Anca (zh) - rare sound in 'mirage'
 • Unque (gh) - the 'gh' as in 'ghost'"
      :items
      ((:glyph "{{anto}}" :name "anto" :sound "/th/ (voiced)" :example "this" :accepts ("th" "anto"))
       (:glyph "{{ampa}}" :name "ampa" :sound "/v/" :example "vat" :accepts ("v" "ampa"))
       (:glyph "{{anca}}" :name "anca" :sound "/zh/" :example "mirage" :accepts ("zh" "j" "anca"))
       (:glyph "{{unque}}" :name "unque" :sound "/gh/" :example "ghost" :accepts ("gh" "unque")))
-     ;; Words using: a e i o u t p c k d b g f v
-     :exercise-words ("vat" "vet" "via" "five" "gave" "give" "dive" "cove" "dove"))
+     ;; Words: + v th(voiced) (NO: n m w y r l s z h; no silent-e)
+     ;; Available: a e i o u t p ch c k d b j g th f sh + v
+     :exercise-words ("vat" "vet" "via" "diva" "java" "that" "vivid" "divot"))
 
-    ;; After: + n m (nd/ng are combinations)
+    ;; Available: + n m (noldo, nwalme)
     (:id primary-5
-     :title "Primary Tengwar: N, M"
+     :title "Primary Tengwar: N, M, ND, NG"
      :type glyphs
      :explanation
      "The nasal consonants:
 • Númen (n) - the 'n' sound
 • Malta (m) - the 'm' sound
 • Noldo (nd) - combined n+d sound
-• Nwalme (ng) - the 'ng' sound as in 'ring'"
+• Nwalme (ng) - the 'ng' sound as in 'sing'"
      :items
-     ((:glyph "{{nuumen}}" :name "númen" :sound "/n/" :example "no" :accepts ("n" "numen" "nuumen"))
-      (:glyph "{{malta}}" :name "malta" :sound "/m/" :example "man" :accepts ("m" "malta"))
+     ((:glyph "{{nuumen}}" :name "númen" :sound "/n/" :example "nap" :accepts ("n" "numen" "nuumen"))
+      (:glyph "{{malta}}" :name "malta" :sound "/m/" :example "map" :accepts ("m" "malta"))
       (:glyph "{{noldo}}" :name "noldo" :sound "/nd/" :example "and" :accepts ("nd" "noldo"))
       (:glyph "{{nwalme}}" :name "nwalme" :sound "/ng/" :example "sing" :accepts ("ng" "nwalme")))
-     ;; Words using: a e i o u t p c k d b g f v n m
-     :exercise-words ("man" "men" "nap" "net" "nod" "not" "nun" "nut" "dam" "dim" "gum" "jam" "pan" "pen" "pin" "tan" "ten" "tin" "tom"))
+     ;; Words: + n m nd ng (NO: s, h, w, y, r, l; no doubled mm/nn)
+     ;; Available: a e i o u t p ch c k d b j g th f sh v + n m nd ng
+     :exercise-words ("man" "map" "mat" "men" "met" "mob" "mop" "mud" "mug" "nab" "nag" "nap" "nib" "nod" "not" "nut" "net" "and" "band" "end" "fang" "gang" "bang" "dang" "bung" "dung" "gung" "kung" "tung"))
 
-    ;; After: + w y (óre/vilya are positional)
+    ;; Available: + w y (óre, vilya)
     (:id primary-6
-     :title "Primary Tengwar: W, Y"
+     :title "Primary Tengwar: R (final), W, Y, V (silent)"
      :type glyphs
      :explanation
-     "Semi-vowels and the final R:
+     "Semi-vowels and special consonants:
+• Óre (r) - used for 'r' before consonants or at word end
 • Vala (w) - the 'w' sound
 • Anna (y) - the consonant 'y' as in 'yes'
-• Óre (r) - used for 'r' before consonants or at word end
 • Vilya - rarely used, can be 'v' or silent"
      :items
-     ((:glyph "{{vala}}" :name "vala" :sound "/w/" :example "win" :accepts ("w" "vala"))
-      (:glyph "{{anna}}" :name "anna" :sound "/y/" :example "yes" :accepts ("y" "anna"))
-      (:glyph "{{oore}}" :name "óre" :sound "/r/ (final)" :example "car" :accepts ("r" "ore" "oore"))
+     ((:glyph "{{oore}}" :name "óre" :sound "/r/ (final)" :example "bar" :accepts ("r" "ore" "oore"))
+      (:glyph "{{vala}}" :name "vala" :sound "/w/" :example "wag" :accepts ("w" "vala"))
+      (:glyph "{{anna}}" :name "anna" :sound "/y/" :example "yap" :accepts ("y" "anna"))
       (:glyph "{{vilya}}" :name "vilya" :sound "/v/ or silent" :example "—" :accepts ("v" "vilya")))
-     ;; Words using: a e i o u t p c k d b g f v n m w y
-     :exercise-words ("wag" "web" "wig" "win" "wit" "yam" "yap" "yep" "yet" "yum" "way" "yawn" "twin"))
+     ;; Words: + w y r(final) (NO: s, h, x as singles; no doubled, silent-e)
+     :exercise-words ("wag" "wan" "war" "way" "web" "wed" "wet" "wig" "win" "wit" "wok" "won" "wop" "yak" "yam" "yap" "yaw" "yob"))
 
-    ;; After: + l (r/rd are positional)
+    ;; Available: + r(initial) l (arda, alda)
     (:id primary-7
-     :title "Primary Tengwar: R, L"
+     :title "Primary Tengwar: R (initial), RD, L, LL/LD"
      :type glyphs
      :explanation
      "The R-L tengwar:
 • Rómen (r) - used for 'r' before vowels (not final silent-e)
-• Lambe (l) - the 'l' sound
 • Arda (rd) - combined r+d sound
-• Alda (ll/ld) - doubled l or l+d combination"
+• Lambe (l) - the 'l' sound
+• Alda (ll/ld) - doubled l or l+d (taught later)"
      :items
      ((:glyph "{{roomen}}" :name "rómen" :sound "/r/ (initial)" :example "run" :accepts ("r" "romen" "roomen"))
+      (:glyph "{{arda}}" :name "arda" :sound "/rd/" :example "bard" :accepts ("rd" "arda"))
       (:glyph "{{lambe}}" :name "lambe" :sound "/l/" :example "lap" :accepts ("l" "lambe"))
-      (:glyph "{{arda}}" :name "arda" :sound "/rd/" :example "lord" :accepts ("rd" "arda"))
-      (:glyph "{{alda}}" :name "alda" :sound "/ll/ or /ld/" :example "all" :accepts ("ll" "ld" "alda")))
-     ;; Words using: a e i o u t p c k d b g f v n m w y r l
-     :exercise-words ("lab" "lap" "leg" "let" "lid" "lip" "lit" "log" "lot" "lug" "ran" "rat" "red" "rib" "rid" "rip" "rob" "rod" "rot" "rug" "run" "rut"))
+      (:glyph "{{alda}}" :name "alda" :sound "/ll/ or /ld/" :example "old" :accepts ("ll" "ld" "alda")))
+     ;; Words: + r l (NO: doubled ll, silent-e)
+     :exercise-words ("lab" "lad" "lag" "lap" "lid" "lip" "lit" "log" "lot" "lug" "ran" "rat" "rib" "rid" "rig" "rip" "rob" "rod" "rot" "rug" "run" "rut"))
 
-    ;; After: + s z
+    ;; Available: + s z
     (:id primary-8
-     :title "Primary Tengwar: S, Z"
+     :title "Primary Tengwar: S, Z (and variants)"
      :type glyphs
      :explanation
      "The sibilants - S and Z each have two forms:
@@ -277,19 +289,19 @@ Note: 'tehta' (plural 'tehtar') is the correct term, not 'theta'."
      :items
      ((:glyph "{{silme}}" :name "silme" :sound "/s/" :example "sun" :accepts ("s" "silme"))
       (:glyph "{{silme-nuquerna}}" :name "silme nuquerna" :sound "/s/" :example "sit" :accepts ("s" "silme"))
-      (:glyph "{{esse}}" :name "esse" :sound "/z/" :example "zoo" :accepts ("z" "esse"))
-      (:glyph "{{esse-nuquerna}}" :name "esse nuquerna" :sound "/z/" :example "fizz" :accepts ("z" "esse")))
-     ;; Words using: a e i o u t p c k d b g f v n m w y r l s z
-     :exercise-words ("sad" "sat" "set" "sip" "sit" "six" "sob" "sun" "sum" "zap" "zip" "bus" "gas" "plus" "fuss"))
+      (:glyph "{{esse}}" :name "esse" :sound "/z/" :example "zap" :accepts ("z" "esse"))
+      (:glyph "{{esse-nuquerna}}" :name "esse nuquerna" :sound "/z/" :example "zig" :accepts ("z" "esse")))
+     ;; Words: + s z (NO: x, doubled ss, silent-e)
+     :exercise-words ("sad" "sag" "sap" "sat" "set" "sip" "sit" "sob" "sod" "sop" "sub" "sum" "sun" "zag" "zap" "zig" "zip" "bus" "gas"))
 
-    ;; After: + h (wh is digraph)
+    ;; Available: + h wh (yanta, úre)
     (:id primary-9
-     :title "Primary Tengwar: H, WH"
+     :title "Primary Tengwar: H, WH, Y (alt), W (alt)"
      :type glyphs
      :explanation
      "The final primary tengwar:
 • Hyarmen (h) - the 'h' sound
-• Hwesta Sindarinwa (wh) - the 'wh' sound as in 'white'
+• Hwesta Sindarinwa (wh) - the 'wh' sound as in 'when'
 • Yanta (y) - variant y, often in diphthongs
 • Úre (w) - variant w, often in diphthongs"
      :items
@@ -297,28 +309,48 @@ Note: 'tehta' (plural 'tehtar') is the correct term, not 'theta'."
       (:glyph "{{hwesta-sindarinwa}}" :name "hwesta sindarinwa" :sound "/wh/" :example "when" :accepts ("wh" "hwesta sindarinwa"))
       (:glyph "{{yanta}}" :name "yanta" :sound "/y/" :example "—" :accepts ("y" "yanta"))
       (:glyph "{{uure}}" :name "úre" :sound "/w/" :example "—" :accepts ("w" "ure" "uure")))
-     ;; Words using all consonants now
-     :exercise-words ("had" "ham" "hat" "hem" "hen" "hid" "him" "hip" "hit" "hob" "hog" "hop" "hot" "hub" "hug" "hum" "hut"))
+     ;; Words: + h wh (NO: silent-e)
+     :exercise-words ("had" "hag" "ham" "has" "hat" "hem" "hen" "hid" "him" "hip" "his" "hit" "hob" "hog" "hop" "hot" "hub" "hug" "hum" "hut" "whim" "whip" "whir"))
 
     ;; =========================================================================
-    ;; PHASE 3: EXTENDED TENGWAR
+    ;; PHASE 3: EXTENDED TENGWAR (Row 1: voiceless)
     ;; =========================================================================
-    (:id extended
-     :title "Extended Tengwar"
+    (:id extended-1
+     :title "Extended Tengwar: Row 1"
      :type glyphs
      :explanation
      "Extended tengwar have stems that extend both above and below.
-They are used for special sounds and shorthand:
+The first row mirrors the primary voiceless consonants:
+• Extended Tinco - for special t combinations
 • Extended Parma - for 'ph' (as in 'phone')
-• Extended Quesse - for 'ck' or 'ch→k' (as in 'black')
-• Extended Ando - shorthand for 'the'
-• Extended Umbar - shorthand for 'of'"
+• Extended Calma - for special ch combinations
+• Extended Quesse - for 'ck' (as in 'back')"
      :items
-     ((:glyph "{{extended-parma}}" :name "extended parma" :sound "/ph/ → /f/" :example "phone" :accepts ("ph" "extended parma"))
-      (:glyph "{{extended-quesse}}" :name "extended quesse" :sound "/ck/, /ch→k/" :example "back" :accepts ("ck" "ch" "extended quesse"))
-      (:glyph "{{extended-ando}}" :name "extended ando" :sound "the (shorthand)" :example "the" :accepts ("the" "extended ando"))
-      (:glyph "{{extended-umbar}}" :name "extended umbar" :sound "of (shorthand)" :example "of" :accepts ("of" "extended umbar")))
-     :exercise-words ("back" "deck" "duck" "kick" "lick" "luck" "neck" "pack" "pick" "rack" "rock" "sack" "sick" "sock" "tack" "tick" "tuck" "wick"))
+     ((:glyph "{{extended-tinco}}" :name "extended tinco" :sound "/t/ (special)" :example "—" :accepts ("t" "extended tinco"))
+      (:glyph "{{extended-parma}}" :name "extended parma" :sound "/ph/ → /f/" :example "graph" :accepts ("ph" "extended parma"))
+      (:glyph "{{extended-calma}}" :name "extended calma" :sound "/ch/ (special)" :example "—" :accepts ("ch" "extended calma"))
+      (:glyph "{{extended-quesse}}" :name "extended quesse" :sound "/ck/" :example "back" :accepts ("ck" "extended quesse")))
+     ;; NOW we can use ck words!
+     :exercise-words ("back" "hack" "jack" "lack" "pack" "rack" "sack" "tack" "duck" "luck" "muck" "suck" "tuck" "buck" "kick" "lick" "nick" "pick" "sick" "tick" "wick" "dock" "lock" "rock" "sock"))
+
+    ;; =========================================================================
+    ;; PHASE 3b: EXTENDED TENGWAR (Row 2: voiced + shorthands)
+    ;; =========================================================================
+    (:id extended-2
+     :title "Extended Tengwar: Row 2"
+     :type glyphs
+     :explanation
+     "The second row of extended tengwar, mirroring voiced consonants:
+• Extended Ando - shorthand for 'the'
+• Extended Umbar - shorthand for 'of'
+• Extended Anga - for special j combinations
+• Extended Ungwe - for special g combinations"
+     :items
+     ((:glyph "{{extended-ando}}" :name "extended ando" :sound "the (shorthand)" :example "the" :accepts ("the" "extended ando"))
+      (:glyph "{{extended-umbar}}" :name "extended umbar" :sound "of (shorthand)" :example "of" :accepts ("of" "extended umbar"))
+      (:glyph "{{extended-anga}}" :name "extended anga" :sound "/j/ (special)" :example "—" :accepts ("j" "extended anga"))
+      (:glyph "{{extended-ungwe}}" :name "extended ungwe" :sound "/g/ (special)" :example "—" :accepts ("g" "extended ungwe")))
+     :exercise-words ("the" "of"))
 
     ;; =========================================================================
     ;; PHASE 4: CARRIERS
@@ -348,15 +380,16 @@ They are used for special sounds and shorthand:
 • TH (voiceless) → Thúle (thing)
 • TH (voiced) → Anto (this)
 • NG → Nwalme (ring)
-• WH → Hwesta Sindarinwa (white)
-• PH → Extended Parma (phone)
-• GH → Unque (ghost)"
+• WH → Hwesta Sindarinwa (when)
+• PH → Extended Parma (graph)
+• CK → Extended Quesse (back)"
      :items
-     ((:glyph "{{calma}}" :name "calma" :sound "ch" :example "such" :accepts ("ch" "calma"))
-      (:glyph "{{harma}}" :name "harma" :sound "sh" :example "wish" :accepts ("sh" "harma"))
-      (:glyph "{{thuule}}" :name "thúle" :sound "th (voiceless)" :example "bath" :accepts ("th" "thule"))
+     ((:glyph "{{calma}}" :name "calma" :sound "ch" :example "chap" :accepts ("ch" "calma"))
+      (:glyph "{{harma}}" :name "harma" :sound "sh" :example "shun" :accepts ("sh" "harma"))
+      (:glyph "{{thuule}}" :name "thúle" :sound "th (voiceless)" :example "thud" :accepts ("th" "thule"))
       (:glyph "{{anto}}" :name "anto" :sound "th (voiced)" :example "this" :accepts ("th" "anto")))
-     :exercise-words ("such" "much" "rich" "wish" "fish" "dish" "push" "rush" "gush" "hush" "bash" "cash" "dash" "gash" "hash" "lash" "mash" "rash" "wash"))
+     ;; NO: doubled consonants, silent-e
+     :exercise-words ("chap" "chat" "chin" "chip" "chop" "chug" "shag" "sham" "shin" "ship" "shop" "shot" "shun" "shut" "thud" "thug" "this" "that" "than" "then" "them" "thus" "with"))
 
     ;; =========================================================================
     ;; PHASE 6: DOUBLED CONSONANTS
@@ -369,9 +402,14 @@ They are used for special sounds and shorthand:
 by adding a bar below the tengwa. You see the same letter shape, but with
 an underline-like mark beneath it.
 
-Example: 'bell' - the 'll' is written as lambe with a bar below."
-     :items nil
-     :exercise-words ("bell" "tell" "fell" "sell" "well" "dull" "full" "pull" "bull" "hull" "mull" "null" "buff" "cuff" "huff" "muff" "puff"))
+Example: 'buff' - the 'ff' is written as formen with a bar below."
+     :items
+     ((:glyph "{{formen}}[bar-below]" :name "doubled f (ff)" :sound "/ff/" :example "buff" :accepts ("ff" "double f"))
+      (:glyph "{{lambe}}[bar-below]" :name "doubled l (ll)" :sound "/ll/" :example "full" :accepts ("ll" "double l"))
+      (:glyph "{{silme}}[bar-below]" :name "doubled s (ss)" :sound "/ss/" :example "boss" :accepts ("ss" "double s"))
+      (:glyph "{{tinco}}[bar-below]" :name "doubled t (tt)" :sound "/tt/" :example "butt" :accepts ("tt" "double t")))
+     ;; NOW we can use doubled consonants!
+     :exercise-words ("buff" "cuff" "huff" "muff" "puff" "riff" "biff" "doff" "dull" "full" "gull" "hull" "lull" "mull" "null" "pull" "bass" "boss" "fuss" "hiss" "joss" "loss" "mass" "miss" "moss"))
 
     ;; =========================================================================
     ;; PHASE 7: NASALIZED CONSONANTS
@@ -389,7 +427,11 @@ tilde or bar above the consonant tengwa:
 • NC/NK → quesse with tilde above
 
 This makes reading easier: look for the tilde above!"
-     :items nil
+     :items
+     ((:glyph "{{tinco}}[tilde-above]" :name "nt" :sound "/nt/" :example "ant" :accepts ("nt"))
+      (:glyph "{{parma}}[tilde-above]" :name "mp" :sound "/mp/" :example "bump" :accepts ("mp"))
+      (:glyph "{{ando}}[tilde-above]" :name "nd (nasalized)" :sound "/nd/" :example "and" :accepts ("nd"))
+      (:glyph "{{umbar}}[tilde-above]" :name "mb" :sound "/mb/" :example "lamb" :accepts ("mb")))
      :exercise-words ("ant" "bent" "dent" "hint" "hunt" "lent" "mint" "rent" "sent" "tent" "vent" "went" "bump" "camp" "damp" "dump" "jump" "lamp" "pump"))
 
     ;; =========================================================================
@@ -399,11 +441,16 @@ This makes reading easier: look for the tilde above!"
      :title "Labialized Consonants"
      :type rule
      :explanation
-     "Labialized consonants (QU, TW, KW) are written with a special over-twist
-diacritic. The 'Q' in English is essentially 'KW', so 'queen' and 'quest'
-show quesse with the labialization mark."
-     :items nil
-     :exercise-words ("quit" "quiz" "quest" "quick" "twist" "twin" "swim" "swift" "swept" "dwelt"))
+     "Labialized consonants (QU, TW, DW) are written with a special over-twist
+diacritic. The 'Q' in English is essentially 'KW', so 'quit' shows quesse
+with the labialization mark. Similarly TW and DW."
+     :items
+     ((:glyph "{{quesse}}[over-twist]" :name "qu" :sound "/kw/" :example "quit" :accepts ("qu" "kw"))
+      (:glyph "{{tinco}}[over-twist]" :name "tw" :sound "/tw/" :example "twin" :accepts ("tw"))
+      (:glyph "{{ando}}[over-twist]" :name "dw" :sound "/dw/" :example "dwell" :accepts ("dw"))
+      (:glyph "{{silme}}[over-twist]" :name "sw" :sound "/sw/" :example "swim" :accepts ("sw")))
+     ;; NO: silent-e (quest has it)
+     :exercise-words ("quit" "quip" "quid" "twin" "twig" "twit" "twig" "dwell" "swig" "swim"))
 
     ;; =========================================================================
     ;; PHASE 9: DIPHTHONGS
@@ -414,22 +461,25 @@ show quesse with the labialization mark."
      :explanation
      "Diphthongs (two vowel sounds blending) have special representations:
 • AI/AY - a-tehta + anna (or yanta)
-• EI/EY - e-tehta + anna
 • OI/OY - o-tehta + anna
-• OU - o-tehta + vala (or úre)
-• AU - a-tehta + vala
-• UI - u-tehta + anna
+• OU/OW - o-tehta + vala (or úre)
+• AU/AW - a-tehta + vala
 
 Look for the vowel tehta followed by anna (y) or vala/úre (w)."
-     :items nil
-     :exercise-words ("day" "bay" "hay" "lay" "may" "pay" "ray" "say" "way" "boy" "coy" "joy" "toy" "now" "bow" "cow" "how" "row" "sow" "vow"))
+     :items
+     ((:glyph "{{anna}[triple-dot-above]" :name "ay/ai" :sound "/eɪ/" :example "day" :accepts ("ay" "ai"))
+      (:glyph "{{anna}[right-curl]" :name "oy/oi" :sound "/ɔɪ/" :example "boy" :accepts ("oy" "oi"))
+      (:glyph "{{vala}[right-curl]" :name "ow/ou" :sound "/aʊ/" :example "cow" :accepts ("ow" "ou"))
+      (:glyph "{{vala}[triple-dot-above]" :name "aw/au" :sound "/ɔː/" :example "jaw" :accepts ("aw" "au")))
+     ;; NO: silent-e
+     :exercise-words ("day" "bay" "gay" "hay" "jay" "lay" "may" "nay" "pay" "ray" "say" "way" "boy" "coy" "joy" "soy" "toy" "cow" "bow" "how" "now" "row" "sow" "vow" "wow" "jaw" "law" "paw" "raw" "saw"))
 
     ;; =========================================================================
     ;; PHASE 10: NUMBERS
     ;; =========================================================================
     (:id numbers
      :title "Tengwar Numbers"
-     :type rule
+     :type glyphs
      :explanation
      "Tengwar numbers are written in base-12 (duodecimal), with the least
 significant digit first (reversed from English). Each digit 0-11 has its
@@ -437,7 +487,11 @@ own symbol. Ordinals (1st, 2nd) use 'extended tinco' as a suffix.
 
 For now, recognize that numbers have distinct circular/angular shapes
 different from the letter tengwar."
-     :items nil
+     :items
+     ((:glyph "{{num-0}}" :name "zero" :sound "0" :example "0" :accepts ("0" "zero"))
+      (:glyph "{{num-1}}" :name "one" :sound "1" :example "1" :accepts ("1" "one"))
+      (:glyph "{{num-2}}" :name "two" :sound "2" :example "2" :accepts ("2" "two"))
+      (:glyph "{{num-3}}" :name "three" :sound "3" :example "3" :accepts ("3" "three")))
      :exercise-words nil)
 
     ;; =========================================================================
@@ -447,39 +501,40 @@ different from the letter tengwar."
      :title "The Silent E Rule"
      :type rule
      :explanation
-     "Silent final 'e' (as in 'make', 'time', 'love') is indicated by a dot
-below the preceding consonant. This is NOT a vowel tehta - it's underneath,
+     "Silent final 'e' (as in 'make', 'time') is indicated by a dot below
+the preceding consonant. This is NOT a vowel tehta - it's underneath,
 not above.
 
 When you see a dot below a consonant at the end of a word, that consonant
-is followed by a silent 'e'."
+is followed by a silent 'e'. Now you can read words like: give, dive, love!"
      :items nil
-     :exercise-words ("bake" "cake" "fake" "lake" "make" "take" "wake" "bite" "cite" "kite" "mite" "site" "dime" "lime" "time" "bone" "cone" "lone" "tone" "zone" "cube" "tube" "dune" "tune"))
+     ;; NOW we can use silent-e words!
+     :exercise-words ("bake" "cake" "fake" "lake" "make" "take" "wake" "bike" "hike" "like" "pike" "dime" "lime" "time" "bone" "cone" "lone" "tone" "zone" "cube" "tube" "dune" "tune" "give" "dive" "live" "five" "hive"))
 
     (:id rule-r
      :title "The R Rule"
      :type rule
      :explanation
      "English has two 'r' tengwar:
-• Rómen - used when 'r' comes BEFORE a vowel (run, ring, great)
-• Óre - used when 'r' comes BEFORE a consonant or at word END (car, far, dark)
+• Rómen - used when 'r' comes BEFORE a vowel (run, ring)
+• Óre - used when 'r' comes BEFORE a consonant or at word END (car, far)
 
 Exception: Rómen is NOT used before silent final 'e' (more, fire use óre)."
      :items nil
-     :exercise-words ("run" "ram" "rat" "red" "rib" "rid" "rim" "rip" "rob" "rod" "rot" "rub" "rug" "car" "bar" "far" "jar" "tar" "war"))
+     :exercise-words ("run" "ram" "rat" "rib" "rid" "rim" "rip" "rob" "rod" "rot" "rub" "rug" "car" "bar" "far" "jar" "tar" "war" "more" "core" "bore" "sore" "wore" "fire" "hire" "wire" "tire"))
 
     (:id rule-y
      :title "The Letter Y"
      :type rule
      :explanation
      "Y has two uses in English:
-• As a CONSONANT (yes, yell) → uses Anna tengwa
-• As a VOWEL (my, happy, sky) → uses a breve-like tehta
+• As a CONSONANT (yes, yap) → uses Anna tengwa
+• As a VOWEL (my, fly, shy) → uses a breve-like tehta
 
 When reading: if you see anna at the start of a word or syllable, it's
 consonant 'y'. The breve tehta indicates vowel 'y'."
      :items nil
-     :exercise-words ("yes" "yet" "yam" "yap" "yell" "yelp" "my" "by" "fly" "fry" "dry" "pry" "try" "cry" "sky" "spy" "sly" "shy"))
+     :exercise-words ("yes" "yet" "yak" "yam" "yap" "yaw" "yob" "my" "by" "fly" "fry" "dry" "pry" "try" "cry" "sky" "spy" "sly" "shy" "ply" "sty" "why"))
 
     (:id rule-shorthand
      :title "Shorthand Words"
@@ -496,21 +551,21 @@ These are worth memorizing as they appear frequently!"
      :exercise-words ("the" "of" "and"))
 
     ;; =========================================================================
-    ;; PHASE 12: WORD EXERCISES
+    ;; PHASE 12: WORD EXERCISES (all rules now available)
     ;; =========================================================================
     (:id words-1
      :title "Word Practice: Simple Words"
      :type words
      :explanation "Read these simple words. Focus on recognizing the consonants and vowel tehtar."
      :items nil
-     :exercise-words ("mom" "dad" "cat" "dog" "sun" "run" "fun" "bun" "gun" "man" "can" "fan" "pan" "van" "bed" "red" "fed" "led" "wed"))
+     :exercise-words ("mom" "dad" "cat" "dog" "sun" "run" "fun" "bun" "gun" "man" "can" "fan" "pan" "van" "bat" "hat" "mat" "rat" "sat"))
 
     (:id words-2
-     :title "Word Practice: More Words"
+     :title "Word Practice: Digraphs"
      :type words
-     :explanation "These words introduce more variety. Watch for digraphs and doubled consonants."
+     :explanation "These words feature digraphs. Watch for ch, sh, th, ng, wh."
      :items nil
-     :exercise-words ("ship" "shop" "shut" "shed" "shin" "shot" "shun" "wish" "fish" "dish" "thin" "than" "then" "them" "this" "that" "with" "bath" "math" "path"))
+     :exercise-words ("ship" "shop" "shut" "shin" "shot" "shun" "wish" "fish" "dish" "gush" "hush" "rush" "thin" "than" "then" "them" "this" "that" "with" "bath" "math" "path" "moth" "both"))
 
     (:id words-3
      :title "Word Practice: Common Words"
@@ -600,7 +655,34 @@ These are worth memorizing as they appear frequently!"
   (setq-local cursor-type nil)
   (setq-local truncate-lines t)
   (setq-local word-wrap nil)
-  (buffer-disable-undo))
+  (buffer-disable-undo)
+  ;; Add window resize hook
+  (add-hook 'window-size-change-functions
+            #'hyalo-tengwar-tutorial--on-window-resize nil t))
+
+(defun hyalo-tengwar-tutorial--on-window-resize (frame)
+  "Recompute layout when window is resized.
+FRAME is the frame that changed."
+  (when-let* ((buf (get-buffer "*Tengwar Tutorial*"))
+              (win (get-buffer-window buf frame)))
+    (with-current-buffer buf
+      (when (eq major-mode 'hyalo-tengwar-tutorial-mode)
+        (hyalo-tengwar-tutorial--refresh-display)))))
+
+(defun hyalo-tengwar-tutorial--refresh-display ()
+  "Refresh the current display based on tutorial state."
+  (cond
+   ;; Lesson intro screen
+   (hyalo-tengwar-tutorial--in-lesson-intro
+    (hyalo-tengwar-tutorial--show-lesson-intro))
+   ;; Lesson complete screen
+   (hyalo-tengwar-tutorial--lesson-complete-screen
+    (hyalo-tengwar-tutorial--show-lesson-complete-screen))
+   ;; Waiting for input (exercise)
+   (hyalo-tengwar-tutorial--waiting-for-input
+    (hyalo-tengwar-tutorial--show-exercise))
+   ;; After feedback - just leave as is (don't refresh mid-feedback)
+   ))
 
 ;;; ============================================================================
 ;;; Display Helpers
@@ -659,17 +741,35 @@ These are worth memorizing as they appear frequently!"
          (padding (max 0 (/ (- width text-width) 2))))
     (concat (make-string padding ?\s) text)))
 
+(defun hyalo-tengwar-tutorial--measure-text-pixel-width (text)
+  "Measure the pixel width of TEXT by inserting it in a temp buffer."
+  (let* ((window (selected-window))
+         (orig-buffer (window-buffer window)))
+    (unwind-protect
+        (with-temp-buffer
+          (set-window-buffer window (current-buffer))
+          (insert text)
+          (car (window-text-pixel-size window nil nil nil nil)))
+      (set-window-buffer window orig-buffer))))
+
 (defun hyalo-tengwar-tutorial--insert-centered (text &optional face)
-  "Insert TEXT centered, optionally with FACE.
-Centers the text in the window, then applies FACE to the text portion only."
-  (let* ((width (window-width))
-         (text-width (string-width text))
-         (padding (max 0 (/ (- width text-width) 2)))
-         (padding-str (make-string padding ?\s)))
-    (insert padding-str)
-    (if face
-        (insert (propertize text 'face face))
-      (insert text))
+  "Insert TEXT centered using pixel-based measurement.
+Works correctly regardless of font size."
+  (let* ((propertized-text (if face
+                               (propertize text 'face face)
+                             text))
+         ;; Measure pixel width of the propertized text
+         (text-pixel-width (hyalo-tengwar-tutorial--measure-text-pixel-width
+                            propertized-text))
+         ;; Get window body width in pixels
+         (window-pixel-width (window-body-width nil t))
+         ;; Calculate left padding in pixels
+         (left-padding-pixels (max 0 (/ (- window-pixel-width text-pixel-width) 2)))
+         ;; Create a display space spec for the padding
+         (padding-spec `(space :width (,left-padding-pixels))))
+    ;; Insert invisible space with pixel-based width, then the text
+    (insert (propertize " " 'display padding-spec))
+    (insert propertized-text)
     (insert "\n")))
 
 (defun hyalo-tengwar-tutorial--insert-tengwar (glyph-spec)
@@ -775,25 +875,30 @@ GLYPH-SPEC is like \"{{tinco}}\" or \"{{telco}[acute]\"."
       (when items
         (hyalo-tengwar-tutorial--insert-centered "── Glyphs in this lesson ──" 'hyalo-tengwar-tutorial-muted)
         (hyalo-tengwar-tutorial--vertical-space 1)
-        ;; Show all glyphs in a row with names
-        (let ((glyph-line "")
-              (name-line ""))
+        ;; Collect all glyphs and names
+        (let ((glyphs nil)
+              (names nil))
           (dolist (item items)
             (let* ((glyph-spec (plist-get item :glyph))
                    (name (plist-get item :name))
                    (cached (gethash glyph-spec hyalo-tengwar--cache)))
               (unless cached
                 (hyalo-tengwar-tutorial--request-glyph glyph-spec))
-              (let ((tengwar (or (gethash glyph-spec hyalo-tengwar--cache) "?")))
-                (setq glyph-line (concat glyph-line "  " tengwar "  "))
-                (setq name-line (concat name-line (format " %s " name))))))
-          ;; Display glyphs large
-          (let ((display-string (propertize glyph-line
-                                            'face `(:family ,hyalo-tengwar-font
-                                                    :height 3.0))))
+              (push (or (gethash glyph-spec hyalo-tengwar--cache) "?") glyphs)
+              (push name names)))
+          (setq glyphs (nreverse glyphs))
+          (setq names (nreverse names))
+          ;; Display glyphs large with proper spacing
+          ;; Pixel-based centering handles font scaling automatically
+          (let* ((glyph-str (mapconcat #'identity glyphs "    "))
+                 (display-string (propertize glyph-str
+                                             'face `(:family ,hyalo-tengwar-font
+                                                     :height 3.0))))
             (hyalo-tengwar-tutorial--insert-centered display-string))
           (hyalo-tengwar-tutorial--vertical-space 1)
-          (hyalo-tengwar-tutorial--insert-centered name-line 'hyalo-tengwar-tutorial-muted)))
+          ;; Display names with middle dot separator
+          (let ((name-str (mapconcat #'identity names " · ")))
+            (hyalo-tengwar-tutorial--insert-centered name-str 'hyalo-tengwar-tutorial-muted))))
 
       (hyalo-tengwar-tutorial--vertical-space 3)
       (hyalo-tengwar-tutorial--insert-centered
@@ -1029,7 +1134,7 @@ GLYPH-SPEC is like \"{{tinco}}\" or \"{{telco}[acute]\"."
                  (cons (plist-get lesson :id)
                        (plist-get hyalo-tengwar-tutorial--state :completed-lessons))))
     ;; Add learned symbols
-    (when-let ((items (plist-get lesson :items)))
+    (when-let* ((items (plist-get lesson :items)))
       (dolist (item items)
         (let ((name (plist-get item :name)))
           (unless (member name (plist-get hyalo-tengwar-tutorial--state :learned-symbols))
@@ -1041,7 +1146,16 @@ GLYPH-SPEC is like \"{{tinco}}\" or \"{{telco}[acute]\"."
              (1+ hyalo-tengwar-tutorial--current-lesson))
   (hyalo-tengwar-tutorial--save-progress)
 
+  ;; Update state flags
+  (setq hyalo-tengwar-tutorial--in-lesson-intro nil)
+  (setq hyalo-tengwar-tutorial--waiting-for-input nil)
+  (setq hyalo-tengwar-tutorial--lesson-complete-screen t)
+
   ;; Show completion screen
+  (hyalo-tengwar-tutorial--show-lesson-complete-screen))
+
+(defun hyalo-tengwar-tutorial--show-lesson-complete-screen ()
+  "Display the lesson completion screen."
   (let ((inhibit-read-only t))
     (erase-buffer)
     (hyalo-tengwar-tutorial--vertical-space 5)
@@ -1073,12 +1187,9 @@ GLYPH-SPEC is like \"{{tinco}}\" or \"{{telco}[acute]\"."
        'hyalo-tengwar-tutorial-explanation)
       (hyalo-tengwar-tutorial--insert-centered
        "Press [q] to exit"
-       'hyalo-tengwar-tutorial-muted)))
+       'hyalo-tengwar-tutorial-muted))
 
-  (setq hyalo-tengwar-tutorial--in-lesson-intro nil)
-  (setq hyalo-tengwar-tutorial--waiting-for-input nil)
-  (setq hyalo-tengwar-tutorial--lesson-complete-screen t)
-  (goto-char (point-min)))
+    (goto-char (point-min))))
 
 ;;; ============================================================================
 ;;; Commands
@@ -1136,6 +1247,8 @@ GLYPH-SPEC is like \"{{tinco}}\" or \"{{telco}[acute]\"."
   "Quit tutorial and save progress."
   (interactive)
   (hyalo-tengwar-tutorial--save-progress)
+  ;; Stop the tengwar subprocess to avoid orphaned process
+  (hyalo-tengwar--stop-process)
   (message "Progress saved. Resume anytime with M-x hyalo/tengwar-tutorial")
   (kill-buffer))
 
