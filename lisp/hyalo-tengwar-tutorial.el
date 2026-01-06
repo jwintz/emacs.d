@@ -488,10 +488,10 @@ own symbol. Ordinals (1st, 2nd) use 'extended tinco' as a suffix.
 For now, recognize that numbers have distinct circular/angular shapes
 different from the letter tengwar."
      :items
-     ((:glyph "{{num-0}}" :name "zero" :sound "0" :example "0" :accepts ("0" "zero"))
-      (:glyph "{{num-1}}" :name "one" :sound "1" :example "1" :accepts ("1" "one"))
-      (:glyph "{{num-2}}" :name "two" :sound "2" :example "2" :accepts ("2" "two"))
-      (:glyph "{{num-3}}" :name "three" :sound "3" :example "3" :accepts ("3" "three")))
+     ((:glyph "{{zero}}" :name "zero" :sound "0" :example "0" :accepts ("0" "zero"))
+      (:glyph "{{one}}" :name "one" :sound "1" :example "1" :accepts ("1" "one"))
+      (:glyph "{{two}}" :name "two" :sound "2" :example "2" :accepts ("2" "two"))
+      (:glyph "{{three}}" :name "three" :sound "3" :example "3" :accepts ("3" "three")))
      :exercise-words nil)
 
     ;; =========================================================================
@@ -507,7 +507,11 @@ not above.
 
 When you see a dot below a consonant at the end of a word, that consonant
 is followed by a silent 'e'. Now you can read words like: give, dive, love!"
-     :items nil
+     :items
+     ((:glyph "{{tinco}}[dot-below]" :name "t + silent e" :sound "/t_e/" :example "bake" :accepts ("te" "t-e"))
+      (:glyph "{{quesse}}[dot-below]" :name "k + silent e" :sound "/k_e/" :example "make" :accepts ("ke" "k-e"))
+      (:glyph "{{ampa}}[dot-below]" :name "v + silent e" :sound "/v_e/" :example "give" :accepts ("ve" "v-e"))
+      (:glyph "{{nuumen}}[dot-below]" :name "n + silent e" :sound "/n_e/" :example "tone" :accepts ("ne" "n-e")))
      ;; NOW we can use silent-e words!
      :exercise-words ("bake" "cake" "fake" "lake" "make" "take" "wake" "bike" "hike" "like" "pike" "dime" "lime" "time" "bone" "cone" "lone" "tone" "zone" "cube" "tube" "dune" "tune" "give" "dive" "live" "five" "hive"))
 
@@ -520,7 +524,9 @@ is followed by a silent 'e'. Now you can read words like: give, dive, love!"
 • Óre - used when 'r' comes BEFORE a consonant or at word END (car, far)
 
 Exception: Rómen is NOT used before silent final 'e' (more, fire use óre)."
-     :items nil
+     :items
+     ((:glyph "{{roomen}}" :name "rómen" :sound "/r/ (before vowel)" :example "run" :accepts ("r" "romen" "roomen"))
+      (:glyph "{{oore}}" :name "óre" :sound "/r/ (final/before cons)" :example "car" :accepts ("r" "ore" "oore")))
      :exercise-words ("run" "ram" "rat" "rib" "rid" "rim" "rip" "rob" "rod" "rot" "rub" "rug" "car" "bar" "far" "jar" "tar" "war" "more" "core" "bore" "sore" "wore" "fire" "hire" "wire" "tire"))
 
     (:id rule-y
@@ -533,7 +539,9 @@ Exception: Rómen is NOT used before silent final 'e' (more, fire use óre)."
 
 When reading: if you see anna at the start of a word or syllable, it's
 consonant 'y'. The breve tehta indicates vowel 'y'."
-     :items nil
+     :items
+     ((:glyph "{{anna}}" :name "anna (consonant y)" :sound "/j/" :example "yes" :accepts ("y" "anna"))
+      (:glyph "{{telco}}[breve]" :name "y (vowel tehta)" :sound "/i/ or /aɪ/" :example "my" :accepts ("y" "vowel y")))
      :exercise-words ("yes" "yet" "yak" "yam" "yap" "yaw" "yob" "my" "by" "fly" "fry" "dry" "pry" "try" "cry" "sky" "spy" "sly" "shy" "ply" "sty" "why"))
 
     (:id rule-shorthand
@@ -547,7 +555,10 @@ consonant 'y'. The breve tehta indicates vowel 'y'."
 • OF THE → combined shorthand
 
 These are worth memorizing as they appear frequently!"
-     :items nil
+     :items
+     ((:glyph "{{extended-ando}}" :name "the (shorthand)" :sound "the" :example "the" :accepts ("the"))
+      (:glyph "{{extended-umbar}}" :name "of (shorthand)" :sound "of" :example "of" :accepts ("of"))
+      (:glyph "{{ando}}[bar-above][dot-below]" :name "and (shorthand)" :sound "and" :example "and" :accepts ("and")))
      :exercise-words ("the" "of" "and"))
 
     ;; =========================================================================
@@ -1179,12 +1190,13 @@ GLYPH-SPEC is like \"{{tinco}}\" or \"{{telco}[acute]\"."
            'hyalo-tengwar-tutorial-muted))
       ;; Tutorial complete!
       (hyalo-tengwar-tutorial--insert-centered
-       "🎉 Congratulations! You have completed the Tengwar Tutorial! 🎉"
+       "Congratulations! You have completed the Tengwar Tutorial!"
        'hyalo-tengwar-tutorial-title)
       (hyalo-tengwar-tutorial--vertical-space 2)
       (hyalo-tengwar-tutorial--insert-centered
        "You can now read Tengwar in English mode."
        'hyalo-tengwar-tutorial-explanation)
+      (hyalo-tengwar-tutorial--vertical-space 1) 
       (hyalo-tengwar-tutorial--insert-centered
        "Press [q] to exit"
        'hyalo-tengwar-tutorial-muted))
@@ -1287,8 +1299,17 @@ GLYPH-SPEC is like \"{{tinco}}\" or \"{{telco}[acute]\"."
     ;; Ensure tengwar subprocess is running
     (hyalo-tengwar--start-process)
 
-    ;; Show current lesson
-    (hyalo-tengwar-tutorial--show-lesson-intro)))
+    ;; Force window to be fully realized before measuring fonts
+    ;; This ensures font metrics are available for centering calculations
+    (set-window-buffer (selected-window) buf)
+    (redisplay t)
+
+    ;; Show current lesson after a brief delay to ensure fonts are loaded
+    (run-at-time 0.05 nil
+                 (lambda ()
+                   (when (buffer-live-p buf)
+                     (with-current-buffer buf
+                       (hyalo-tengwar-tutorial--show-lesson-intro)))))))
 
 ;;;###autoload
 (defun hyalo/tengwar-tutorial-reset ()
