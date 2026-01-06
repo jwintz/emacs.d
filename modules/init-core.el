@@ -26,12 +26,14 @@
   (general-create-definer leader-def :prefix "C-c")
   (leader-def
     "b" '(:ignore t :wk "buffer")
+    "e" '(:ignore t :wk "editor")
     "f" '(:ignore t :wk "file")
     "h" '(:ignore t :wk "help")
     "l" '(:ignore t :wk "hyalo")
     "n" '(:ignore t :wk "notes")
     "p" '(:ignore t :wk "project")
     "t" '(:ignore t :wk "toggle")
+    "T" '(:ignore t :wk "tengwar")
     "v" '(:ignore t :wk "versionning")))
 
 (use-package which-key

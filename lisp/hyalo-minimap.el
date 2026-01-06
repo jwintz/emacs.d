@@ -5,7 +5,8 @@
 (require 'hyalo)
 
 (defun hyalo-minimap--scroll-to-event (event)
-  "Scroll source window to the position of EVENT in minimap."
+  "Scroll source window to the position of EVENT in minimap.
+When in diffview mode (scroll-all-mode active), syncs both side-by-side windows."
   (let* ((posn (event-end event))
          (pos (posn-point posn))
          (window (posn-window posn)))
@@ -15,11 +16,28 @@
           (with-current-buffer buffer
             (when-let* ((source-window demap--minimap-window))
               (when (window-live-p source-window)
-                (with-selected-window source-window
-                  (goto-char pos)
-                  (recenter nil)
-                  (redisplay))
-                ;; Force minimap redraw to reflect overlay change immediately
+                ;; Calculate line number for position
+                (let ((line-num (with-current-buffer (window-buffer source-window)
+                                  (save-excursion
+                                    (goto-char pos)
+                                    (line-number-at-pos)))))
+                  ;; Scroll source window
+                  (with-selected-window source-window
+                    (goto-char pos)
+                    (recenter nil))
+                  ;; If scroll-all-mode is active, sync the other side-by-side window
+                  (when (bound-and-true-p scroll-all-mode)
+                    (let ((other-buf (if (string= (buffer-name (window-buffer source-window))
+                                                  "*side-by-side-1*")
+                                         (get-buffer "*side-by-side-2*")
+                                       (get-buffer "*side-by-side-1*"))))
+                      (when other-buf
+                        (dolist (win (get-buffer-window-list other-buf nil t))
+                          (with-selected-window win
+                            (goto-char (point-min))
+                            (forward-line (1- line-num))
+                            (recenter nil)))))))
+                ;; Force minimap redraw
                 (when (window-live-p window)
                   (force-window-update window)
                   (redisplay))))))))))

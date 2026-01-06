@@ -64,6 +64,99 @@
   (diff-hl-flydiff-mode 1)
   (add-hook 'magit-post-refresh-hook 'diff-hl-magit-post-refresh))
 
+(use-package diffview
+  :ensure t
+  :general
+  (leader-def
+    "v v" '(hyalo-diffview-file :wk "diffview file"))
+  :config
+  (require 'diff-mode)
+
+  ;; Remove backgrounds from diff faces (weight-based highlights only)
+  (defun hyalo-diffview--update-faces (&rest _)
+    "Remove backgrounds from diff faces while preserving theme colors."
+    (dolist (face '(diff-added diff-removed diff-changed
+                    diff-indicator-added diff-indicator-removed diff-indicator-changed
+                    diff-refine-added diff-refine-removed diff-refine-changed))
+      (when (facep face)
+        (set-face-attribute face nil :background 'unspecified))))
+
+  (add-hook 'enable-theme-functions #'hyalo-diffview--update-faces)
+  (hyalo-diffview--update-faces)
+
+  ;; Force font-lock in diffview buffers
+  (add-hook 'diffview-mode-hook
+            (lambda ()
+              (setq-local font-lock-defaults '(diff-font-lock-keywords t nil nil nil))
+              (font-lock-mode 1)
+              (font-lock-ensure)))
+
+  ;; Custom command: get git diff for current file and show in diffview
+  (defun hyalo-diffview-file ()
+    "Show git diff for current file in side-by-side view."
+    (interactive)
+    (let* ((file (buffer-file-name))
+           (default-directory (if file (file-name-directory file) default-directory)))
+      (unless file
+        (user-error "Buffer is not visiting a file"))
+      (let ((diff-output (shell-command-to-string
+                          (format "git diff -- %s" (shell-quote-argument file)))))
+        (if (string-empty-p diff-output)
+            (message "No changes in %s" (file-name-nondirectory file))
+          ;; Use a named buffer so diffview-current works correctly
+          (let ((diff-buf (get-buffer-create "*git-diff-output*")))
+            (with-current-buffer diff-buf
+              (let ((inhibit-read-only t))
+                (erase-buffer)
+                (insert diff-output)
+                (goto-char (point-min))
+                (diff-mode)))
+            (switch-to-buffer diff-buf)
+            (diffview-current))))))
+
+  ;; Scroll synchronization for side-by-side windows using post-command-hook
+  (defvar hyalo-diffview--last-window-starts nil
+    "Alist of (buffer-name . window-start) for tracking scroll changes.")
+
+  (defun hyalo-diffview--mouse-scroll-command-p ()
+    "Return t if current command is a mouse scroll (not click)."
+    (and this-command
+         (memq this-command '(mwheel-scroll mac-mwheel-scroll ultra-scroll
+                               pixel-scroll-precision scroll-bar-toolkit-scroll
+                               hyalo-minimap-click hyalo-minimap-drag-scroll))))
+
+  (defun hyalo-diffview--sync-scroll-post-command ()
+    "Synchronize scrolling between side-by-side windows after mouse scroll."
+    ;; Only sync for mouse scroll commands - let scroll-all-mode handle keyboard
+    (when (hyalo-diffview--mouse-scroll-command-p)
+      (when-let* ((win (selected-window))
+                  (buf (window-buffer win))
+                  (name (buffer-name buf)))
+        (when (string-match-p "^\\*side-by-side" name)
+          (let* ((current-start (window-start win))
+                 (last-start (alist-get name hyalo-diffview--last-window-starts nil nil #'equal)))
+            ;; Only sync if window-start changed
+            (unless (eq current-start last-start)
+              (setf (alist-get name hyalo-diffview--last-window-starts nil nil #'equal) current-start)
+              (let* ((other-buf (if (string= name "*side-by-side-1*")
+                                    (get-buffer "*side-by-side-2*")
+                                  (get-buffer "*side-by-side-1*")))
+                     (line (line-number-at-pos current-start)))
+                (when other-buf
+                  (dolist (other-win (get-buffer-window-list other-buf nil t))
+                    (let ((pos (with-current-buffer other-buf
+                                 (save-excursion
+                                   (goto-char (point-min))
+                                   (forward-line (1- line))
+                                   (point)))))
+                      (unless (eq (window-start other-win) pos)
+                        (set-window-start other-win pos)
+                        (setf (alist-get (buffer-name other-buf) hyalo-diffview--last-window-starts nil nil #'equal) pos))))))))))))
+
+  (add-hook 'diffview-mode-hook
+            (lambda ()
+              (add-hook 'post-command-hook #'hyalo-diffview--sync-scroll-post-command nil t))))
+
 (use-package swift-mode
   :ensure t
   :mode "\\.swift\\'")

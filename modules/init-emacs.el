@@ -12,7 +12,7 @@
   (initial-buffer-choice nil)
   (initial-scratch-message ";; - *scratch*
 
-(require ’color)
+;; (require 'color)
 
 ;; Towards using box instead of highlight for visible region indication
 ;;
