@@ -642,6 +642,9 @@ These are worth memorizing as they appear frequently!"
 (defvar-local hyalo-tengwar-tutorial--lesson-complete-screen nil
   "Non-nil if showing the lesson complete screen.")
 
+(defvar-local hyalo-tengwar-tutorial--deferred-refresh-pending nil
+  "Non-nil if a deferred refresh is pending to prevent infinite loops.")
+
 ;;; ============================================================================
 ;;; Major Mode
 ;;; ============================================================================
@@ -806,15 +809,15 @@ GLYPH-SPEC is like \"{{tinco}}\" or \"{{telco}[acute]\"."
   (unless (and hyalo-tengwar--process
                (process-live-p hyalo-tengwar--process))
     (hyalo-tengwar--start-process)
-    ;; Wait briefly for ready
+    ;; Wait briefly for ready (up to 5 seconds)
     (let ((timeout 50))
       (while (and (not hyalo-tengwar--ready) (> timeout 0))
         (sit-for 0.1)
-        (cl-decf timeout 10))))
+        (cl-decf timeout))))
   ;; Request the glyph
   (when hyalo-tengwar--ready
     (hyalo-tengwar--fetch-words (list glyph-spec))
-    ;; Wait briefly for result
+    ;; Wait briefly for result (up to 2 seconds)
     (let ((timeout 20))
       (while (and (not (gethash glyph-spec hyalo-tengwar--cache))
                   (> timeout 0))
@@ -923,7 +926,19 @@ GLYPH-SPEC is like \"{{tinco}}\" or \"{{telco}[acute]\"."
     (setq hyalo-tengwar-tutorial--in-lesson-intro t)
     (setq hyalo-tengwar-tutorial--waiting-for-input nil)
     (setq hyalo-tengwar-tutorial--lesson-complete-screen nil)
-    (goto-char (point-min))))
+    (goto-char (point-min))
+    ;; Schedule deferred refresh to catch async glyphs that weren't cached
+    ;; Only if not already pending (prevents infinite refresh loops)
+    (unless hyalo-tengwar-tutorial--deferred-refresh-pending
+      (setq hyalo-tengwar-tutorial--deferred-refresh-pending t)
+      (let ((buf (current-buffer)))
+        (run-at-time 0.3 nil
+                     (lambda ()
+                       (when (buffer-live-p buf)
+                         (with-current-buffer buf
+                           (setq hyalo-tengwar-tutorial--deferred-refresh-pending nil)
+                           (when hyalo-tengwar-tutorial--in-lesson-intro
+                             (hyalo-tengwar-tutorial--show-lesson-intro))))))))))
 
 (defun hyalo-tengwar-tutorial--prepare-exercises ()
   "Prepare the exercise pool for current lesson."
