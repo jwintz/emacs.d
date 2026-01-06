@@ -21,6 +21,13 @@
   (hyalo-tengwar-mode "general-use")
   (hyalo-tengwar-partial-delimiters '("@@" . "@@")))
 
+(use-package hyalo-tengwar-tutorial
+  :ensure nil
+  :commands (hyalo/tengwar-tutorial
+             hyalo/tengwar-tutorial-reset
+             hyalo/tengwar-tutorial-lesson)
+  :bind (("C-c T t" . hyalo/tengwar-tutorial)))
+
 (provide 'init-tengwar)
 
 ;;; init-tengwar.el ends here
