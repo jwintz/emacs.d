@@ -467,10 +467,10 @@ with the labialization mark. Similarly TW and DW."
 
 Look for the vowel tehta followed by anna (y) or vala/úre (w)."
      :items
-     ((:glyph "{{anna}[triple-dot-above]" :name "ay/ai" :sound "/eɪ/" :example "day" :accepts ("ay" "ai"))
-      (:glyph "{{anna}[right-curl]" :name "oy/oi" :sound "/ɔɪ/" :example "boy" :accepts ("oy" "oi"))
-      (:glyph "{{vala}[right-curl]" :name "ow/ou" :sound "/aʊ/" :example "cow" :accepts ("ow" "ou"))
-      (:glyph "{{vala}[triple-dot-above]" :name "aw/au" :sound "/ɔː/" :example "jaw" :accepts ("aw" "au")))
+     ((:glyph "{{anna}}[triple-dot-above]" :name "ay/ai" :sound "/eɪ/" :example "day" :accepts ("ay" "ai"))
+      (:glyph "{{anna}}[right-curl]" :name "oy/oi" :sound "/ɔɪ/" :example "boy" :accepts ("oy" "oi"))
+      (:glyph "{{vala}}[right-curl]" :name "ow/ou" :sound "/aʊ/" :example "cow" :accepts ("ow" "ou"))
+      (:glyph "{{vala}}[triple-dot-above]" :name "aw/au" :sound "/ɔː/" :example "jaw" :accepts ("aw" "au")))
      ;; NO: silent-e
      :exercise-words ("day" "bay" "gay" "hay" "jay" "lay" "may" "nay" "pay" "ray" "say" "way" "boy" "coy" "joy" "soy" "toy" "cow" "bow" "how" "now" "row" "sow" "vow" "wow" "jaw" "law" "paw" "raw" "saw"))
 
