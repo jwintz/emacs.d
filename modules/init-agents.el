@@ -48,6 +48,9 @@
 
   (advice-add 'copilot--log :around #'emacs/copilot-suppress-log))
 
+(defvar agent-shell-home-dir (expand-file-name ".agent-shell" "~")
+  "Central directory for all agent-shell data.")
+
 (use-package agent-shell
   :ensure t
   :vc (:url "https://github.com/xenodium/agent-shell"
@@ -66,7 +69,31 @@
     "a f" '(agent-shell-sidebar-toggle-focus :wk "sidebar focus"))
   (:keymaps 'agent-shell-mode-map
    "C-p" 'agent-shell-previous-input
-   "C-n" 'agent-shell-next-input))
+   "C-n" 'agent-shell-next-input)
+  :config
+  ;; Use central HOME directory for transcripts
+  (defun agent-shell--home-transcript-file-path ()
+    "Generate transcript path in ~/.agent-shell/transcripts/PROJECT/."
+    (let* ((project-name (or (when-let* ((proj (project-current)))
+                               (file-name-nondirectory
+                                (directory-file-name (project-root proj))))
+                             "default"))
+           (dir (expand-file-name (concat "transcripts/" project-name) agent-shell-home-dir))
+           (filename (format-time-string "%F-%H-%M-%S.md")))
+      (expand-file-name filename dir)))
+
+  (setq agent-shell-transcript-file-path-function #'agent-shell--home-transcript-file-path)
+
+  ;; Override screenshot directory to use central HOME location
+  (defun agent-shell--home-screenshots-dir (orig-fun &rest args)
+    "Redirect screenshots to ~/.agent-shell/screenshots/."
+    (let ((screenshots-dir (expand-file-name "screenshots" agent-shell-home-dir)))
+      (make-directory screenshots-dir t)
+      (cl-letf (((symbol-function 'agent-shell-cwd)
+                 (lambda () agent-shell-home-dir)))
+        (apply orig-fun args))))
+
+  (advice-add 'agent-shell-send-screenshot :around #'agent-shell--home-screenshots-dir))
 
 (use-package hyalo-agent-extras
   :ensure nil
