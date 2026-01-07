@@ -55,13 +55,12 @@ Case-insensitive matching."
 	 (tg (string-trim-left tag "#")))
 
     (svg-lib-icon+tag "tag" tg nil
-		    :font-family "Roboto Mono"
-		    :font-weight 500
-		    :stroke 2
-		    :radius 4
-		    :background bg
-		    :foreground fg)
-    ))
+		      :font-family "Roboto Mono"
+		      :font-weight 500
+		      :stroke 2
+		      :radius 4
+		      :background bg
+		      :foreground fg)))
 
 (defun hyalo-markdown-tags--remove-overlays (&optional beg end)
   "Remove tag overlays in region BEG to END, or entire buffer."

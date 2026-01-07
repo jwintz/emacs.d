@@ -146,11 +146,15 @@ Recreates overlay if window's buffer changed."
         (delete-overlay ov))
       ;; Create new overlay
       (with-current-buffer current-buffer
-        (let ((new-ov (make-overlay (point-min) (point-min) nil nil nil)))
+        (let ((new-ov (make-overlay (point-min) (point-min) nil t nil)))
           (overlay-put new-ov 'window window)
           (overlay-put new-ov 'hyalo-viewport t)
-          (overlay-put new-ov 'priority 1000)
+          ;; High priority to appear above magit section overlays
+          (overlay-put new-ov 'priority 10000)
           (overlay-put new-ov 'evaporate nil)
+          ;; Front-advance ensures overlay stays at buffer start
+          (overlay-put new-ov 'front-advance nil)
+          (overlay-put new-ov 'rear-advance nil)
           (puthash window new-ov hyalo-viewport--overlays)
           (puthash window current-buffer hyalo-viewport--overlay-buffers)
           new-ov)))))
@@ -161,7 +165,16 @@ If HEIGHT is 0, clears the overlay display."
   (let ((ov (gethash window hyalo-viewport--overlays)))
     (when (and ov (overlay-buffer ov))
       (if (> height 0)
-          (overlay-put ov 'before-string (propertize "\n" 'line-height height))
+          ;; Use display space spec for better compatibility with magit overlays.
+          ;; We must add the line height to the space height and align to bottom (ascent 100)
+          ;; so that the text on the first line (sharing the line with the space)
+          ;; is pushed down by 'height' pixels relative to the top of the line.
+          ;; The header covers the top 'height' pixels.
+          (let ((adjusted-height (+ height (frame-char-height (window-frame window)))))
+            (overlay-put ov 'before-string
+                         (propertize " "
+                                     'display `(space :width 0 :height (,adjusted-height) :ascent 100)
+                                     'face 'default)))
         (overlay-put ov 'before-string nil))
       (when hyalo-viewport-debug
         (hyalo-log 'viewport "window=%s height=%spx" window height)))))
@@ -194,12 +207,11 @@ If window is eligible, update overlay based on scroll position.
 If window is NOT eligible, ensure overlay is hidden."
   (let ((eligible (hyalo-viewport--window-eligible-p window)))
     (when hyalo-viewport-debug
-      (hyalo-log
-       (format "Viewport Update: win=%s buf=%s mode=%s eligible=%s"
-               window
-               (window-buffer window)
-               (buffer-local-value 'major-mode (window-buffer window))
-               eligible)))
+      (hyalo-log 'viewport "Update: win=%s buf=%s mode=%s eligible=%s"
+                 window
+                 (window-buffer window)
+                 (buffer-local-value 'major-mode (window-buffer window))
+                 eligible))
     (if eligible
       (let* ((current-start (window-start window))
              (last-start (gethash window hyalo-viewport--last-window-starts))
@@ -266,19 +278,46 @@ Called from `window-buffer-change-functions'."
 
 ;;; Magit Support
 
+(defun hyalo-viewport--magit-update (&rest _args)
+  "Update viewport for magit buffers.
+Forces overlay recreation to handle magit's complex overlay structure.
+Ignores any arguments passed by hooks."
+  (dolist (window (window-list))
+    (when (window-live-p window)
+      (let ((mode (buffer-local-value 'major-mode (window-buffer window))))
+        (when (or (derived-mode-p 'magit-mode)
+                  (provided-mode-derived-p mode 'magit-mode))
+          ;; Force overlay recreation by clearing cache
+          (remhash window hyalo-viewport--last-window-starts)
+          (hyalo-viewport--update-window window))))))
+
 (defun hyalo-viewport--setup-magit ()
   "Enable Magit support by adding hooks."
   (with-eval-after-load 'magit
-    (add-hook 'magit-post-refresh-hook #'hyalo-viewport--update-all-windows)
-    (add-hook 'magit-status-mode-hook #'hyalo-viewport--update-all-windows)
-    (add-hook 'magit-section-highlight-hook #'hyalo-viewport--update-all-windows)))
+    ;; magit-refresh-buffer-hook runs AFTER buffer content is populated
+    (add-hook 'magit-refresh-buffer-hook #'hyalo-viewport--magit-update)
+    ;; magit-post-refresh-hook for after full refresh cycle
+    (add-hook 'magit-post-refresh-hook #'hyalo-viewport--magit-update)
+    ;; Mode hooks for initial buffer creation (deferred via post-command)
+    (add-hook 'magit-status-mode-hook #'hyalo-viewport--magit-update)
+    (add-hook 'magit-log-mode-hook #'hyalo-viewport--magit-update)
+    (add-hook 'magit-diff-mode-hook #'hyalo-viewport--magit-update)
+    (add-hook 'magit-revision-mode-hook #'hyalo-viewport--magit-update)
+    (add-hook 'magit-stash-mode-hook #'hyalo-viewport--magit-update)
+    ;; Section movement/highlight
+    (add-hook 'magit-section-movement-hook #'hyalo-viewport--magit-update)))
 
 (defun hyalo-viewport--teardown-magit ()
   "Disable Magit support."
   (with-eval-after-load 'magit
-    (remove-hook 'magit-post-refresh-hook #'hyalo-viewport--update-all-windows)
-    (remove-hook 'magit-status-mode-hook #'hyalo-viewport--update-all-windows)
-    (remove-hook 'magit-section-highlight-hook #'hyalo-viewport--update-all-windows)))
+    (remove-hook 'magit-refresh-buffer-hook #'hyalo-viewport--magit-update)
+    (remove-hook 'magit-post-refresh-hook #'hyalo-viewport--magit-update)
+    (remove-hook 'magit-status-mode-hook #'hyalo-viewport--magit-update)
+    (remove-hook 'magit-log-mode-hook #'hyalo-viewport--magit-update)
+    (remove-hook 'magit-diff-mode-hook #'hyalo-viewport--magit-update)
+    (remove-hook 'magit-revision-mode-hook #'hyalo-viewport--magit-update)
+    (remove-hook 'magit-stash-mode-hook #'hyalo-viewport--magit-update)
+    (remove-hook 'magit-section-movement-hook #'hyalo-viewport--magit-update)))
 
 ;;; Mode Definition
 

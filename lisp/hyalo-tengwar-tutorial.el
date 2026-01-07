@@ -41,9 +41,9 @@
   :group 'hyalo-tengwar
   :prefix "hyalo-tengwar-tutorial-")
 
-;;; ============================================================================
+;;; ===========================================================================
 ;;; Persistence
-;;; ============================================================================
+;;; ===========================================================================
 
 (defcustom hyalo-tengwar-tutorial-progress-file
   (expand-file-name "tengwar-tutorial-progress.el" user-emacs-directory)
@@ -89,9 +89,9 @@ A plist with keys:
               :learned-symbols nil
               :session-history nil)))
 
-;;; ============================================================================
+;;; ===========================================================================
 ;;; Curriculum Data
-;;; ============================================================================
+;;; ===========================================================================
 
 ;; Each lesson: (:id :title :type :items :explanation :exercise-words)
 ;; Types: intro (just explanation), glyphs (learn new symbols), rule (special rule)
@@ -110,9 +110,9 @@ A plist with keys:
 
 (defconst hyalo-tengwar-tutorial--curriculum
   `(
-    ;; =========================================================================
+    ;; ========================================================================
     ;; PHASE 1: VOWELS (Tehtar)
-    ;; =========================================================================
+    ;; ========================================================================
     (:id vowels-intro
      :title "Introduction to Vowels"
      :type intro
@@ -142,10 +142,10 @@ Note: 'tehta' (plural 'tehtar') is the correct term, not 'theta'."
       (:glyph "{{telco}[left-curl]" :name "u (tehta)" :sound "/u/" :example "u in cup" :accepts ("u")))
      :exercise-words nil)  ;; No word exercises - consonants not learned yet
 
-    ;; =========================================================================
+    ;; ========================================================================
     ;; PHASE 2: PRIMARY TENGWAR (Groups of 4)
     ;; RULES: No doubled consonants, no silent-e, no ck until taught
-    ;; =========================================================================
+    ;; ========================================================================
 
     ;; Available: a e i o u + t p c k (NO: ch, ck, doubled, silent-e)
     (:id primary-1
@@ -312,9 +312,9 @@ Note: 'tehta' (plural 'tehtar') is the correct term, not 'theta'."
      ;; Words: + h wh (NO: silent-e)
      :exercise-words ("had" "hag" "ham" "has" "hat" "hem" "hen" "hid" "him" "hip" "his" "hit" "hob" "hog" "hop" "hot" "hub" "hug" "hum" "hut" "whim" "whip" "whir"))
 
-    ;; =========================================================================
+    ;; ========================================================================
     ;; PHASE 3: EXTENDED TENGWAR (Row 1: voiceless)
-    ;; =========================================================================
+    ;; ========================================================================
     (:id extended-1
      :title "Extended Tengwar: Row 1"
      :type glyphs
@@ -333,9 +333,9 @@ The first row mirrors the primary voiceless consonants:
      ;; NOW we can use ck words!
      :exercise-words ("back" "hack" "jack" "lack" "pack" "rack" "sack" "tack" "duck" "luck" "muck" "suck" "tuck" "buck" "kick" "lick" "nick" "pick" "sick" "tick" "wick" "dock" "lock" "rock" "sock"))
 
-    ;; =========================================================================
+    ;; ========================================================================
     ;; PHASE 3b: EXTENDED TENGWAR (Row 2: voiced + shorthands)
-    ;; =========================================================================
+    ;; ========================================================================
     (:id extended-2
      :title "Extended Tengwar: Row 2"
      :type glyphs
@@ -352,9 +352,9 @@ The first row mirrors the primary voiceless consonants:
       (:glyph "{{extended-ungwe}}" :name "extended ungwe" :sound "/g/ (special)" :example "—" :accepts ("g" "extended ungwe")))
      :exercise-words ("the" "of"))
 
-    ;; =========================================================================
+    ;; ========================================================================
     ;; PHASE 4: CARRIERS
-    ;; =========================================================================
+    ;; ========================================================================
     (:id carriers
      :title "Carrier Symbols"
      :type glyphs
@@ -367,9 +367,9 @@ The first row mirrors the primary voiceless consonants:
       (:glyph "{{aara}}" :name "ára" :sound "(long carrier)" :example "long vowels" :accepts ("carrier" "ara" "aara" "long carrier")))
      :exercise-words nil)
 
-    ;; =========================================================================
+    ;; ========================================================================
     ;; PHASE 5: DIGRAPHS (Review)
-    ;; =========================================================================
+    ;; ========================================================================
     (:id digraphs
      :title "Digraphs Review"
      :type glyphs
@@ -391,9 +391,9 @@ The first row mirrors the primary voiceless consonants:
      ;; NO: doubled consonants, silent-e
      :exercise-words ("chap" "chat" "chin" "chip" "chop" "chug" "shag" "sham" "shin" "ship" "shop" "shot" "shun" "shut" "thud" "thug" "this" "that" "than" "then" "them" "thus" "with"))
 
-    ;; =========================================================================
+    ;; ========================================================================
     ;; PHASE 6: DOUBLED CONSONANTS
-    ;; =========================================================================
+    ;; ========================================================================
     (:id doubled
      :title "Doubled Consonants"
      :type rule
@@ -411,9 +411,9 @@ Example: 'buff' - the 'ff' is written as formen with a bar below."
      ;; NOW we can use doubled consonants!
      :exercise-words ("buff" "cuff" "huff" "muff" "puff" "riff" "biff" "doff" "dull" "full" "gull" "hull" "lull" "mull" "null" "pull" "bass" "boss" "fuss" "hiss" "joss" "loss" "mass" "miss" "moss"))
 
-    ;; =========================================================================
+    ;; ========================================================================
     ;; PHASE 7: NASALIZED CONSONANTS
-    ;; =========================================================================
+    ;; ========================================================================
     (:id nasalized
      :title "Nasalized Consonants"
      :type rule
@@ -434,9 +434,9 @@ This makes reading easier: look for the tilde above!"
       (:glyph "{{umbar}}[tilde-above]" :name "mb" :sound "/mb/" :example "lamb" :accepts ("mb")))
      :exercise-words ("ant" "bent" "dent" "hint" "hunt" "lent" "mint" "rent" "sent" "tent" "vent" "went" "bump" "camp" "damp" "dump" "jump" "lamp" "pump"))
 
-    ;; =========================================================================
+    ;; ========================================================================
     ;; PHASE 8: LABIALIZED CONSONANTS
-    ;; =========================================================================
+    ;; ========================================================================
     (:id labialized
      :title "Labialized Consonants"
      :type rule
@@ -452,9 +452,9 @@ with the labialization mark. Similarly TW and DW."
      ;; NO: silent-e (quest has it)
      :exercise-words ("quit" "quip" "quid" "twin" "twig" "twit" "twig" "dwell" "swig" "swim"))
 
-    ;; =========================================================================
+    ;; ========================================================================
     ;; PHASE 9: DIPHTHONGS
-    ;; =========================================================================
+    ;; ========================================================================
     (:id diphthongs
      :title "Diphthongs"
      :type rule
@@ -474,9 +474,9 @@ Look for the vowel tehta followed by anna (y) or vala/úre (w)."
      ;; NO: silent-e
      :exercise-words ("day" "bay" "gay" "hay" "jay" "lay" "may" "nay" "pay" "ray" "say" "way" "boy" "coy" "joy" "soy" "toy" "cow" "bow" "how" "now" "row" "sow" "vow" "wow" "jaw" "law" "paw" "raw" "saw"))
 
-    ;; =========================================================================
+    ;; ========================================================================
     ;; PHASE 10: NUMBERS
-    ;; =========================================================================
+    ;; ========================================================================
     (:id numbers
      :title "Tengwar Numbers"
      :type glyphs
@@ -494,9 +494,9 @@ different from the letter tengwar."
       (:glyph "{{three}}" :name "three" :sound "3" :example "3" :accepts ("3" "three")))
      :exercise-words nil)
 
-    ;; =========================================================================
+    ;; ========================================================================
     ;; PHASE 11: SPECIAL RULES
-    ;; =========================================================================
+    ;; ========================================================================
     (:id rule-silent-e
      :title "The Silent E Rule"
      :type rule
@@ -561,9 +561,9 @@ These are worth memorizing as they appear frequently!"
       (:glyph "{{ando}}[bar-above][dot-below]" :name "and (shorthand)" :sound "and" :example "and" :accepts ("and")))
      :exercise-words ("the" "of" "and"))
 
-    ;; =========================================================================
+    ;; ========================================================================
     ;; PHASE 12: WORD EXERCISES (all rules now available)
-    ;; =========================================================================
+    ;; ========================================================================
     (:id words-1
      :title "Word Practice: Simple Words"
      :type words
@@ -592,9 +592,9 @@ These are worth memorizing as they appear frequently!"
      :items nil
      :exercise-words ("Frodo" "Sam" "Merry" "Pippin" "Gandalf" "Bilbo" "Gollum" "Sauron" "ring" "shire" "hobbit" "dwarf" "wizard"))
 
-    ;; =========================================================================
+    ;; ========================================================================
     ;; PHASE 13: SENTENCE READING
-    ;; =========================================================================
+    ;; ========================================================================
     (:id sentences
      :title "Sentence Reading: LotR Quotes"
      :type sentences
@@ -611,9 +611,9 @@ These are worth memorizing as they appear frequently!"
       "Moonlight drowns out all but the brightest stars")))
   "Complete curriculum for Tengwar reading tutorial.")
 
-;;; ============================================================================
+;;; ===========================================================================
 ;;; Buffer-local State
-;;; ============================================================================
+;;; ===========================================================================
 
 (defvar-local hyalo-tengwar-tutorial--current-lesson nil
   "Index of the current lesson in the curriculum.")
@@ -645,9 +645,9 @@ These are worth memorizing as they appear frequently!"
 (defvar-local hyalo-tengwar-tutorial--deferred-refresh-pending nil
   "Non-nil if a deferred refresh is pending to prevent infinite loops.")
 
-;;; ============================================================================
+;;; ===========================================================================
 ;;; Major Mode
-;;; ============================================================================
+;;; ===========================================================================
 
 (defvar hyalo-tengwar-tutorial-mode-map
   (let ((map (make-sparse-keymap)))
@@ -698,9 +698,9 @@ FRAME is the frame that changed."
    ;; After feedback - just leave as is (don't refresh mid-feedback)
    ))
 
-;;; ============================================================================
+;;; ===========================================================================
 ;;; Display Helpers
-;;; ============================================================================
+;;; ===========================================================================
 
 (defconst hyalo-tengwar-tutorial--glyph-height 5.0
   "Height multiplier for tengwar display (5x normal size).")
@@ -840,9 +840,9 @@ GLYPH-SPEC is like \"{{tinco}}\" or \"{{telco}[acute]\"."
   "Insert LINES of vertical spacing."
   (insert (make-string lines ?\n)))
 
-;;; ============================================================================
+;;; ===========================================================================
 ;;; Lesson Display
-;;; ============================================================================
+;;; ===========================================================================
 
 (defun hyalo-tengwar-tutorial--get-lesson (index)
   "Get lesson at INDEX from curriculum."
@@ -1211,16 +1211,16 @@ GLYPH-SPEC is like \"{{tinco}}\" or \"{{telco}[acute]\"."
       (hyalo-tengwar-tutorial--insert-centered
        "You can now read Tengwar in English mode."
        'hyalo-tengwar-tutorial-explanation)
-      (hyalo-tengwar-tutorial--vertical-space 1) 
+      (hyalo-tengwar-tutorial--vertical-space 1)
       (hyalo-tengwar-tutorial--insert-centered
        "Press [q] to exit"
        'hyalo-tengwar-tutorial-muted))
 
     (goto-char (point-min))))
 
-;;; ============================================================================
+;;; ===========================================================================
 ;;; Commands
-;;; ============================================================================
+;;; ===========================================================================
 
 (defun hyalo-tengwar-tutorial--continue ()
   "Continue to next screen/exercise."
