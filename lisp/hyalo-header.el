@@ -76,6 +76,9 @@
 (defvar hyalo-header--saved-frame-title-format nil
   "Saved frame-title-format to restore when disabling.")
 
+(defvar hyalo-header--last-buffer nil
+  "Last buffer that was updated, for change detection.")
+
 ;;; Mode-line Formatting
 
 (defun hyalo-header--save-buffer-header-line ()
@@ -101,7 +104,7 @@
 
 (defun hyalo-header--update ()
   "Send current buffer info to Swift header view and toolbar.
-Called from post-command-hook and window-configuration-change-hook.
+Called via unified update dispatcher.
 Skips updates from embedded child-frames (hyalo-embedded parameter)."
   (when (and (hyalo-available-p)
              (display-graphic-p)
@@ -112,12 +115,13 @@ Skips updates from embedded child-frames (hyalo-embedded parameter)."
     (when (or mode-line-format header-line-format)
       (hyalo-header--enforce-hidden))
     (let* ((current-window (selected-window))
+           (window-changed (not (eq current-window hyalo-header--last-window)))
+           ;; Always format - modeline changes on navigation (line/col), keycast, etc.
            (mode-line-str (or (hyalo-header--format-mode-line) ""))
            (header-line-str (or (hyalo-header--format-header-line) ""))
-           ;; Only update if content or window changed
+           ;; Only send to Swift if content actually changed
            (mode-line-changed (not (string= mode-line-str hyalo-header--last-mode-line)))
-           (header-line-changed (not (string= header-line-str hyalo-header--last-header-line)))
-           (window-changed (not (eq current-window hyalo-header--last-window))))
+           (header-line-changed (not (string= header-line-str hyalo-header--last-header-line))))
       ;; Update mode-line if changed
       (when (or mode-line-changed window-changed)
         (setq hyalo-header--last-mode-line mode-line-str)
@@ -134,7 +138,7 @@ Skips updates from embedded child-frames (hyalo-embedded parameter)."
       ;; Update header-line if changed (currently not used in toolbar)
       (when (or header-line-changed window-changed)
         (setq hyalo-header--last-header-line header-line-str))
-      ;; Track window
+      ;; Track window for next call
       (setq hyalo-header--last-window current-window))))
 
 ;;; Native Mode-line Control
@@ -302,9 +306,9 @@ Run as :after on `magit-refresh-buffer'."
   (add-hook 'delete-frame-functions #'hyalo-header--teardown-frame)
   ;; Hide native mode-line
   (hyalo-header--hide-native)
-  ;; Install hooks for updates
-  (add-hook 'post-command-hook #'hyalo-header--update)
-  (add-hook 'window-configuration-change-hook #'hyalo-header--update)
+  ;; Register with unified update dispatcher
+  (hyalo-update-dispatcher-enable)
+  (hyalo-register-update-handler 'header #'hyalo-header--update)
   ;; Keep title empty (prevents dimension display in titlebar)
   (add-hook 'post-command-hook #'hyalo-header--keep-title-empty)
   ;; Setup Magit support
@@ -321,9 +325,8 @@ Run as :after on `magit-refresh-buffer'."
   ;; Remove frame hooks
   (remove-hook 'after-make-frame-functions #'hyalo-header--setup-frame)
   (remove-hook 'delete-frame-functions #'hyalo-header--teardown-frame)
-  ;; Remove update hooks
-  (remove-hook 'post-command-hook #'hyalo-header--update)
-  (remove-hook 'window-configuration-change-hook #'hyalo-header--update)
+  ;; Unregister from unified update dispatcher
+  (hyalo-unregister-update-handler 'header)
   (remove-hook 'post-command-hook #'hyalo-header--keep-title-empty)
   ;; Teardown Magit support
   (with-eval-after-load 'magit

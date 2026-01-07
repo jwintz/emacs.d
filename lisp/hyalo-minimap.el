@@ -4,6 +4,62 @@
 (require 'cl-lib)
 (require 'hyalo)
 
+;;; Window-end Caching (Performance Optimization)
+;;
+;; demap calls (window-end WINDOW t) multiple times per update cycle.
+;; The `t` argument forces redisplay each time, causing cascading redraws.
+;; This cache stores results per-window within a single command cycle.
+
+(defvar hyalo-minimap--window-end-cache (make-hash-table :test 'eq :weakness 'key)
+  "Cache for `window-end' results within a single command cycle.
+Maps window -> (window-start . window-end) to detect stale entries.")
+
+(defvar hyalo-minimap--cache-cycle nil
+  "Counter incremented each command cycle to invalidate cache.")
+
+(defun hyalo-minimap--clear-window-end-cache ()
+  "Invalidate window-end cache for new command cycle."
+  (cl-incf hyalo-minimap--cache-cycle))
+
+(defun hyalo-minimap--window-end-advice (orig-fun window &optional update)
+  "Advice for `window-end' that caches results when UPDATE is non-nil.
+ORIG-FUN is the original `window-end' function.
+WINDOW and UPDATE are passed through."
+  (let ((win (or window (selected-window))))
+    (if (and update (window-live-p win))
+        ;; UPDATE=t means caller wants accurate value (forces redisplay)
+        ;; Cache these expensive calls
+        (let* ((cache-key win)
+               (cached (gethash cache-key hyalo-minimap--window-end-cache))
+               (current-start (window-start win))
+               (current-cycle hyalo-minimap--cache-cycle))
+          (if (and cached
+                   (eq (car cached) current-cycle)
+                   (eq (cadr cached) current-start))
+              ;; Cache hit: same cycle and window-start unchanged
+              (cddr cached)
+            ;; Cache miss: compute and store
+            (let ((result (funcall orig-fun win t)))
+              (puthash cache-key (cons current-cycle (cons current-start result))
+                       hyalo-minimap--window-end-cache)
+              result)))
+      ;; UPDATE=nil: just call original (cheap, no redisplay forced)
+      (funcall orig-fun win update))))
+
+(defun hyalo-minimap--enable-window-end-cache ()
+  "Enable window-end caching optimization."
+  (advice-add 'window-end :around #'hyalo-minimap--window-end-advice)
+  (add-hook 'pre-command-hook #'hyalo-minimap--clear-window-end-cache))
+
+(defun hyalo-minimap--disable-window-end-cache ()
+  "Disable window-end caching optimization."
+  (advice-remove 'window-end #'hyalo-minimap--window-end-advice)
+  (remove-hook 'pre-command-hook #'hyalo-minimap--clear-window-end-cache)
+  (clrhash hyalo-minimap--window-end-cache))
+
+;; Enable caching when this module loads
+(hyalo-minimap--enable-window-end-cache)
+
 (defun hyalo-minimap--scroll-to-event (event)
   "Scroll source window to the position of EVENT in minimap.
 When in diffview mode (scroll-all-mode active), syncs both side-by-side windows."

@@ -282,5 +282,73 @@ Returns nil if module is not loaded."
   (when (and hyalo--loaded (fboundp 'hyalo-corner-radius))
     (hyalo-corner-radius)))
 
+;;; Unified Update Dispatcher (Performance Optimization)
+;;
+;; Consolidates multiple hook handlers into a single dispatcher.
+;; Instead of each module (header, viewport, dimmer) adding separate hooks,
+;; they register update functions here. The dispatcher calls them once per cycle.
+
+(defvar hyalo--update-handlers nil
+  "Alist of (NAME . FUNCTION) pairs for update handlers.
+Each function is called with no arguments during the unified update.")
+
+(defvar hyalo--update-cycle 0
+  "Counter incremented each command to detect new cycles.")
+
+(defvar hyalo--last-update-cycle -1
+  "The cycle when last update ran. Prevents redundant updates.")
+
+(defvar hyalo--update-enabled nil
+  "Non-nil when the unified update dispatcher is active.")
+
+(defun hyalo-register-update-handler (name function)
+  "Register FUNCTION as an update handler under NAME.
+FUNCTION will be called with no arguments during unified updates.
+NAME should be a symbol identifying the handler (for removal)."
+  (setq hyalo--update-handlers
+        (cons (cons name function)
+              (assq-delete-all name hyalo--update-handlers))))
+
+(defun hyalo-unregister-update-handler (name)
+  "Remove the update handler registered under NAME."
+  (setq hyalo--update-handlers
+        (assq-delete-all name hyalo--update-handlers)))
+
+(defun hyalo--increment-update-cycle ()
+  "Increment the update cycle counter for a new command."
+  (cl-incf hyalo--update-cycle))
+
+(defun hyalo--unified-update ()
+  "Run all registered update handlers once per command cycle.
+Skips if already updated this cycle."
+  (when (and hyalo--update-enabled
+             (not (= hyalo--last-update-cycle hyalo--update-cycle)))
+    (setq hyalo--last-update-cycle hyalo--update-cycle)
+    (dolist (handler hyalo--update-handlers)
+      (condition-case err
+          (funcall (cdr handler))
+        (error
+         (hyalo-warn 'update "Handler %s failed: %s" (car handler) err))))))
+
+(defun hyalo-update-dispatcher-enable ()
+  "Enable the unified update dispatcher.
+Modules should call `hyalo-register-update-handler' to add their handlers."
+  (unless hyalo--update-enabled
+    (add-hook 'pre-command-hook #'hyalo--increment-update-cycle)
+    (add-hook 'post-command-hook #'hyalo--unified-update)
+    (add-hook 'window-configuration-change-hook #'hyalo--unified-update)
+    (setq hyalo--update-enabled t)
+    (hyalo-info 'update "Dispatcher enabled")))
+
+(defun hyalo-update-dispatcher-disable ()
+  "Disable the unified update dispatcher."
+  (when hyalo--update-enabled
+    (remove-hook 'pre-command-hook #'hyalo--increment-update-cycle)
+    (remove-hook 'post-command-hook #'hyalo--unified-update)
+    (remove-hook 'window-configuration-change-hook #'hyalo--unified-update)
+    (setq hyalo--update-enabled nil
+          hyalo--update-handlers nil)
+    (hyalo-info 'update "Dispatcher disabled")))
+
 (provide 'hyalo)
 ;;; hyalo.el ends here

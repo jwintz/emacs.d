@@ -282,12 +282,36 @@ Called from `window-buffer-change-functions'."
 
 ;;; Mode Definition
 
+(defvar hyalo-viewport--last-selected-window nil
+  "Last selected window, for unified update change detection.")
+
+(defun hyalo-viewport--unified-update ()
+  "Update handler for unified dispatcher.
+Combines post-command and window-config-change behavior."
+  (when (display-graphic-p)
+    (let* ((current-window (selected-window))
+           (window-changed (not (eq current-window hyalo-viewport--last-selected-window))))
+      ;; Always update selected window (has internal early-exit via window-start check)
+      (hyalo-viewport--update-window current-window)
+      ;; Clean up dead windows only on window change (not every command)
+      (when window-changed
+        (setq hyalo-viewport--last-selected-window current-window)
+        (let ((to-remove nil))
+          (maphash (lambda (window _ov)
+                     (unless (window-live-p window)
+                       (push window to-remove)))
+                   hyalo-viewport--overlays)
+          (dolist (window to-remove)
+            (hyalo-viewport--remove-overlay window)))))))
+
 (defun hyalo-viewport--enable ()
   "Enable viewport offset management."
-  ;; Install hooks
+  ;; Register with unified update dispatcher
+  (hyalo-update-dispatcher-enable)
+  (hyalo-register-update-handler 'viewport #'hyalo-viewport--unified-update)
+  ;; Keep scroll hook separate (receives window/position args)
   (add-hook 'window-scroll-functions #'hyalo-viewport--on-scroll)
-  (add-hook 'post-command-hook #'hyalo-viewport--on-post-command)
-  (add-hook 'window-configuration-change-hook #'hyalo-viewport--on-window-config-change)
+  ;; Keep buffer-change hook separate (receives frame arg)
   (when (boundp 'window-buffer-change-functions)
     (add-hook 'window-buffer-change-functions #'hyalo-viewport--on-buffer-change))
   ;; Enable smooth scrolling support
@@ -302,10 +326,10 @@ Called from `window-buffer-change-functions'."
 
 (defun hyalo-viewport--disable ()
   "Disable viewport offset management."
-  ;; Remove hooks
+  ;; Unregister from unified update dispatcher
+  (hyalo-unregister-update-handler 'viewport)
+  ;; Remove remaining hooks
   (remove-hook 'window-scroll-functions #'hyalo-viewport--on-scroll)
-  (remove-hook 'post-command-hook #'hyalo-viewport--on-post-command)
-  (remove-hook 'window-configuration-change-hook #'hyalo-viewport--on-window-config-change)
   (when (boundp 'window-buffer-change-functions)
     (remove-hook 'window-buffer-change-functions #'hyalo-viewport--on-buffer-change))
   ;; Teardown Magit support

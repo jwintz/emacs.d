@@ -153,6 +153,15 @@ Each value is an alist of (face . cookie) pairs.")
   "Cache of computed dimmed colors.
 Keys are (color . fraction) pairs, values are dimmed colors.")
 
+(defvar iota-dimmer--dimmable-faces nil
+  "Cached list of faces that can be dimmed.
+Pre-computed on mode enable and theme change to avoid per-buffer iteration.")
+
+(defvar iota-dimmer--face-spec-cache (make-hash-table :test 'eq)
+  "Cache of complete dimmed face specs.
+Keys are face symbols, values are (:foreground COLOR) plists.
+Avoids re-creating specs for each buffer dim operation.")
+
 (defvar iota-dimmer--last-selected-window nil
   "The last selected window, used to detect window changes.")
 
@@ -269,21 +278,24 @@ Returns nil if face cannot be dimmed."
             (iota-popup--buffer-popup-p buffer))))))
 
 (defun iota-dimmer--dim-buffer (buffer)
-  "Apply dimming to BUFFER by remapping face foreground colors."
+  "Apply dimming to BUFFER by remapping face foreground colors.
+Uses pre-computed face list and cached specs for performance."
   (when (and (buffer-live-p buffer)
              (not (iota-dimmer--buffer-excluded-p buffer)))
     (with-current-buffer buffer
       (unless iota-dimmer--buffer-dimmed
+        ;; Ensure faces are pre-computed
+        (unless iota-dimmer--dimmable-faces
+          (iota-dimmer--precompute-faces))
         (let ((remaps nil))
-          ;; Remap each face that has a foreground color
-          (dolist (face (face-list))
-            (when (iota-dimmer--face-should-dim-p face)
-              (let ((spec (iota-dimmer--create-dimmed-face-spec face)))
-                (when spec
-                  (condition-case nil
-                      (let ((cookie (face-remap-add-relative face spec)))
-                        (push (cons face cookie) remaps))
-                    (error nil))))))
+          ;; Use pre-computed face list and cached specs
+          (dolist (face iota-dimmer--dimmable-faces)
+            (let ((spec (gethash face iota-dimmer--face-spec-cache)))
+              (when spec
+                (condition-case nil
+                    (let ((cookie (face-remap-add-relative face spec)))
+                      (push (cons face cookie) remaps))
+                  (error nil)))))
           (puthash buffer remaps iota-dimmer--face-remaps)
           (setq iota-dimmer--buffer-dimmed t))))))
 
@@ -382,14 +394,31 @@ Returns nil if face cannot be dimmed."
 
 (defun iota-dimmer--clear-cache ()
   "Clear the dimmed color cache."
-  (clrhash iota-dimmer--dimmed-color-cache))
+  (clrhash iota-dimmer--dimmed-color-cache)
+  (clrhash iota-dimmer--face-spec-cache)
+  (setq iota-dimmer--dimmable-faces nil))
+
+(defun iota-dimmer--precompute-faces ()
+  "Pre-compute list of dimmable faces and their dimmed specs.
+Should be called on mode enable and after theme changes."
+  (setq iota-dimmer--dimmable-faces nil)
+  (clrhash iota-dimmer--face-spec-cache)
+  (dolist (face (face-list))
+    (when (iota-dimmer--face-should-dim-p face)
+      (let ((spec (iota-dimmer--create-dimmed-face-spec face)))
+        (when spec
+          (push face iota-dimmer--dimmable-faces)
+          (puthash face spec iota-dimmer--face-spec-cache)))))
+  (setq iota-dimmer--dimmable-faces (nreverse iota-dimmer--dimmable-faces)))
 
 (defun iota-dimmer--on-theme-change (&rest _)
   "Handle theme changes."
   (when iota-dimmer-mode
     (iota-dimmer--clear-cache)
     (iota-dimmer--undim-all)
-    (run-with-timer 0.1 nil #'iota-dimmer--update)))
+    ;; Re-precompute faces with new theme colors
+    (iota-dimmer--precompute-faces)
+    (iota-dimmer--update)))
 
 (defun iota-dimmer--undim-all ()
   "Remove dimming from all buffers."
@@ -404,10 +433,11 @@ Returns nil if face cannot be dimmed."
 (defun iota-dimmer--setup ()
   "Set up dimmer mode."
   (setq iota-dimmer--last-selected-window (selected-window))
-  
-  ;; Clear caches
+
+  ;; Clear caches and pre-compute faces
   (iota-dimmer--clear-cache)
-  
+  (iota-dimmer--precompute-faces)
+
   ;; Add hooks
   (add-hook 'window-selection-change-functions #'iota-dimmer--on-window-change)
   (add-hook 'window-buffer-change-functions #'iota-dimmer--on-buffer-change)
