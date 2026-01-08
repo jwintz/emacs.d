@@ -438,15 +438,13 @@ final class HyaloModule: Module {
                 // RETAIN the channel to prevent deallocation
                 HyaloModule.visibilityChannel = channel
 
-                // Sidebar visibility callback - DISABLED
-                // Using channel.callback for sidebar visibility causes the main window to hide
-                // when toggling the sidebar. The Elisp timer-based visibility watcher handles
-                // this correctly, so we don't need the Swift->Elisp callback for sidebars.
-                let sidebarCallback: (String, Bool) -> Void = { _, _ in }
+                // Sidebar visibility callback - using channel.hook for async execution
+                // channel.hook uses run-hook-with-args, avoiding synchronous funcall that
+                // caused main window hiding issues
+                let sidebarCallback: (String, Bool) -> Void = channel.hook("hyalo-on-sidebar-visibility-changed")
 
-                // Detail visibility callback - also disabled for symmetry
-                // The visibility watcher handles both sidebars
-                let detailCallback: (String, Bool) -> Void = { _, _ in }
+                // Detail visibility callback - same async approach
+                let detailCallback: (String, Bool) -> Void = channel.hook("hyalo-on-detail-visibility-changed")
                 
                 // Command execution callback - this one works and is needed for modeline menus
                 let executeCommandCallback: (String) -> Void = channel.callback {
