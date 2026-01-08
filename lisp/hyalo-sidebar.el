@@ -644,7 +644,7 @@ This handles toolbar button clicks that show panels."
   "Start the visibility watcher timer."
   (unless hyalo-sidebar--visibility-timer
     (setq hyalo-sidebar--visibility-timer
-          (run-with-timer 0.5 0.5 #'hyalo-sidebar--check-visibility))
+          (run-with-timer 2.0 2.0 #'hyalo-sidebar--check-visibility))
     (hyalo-log 'sidebar "Visibility watcher started")))
 
 (defun hyalo-sidebar--stop-visibility-watcher ()

@@ -264,7 +264,8 @@ final class ModeLineGlassOverlayController {
         sidebarToggleWidth: CGFloat,
         contentWidth: CGFloat,
         hasInspector: Bool,
-        inspectorToggleWidth: CGFloat
+        inspectorToggleWidth: CGFloat,
+        animate: Bool = true
     ) {
         // Store parameters
         modeLineContent = content
@@ -280,7 +281,9 @@ final class ModeLineGlassOverlayController {
         updateLayout()
 
         // Start animation timer for smooth updates during sidebar/inspector expansion
-        startAnimationTimer()
+        if animate {
+            startAnimationTimer()
+        }
     }
 
     /// Start a timer that triggers geometry updates during animations

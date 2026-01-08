@@ -5,16 +5,16 @@
 (use-package svg-lib
   :ensure t)
 
-(use-package hyalo-markdown-tags
+(use-package hyalo-markdown-mode
   :ensure nil
-  :commands (hyalo-markdown-tags-mode))
+  :commands (hyalo-markdown-mode))
 
 (use-package markdown-mode
   :ensure t
   :mode (("README\\.md\\'" . markdown-mode)
          ("\\.md\\'" . markdown-mode)
          ("\\.markdown\\'" . markdown-mode))
-  :hook (markdown-mode . hyalo-markdown-tags-mode)
+  :hook (markdown-mode . hyalo-markdown-mode)
   :config
   (defun hyalo-markdown--setup-pre-face ()
     "Set subtle background for markdown pre blocks based on theme."

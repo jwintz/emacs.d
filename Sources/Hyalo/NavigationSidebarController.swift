@@ -167,7 +167,7 @@ final class NavigationSidebarController: NSObject {
 
         // Wire animation callback for smooth updates during sidebar/inspector expansion
         overlay.onAnimationUpdate = { [weak self] in
-            self?.updateModeLineGeometry()
+            self?.updateModeLineGeometry(animate: false)
         }
 
         // Wire mode-line click callback
@@ -193,7 +193,7 @@ final class NavigationSidebarController: NSObject {
     }
 
     /// Update the modeline overlay geometry based on current state
-    private func updateModeLineGeometry() {
+    private func updateModeLineGeometry(animate: Bool = true) {
         // Update toolbar height from window geometry
         if let window = window {
             let toolbarHeight = window.frame.height - window.contentLayoutRect.height
@@ -220,7 +220,8 @@ final class NavigationSidebarController: NSObject {
             sidebarToggleWidth: leadingOffset,
             contentWidth: state.contentWidth,
             hasInspector: state.detailVisible,
-            inspectorToggleWidth: trailingOffset
+            inspectorToggleWidth: trailingOffset,
+            animate: animate
         )
     }
 
