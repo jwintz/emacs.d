@@ -4,6 +4,9 @@
 (require 'cl-lib)
 (require 'hyalo)
 
+(defvar hyalo-minimap--in-update nil
+  "Non-nil when hyalo minimap is performing an update.")
+
 ;;; Window-end Caching (Performance Optimization)
 ;;
 ;; demap calls (window-end WINDOW t) multiple times per update cycle.
@@ -14,37 +17,41 @@
   "Cache for `window-end' results within a single command cycle.
 Maps window -> (window-start . window-end) to detect stale entries.")
 
-(defvar hyalo-minimap--cache-cycle nil
+(defvar hyalo-minimap--cache-cycle 0
   "Counter incremented each command cycle to invalidate cache.")
 
 (defun hyalo-minimap--clear-window-end-cache ()
   "Invalidate window-end cache for new command cycle."
   (cl-incf hyalo-minimap--cache-cycle))
 
-(defun hyalo-minimap--window-end-advice (orig-fun window &optional update)
+(defun hyalo-minimap--window-end-advice (orig-fun &optional window update)
   "Advice for `window-end' that caches results when UPDATE is non-nil.
 ORIG-FUN is the original `window-end' function.
-WINDOW and UPDATE are passed through."
-  (let ((win (or window (selected-window))))
-    (if (and update (window-live-p win))
-        ;; UPDATE=t means caller wants accurate value (forces redisplay)
-        ;; Cache these expensive calls
-        (let* ((cache-key win)
-               (cached (gethash cache-key hyalo-minimap--window-end-cache))
-               (current-start (window-start win))
-               (current-cycle hyalo-minimap--cache-cycle))
-          (if (and cached
-                   (eq (car cached) current-cycle)
-                   (eq (cadr cached) current-start))
-              ;; Cache hit: same cycle and window-start unchanged
-              (cddr cached)
-            ;; Cache miss: compute and store
-            (let ((result (funcall orig-fun win t)))
-              (puthash cache-key (cons current-cycle (cons current-start result))
-                       hyalo-minimap--window-end-cache)
-              result)))
-      ;; UPDATE=nil: just call original (cheap, no redisplay forced)
-      (funcall orig-fun win update))))
+WINDOW and UPDATE are passed through.
+Prevents forced redisplay loops when called from minimap update."
+  (if hyalo-minimap--in-update
+      ;; Force update=nil to prevent infinite redisplay loops during scroll hooks
+      (funcall orig-fun window nil)
+    (let ((win (or window (selected-window))))
+      (if (and update (window-live-p win))
+          ;; UPDATE=t means caller wants accurate value (forces redisplay)
+          ;; Cache these expensive calls
+          (let* ((cache-key win)
+                 (cached (gethash cache-key hyalo-minimap--window-end-cache))
+                 (current-start (window-start win))
+                 (current-cycle hyalo-minimap--cache-cycle))
+            (if (and cached
+                     (eq (car cached) current-cycle)
+                     (eq (cadr cached) current-start))
+                ;; Cache hit: same cycle and window-start unchanged
+                (cddr cached)
+              ;; Cache miss: compute and store
+              (let ((result (funcall orig-fun win t)))
+                (puthash cache-key (cons current-cycle (cons current-start result))
+                         hyalo-minimap--window-end-cache)
+                result)))
+        ;; UPDATE=nil: just call original (cheap, no redisplay forced)
+        (funcall orig-fun win update)))))
 
 (defun hyalo-minimap--enable-window-end-cache ()
   "Enable window-end caching optimization."
@@ -56,6 +63,51 @@ WINDOW and UPDATE are passed through."
   (advice-remove 'window-end #'hyalo-minimap--window-end-advice)
   (remove-hook 'pre-command-hook #'hyalo-minimap--clear-window-end-cache)
   (clrhash hyalo-minimap--window-end-cache))
+
+;;; Throttling (Performance Optimization)
+
+(defvar hyalo-minimap--throttle-timestamps (make-hash-table :test 'eq)
+  "Map of function symbols to their last execution time.")
+
+(defconst hyalo-minimap--update-interval 0.2
+  "Minimum interval between demap updates in seconds.")
+
+(defun hyalo-minimap--throttle-update (orig-fun &rest args)
+  "Throttle demap updates to avoid killing keyboard navigation performance.
+Maintains separate timestamps for each advised function."
+  (let* ((now (float-time))
+         ;; Use the function name as key. If orig-fun is a lambda/closure, use it directly.
+         ;; We assume advice-add passes the symbol if we advised a symbol.
+         ;; However, orig-fun is the *next* function in the chain.
+         ;; To distinguish, we can't easily rely on orig-fun identity if it changes.
+         ;; But we can use a closure-based approach if we generated the advice.
+         ;; Simpler: just throttle based on the *advice name* if we could.
+         ;; Since we can't easily get the advice name from here without overhead,
+         ;; let's make a macro that generates a unique symbol or closure for each advice.
+         )
+    ;; Fallback: The simplistic global-throttle was definitely wrong.
+    ;; We will use a unique advice for each function to capture its identity.
+    (apply orig-fun args)))
+
+(defmacro hyalo-minimap--define-throttle (func-sym)
+  "Define and add throttling advice for FUNC-SYM."
+  (let ((advice-name (intern (format "hyalo-minimap--throttle-%s" func-sym))))
+    `(progn
+       (defun ,advice-name (orig-fun &rest args)
+         "Throttled wrapper."
+         (let ((last-time (gethash ',func-sym hyalo-minimap--throttle-timestamps 0.0))
+               (now (float-time)))
+           (when (> (- now last-time) hyalo-minimap--update-interval)
+             (puthash ',func-sym now hyalo-minimap--throttle-timestamps)
+             (let ((hyalo-minimap--in-update t))
+               (apply orig-fun args)))))
+       (advice-add ',func-sym :around #',advice-name))))
+
+(hyalo-minimap--define-throttle demap-track-window-mode-update)
+(hyalo-minimap--define-throttle demap-current-line-mode-update)
+(hyalo-minimap--define-throttle demap--visible-region-mode-update)
+(hyalo-minimap--define-throttle demap--visible-region-mode-update-if)
+(hyalo-minimap--define-throttle demap--visible-region-mode-update-window-as)
 
 ;; Enable caching when this module loads
 (hyalo-minimap--enable-window-end-cache)
@@ -116,7 +168,7 @@ When in diffview mode (scroll-all-mode active), syncs both side-by-side windows.
             (hyalo-minimap--scroll-to-event ev))
            ((memq (car-safe ev) '(mouse-1 drag-mouse-1))
             (setq continue nil))
-           (t 
+           (t
             (setq continue nil))))))))
 
 (defvar hyalo-minimap-mode-map

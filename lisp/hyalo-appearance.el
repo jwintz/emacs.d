@@ -30,6 +30,7 @@
 ;;; Code:
 
 (require 'hyalo)
+(require 'hyalo-footer)
 
 (defgroup hyalo-appearance nil
   "Appearance settings for hyalo."
@@ -373,6 +374,56 @@ Use ultraThin for maximum see-through effect."
     (hyalo-refresh-appearance-panel))
   (customize-save-variable 'hyalo-appearance-vibrancy-material material)
   (hyalo-log 'appearance "Vibrancy material set to %s" material))
+
+(defun hyalo-switch-to-dark (&rest _)
+  "Switch to dark appearance and adjust footer."
+  (hyalo-appearance-set 'dark)
+  (when (fboundp 'hyalo-footer-set-pattern-alpha)
+    (hyalo-footer-set-pattern-alpha 0.02)))
+
+(defun hyalo-switch-to-light (&rest _)
+  "Switch to light appearance and adjust footer."
+  (hyalo-appearance-set 'light)
+  (when (fboundp 'hyalo-footer-set-pattern-alpha)
+    (hyalo-footer-set-pattern-alpha 0.06)))
+
+(defun hyalo/current-theme ()
+  "Display the currently enabled themes in the echo area."
+  (interactive)
+  (if custom-enabled-themes
+      (message "Current theme(s): %s"
+               (mapconcat #'symbol-name custom-enabled-themes ", "))
+    (message "No custom themes are currently enabled.")))
+
+(defun hyalo/theme-load-random-dark ()
+  "Load a random dark theme from available collections (Modus, Doric, Kaolin)."
+  (interactive)
+  (let ((loaders '()))
+    (when (fboundp 'modus-themes-load-random-dark)
+      (push (lambda () (modus-themes-load-random-dark)) loaders))
+    (when (fboundp 'doric-themes-load-random)
+      (push (lambda () (doric-themes-load-random 'dark)) loaders))
+    (when (fboundp 'kaolin-themes-load-random-dark)
+      (push (lambda () (kaolin-themes-load-random-dark)) loaders))
+    (if loaders
+        (funcall (nth (random (length loaders)) loaders))
+      (user-error "No random theme loader available (modus/doric/kaolin missing)")))
+  (hyalo-switch-to-dark))
+
+(defun hyalo/theme-load-random-light ()
+  "Load a random light theme from available collections (Modus, Doric, Kaolin)."
+  (interactive)
+  (let ((loaders '()))
+    (when (fboundp 'modus-themes-load-random-light)
+      (push (lambda () (modus-themes-load-random-light)) loaders))
+    (when (fboundp 'doric-themes-load-random)
+      (push (lambda () (doric-themes-load-random 'light)) loaders))
+    (when (fboundp 'kaolin-themes-load-random-light)
+      (push (lambda () (kaolin-themes-load-random-light)) loaders))
+    (if loaders
+        (funcall (nth (random (length loaders)) loaders))
+      (user-error "No random theme loader available (modus/doric/kaolin missing)")))
+  (hyalo-switch-to-light))
 
 ;;; Panel Timer (active only while panel is open)
 

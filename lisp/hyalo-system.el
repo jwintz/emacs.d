@@ -89,5 +89,19 @@ Inserts the selected emoji at point."
       (hyalo-show-emoji-picker)
     (user-error "hyalo-show-emoji-picker not available")))
 
+;;;###autoload
+(defun fork-emacs ()
+  "Start a new Emacs instance as a sibling process.
+This starts a new instance of Emacs using the same configuration,
+independent of the current process."
+  (interactive)
+  (unless (eq system-type 'darwin)
+    (user-error "fork-emacs is currently only supported on macOS"))
+  (let ((app-bundle (expand-file-name "../.." invocation-directory)))
+    (if (and (string-suffix-p ".app" app-bundle)
+             (file-exists-p app-bundle))
+        (call-process "open" nil 0 nil "-n" "-a" app-bundle)
+      (user-error "Could not locate Emacs.app bundle from %s" invocation-directory))))
+
 (provide 'hyalo-system)
 ;;; hyalo-system.el ends here

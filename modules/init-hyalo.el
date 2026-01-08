@@ -208,6 +208,7 @@
   :ensure nil
   :if (eq window-system 'ns)
   :after hyalo
+  :commands (fork-emacs)
   :general
   (leader-def
     "l r" '(hyalo-reveal-in-finder :wk "reveal")

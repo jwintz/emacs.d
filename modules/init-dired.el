@@ -44,8 +44,9 @@
   (leader-def
     "t e" '(hyalo-sidebar-toggle-left :wk "sidebar (left)")
     "t i" '(hyalo-sidebar-toggle-right :wk "inspector (right)")
-    "t E" '(hyalo-sidebar-focus-left :wk "focus sidebar")
     "t I" '(hyalo-sidebar-focus-right :wk "focus inspector")
+    "t S" '(hyalo-sidebar-focus-left :wk "focus sidebar")
+    "t E" '(hyalo-sidebar-focus-center :wk "focus main")
     "t m" '(demap-toggle :wk "minimap")))
 
 (provide 'init-dired)

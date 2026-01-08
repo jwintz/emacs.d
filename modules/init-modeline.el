@@ -8,18 +8,40 @@
   :ensure t
   :config
   ;; Keycast uses mode-line-misc-info, which doom-modeline displays via misc-info segment
+  (defun hyalo-keycast-update-safe ()
+    "Update keycast only if not in a minimap buffer."
+    (condition-case err
+        (unless (string-match-p "Minimap" (buffer-name))
+          (keycast--update))
+      (error
+       ;; Silently ignore errors to prevent modeline spam
+       nil)))
+
+  (defun hyalo-keycast-window-predicate ()
+    "Show keycast if window is selected OR if a minimap window is selected.
+This prevents keycast from flickering/disappearing when demap updates."
+    (let ((sel-win (selected-window)))
+      (or (eq sel-win (get-buffer-window (current-buffer)))
+          ;; Check if selected window is a minimap (demap) window
+          (and (window-live-p sel-win)
+               (string-match-p "Minimap" (buffer-name (window-buffer sel-win)))
+               ;; Don't show keycast IN the minimap itself (though it usually lacks mode-line)
+               (not (string-match-p "Minimap" (buffer-name)))))))
+
+  (setq keycast-mode-line-window-predicate #'hyalo-keycast-window-predicate)
+
   (define-minor-mode keycast-mode
     "Show current command and its key binding in the mode line."
     :global t
     (if keycast-mode
         (progn
-          (add-hook 'pre-command-hook 'keycast--update t)
+          (add-hook 'pre-command-hook 'hyalo-keycast-update-safe t)
           ;; Remove from global-mode-string if present (default keycast behavior)
           (setq global-mode-string (remove 'keycast-mode-line global-mode-string))
           ;; Add to mode-line-misc-info safely
           (add-to-list 'mode-line-misc-info '("" keycast-mode-line " ")))
       (progn
-        (remove-hook 'pre-command-hook 'keycast--update)
+        (remove-hook 'pre-command-hook 'hyalo-keycast-update-safe)
         (setq mode-line-misc-info (delete '("" keycast-mode-line " ") mode-line-misc-info)))))
 
   :custom
@@ -53,7 +75,7 @@
   (doom-modeline-bar-width 4)
   (doom-modeline-hud t)
   ;; Set reasonable limit - segments collapse when window narrower than this
-  (doom-modeline-window-width-limit 85)
+  (doom-modeline-window-width-limit nil)
   (doom-modeline-icon t)
   (doom-modeline-major-mode-icon t)
   (doom-modeline-major-mode-color-icon t)

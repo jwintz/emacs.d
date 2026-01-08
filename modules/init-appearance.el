@@ -95,26 +95,8 @@
   (modus-themes-completions '((t . (semibold))))
   (modus-themes-prompts '(semibold))
   :config
-  (defun hyalo/current-theme ()
-    "Display the currently enabled themes in the echo area."
-    (interactive)
-    (if custom-enabled-themes
-	(message "Current theme(s): %s"
-		 (mapconcat #'symbol-name custom-enabled-themes ", "))
-      (message "No custom themes are currently enabled.")))
-
-  (defun hyalo-switch-to-dark (&rest _)
-    (when (fboundp 'hyalo-appearance-set)
-      (hyalo-appearance-set 'dark)
-      (hyalo-footer-set-pattern-alpha 0.02)))
-
   (advice-add 'modus-themes-select-dark :after #'hyalo-switch-to-dark)
   (advice-add 'modus-themes-load-random-dark :after #'hyalo-switch-to-dark)
-
-  (defun hyalo-switch-to-light (&rest _)
-    (when (fboundp 'hyalo-appearance-set)
-      (hyalo-appearance-set 'light)
-      (hyalo-footer-set-pattern-alpha 0.06)))
 
   (advice-add 'modus-themes-select-light :after #'hyalo-switch-to-light)
   (advice-add 'modus-themes-load-random-light :after #'hyalo-switch-to-light))
@@ -125,6 +107,39 @@
   :after modus-themes
   :config
   (modus-themes-include-derivatives-mode 1))
+
+(use-package doric-themes
+  :ensure t
+  :demand t)
+
+(use-package kaolin-themes
+  :ensure t
+  :demand t
+  :config
+  (defvar kaolin-themes-dark-list
+    '(kaolin-dark kaolin-aurora kaolin-bubblegum kaolin-eclipse kaolin-ocean
+      kaolin-temple kaolin-valley-dark kaolin-blossom kaolin-mono-dark kaolin-shiva)
+    "List of dark Kaolin themes.")
+
+  (defvar kaolin-themes-light-list
+    '(kaolin-light kaolin-galaxy kaolin-valley-light kaolin-breeze kaolin-mono-light)
+    "List of light Kaolin themes.")
+
+  (defun kaolin-themes-load-random-dark ()
+    "Load a random dark Kaolin theme."
+    (interactive)
+    (let ((theme (nth (random (length kaolin-themes-dark-list)) kaolin-themes-dark-list)))
+      (mapc #'disable-theme custom-enabled-themes)
+      (load-theme theme t)
+      (message "Loaded Kaolin theme: %s" theme)))
+
+  (defun kaolin-themes-load-random-light ()
+    "Load a random light Kaolin theme."
+    (interactive)
+    (let ((theme (nth (random (length kaolin-themes-light-list)) kaolin-themes-light-list)))
+      (mapc #'disable-theme custom-enabled-themes)
+      (load-theme theme t)
+      (message "Loaded Kaolin theme: %s" theme))))
 
 ;;;; Mixed Pitch
 
@@ -211,26 +226,7 @@
             (let ((win (or window (selected-window))))
               (with-current-buffer (window-buffer win)
                 (not (or (string-match-p "^\\*side-by-side" (buffer-name))
-                         (derived-mode-p 'diffview-mode))))))))
-
-  ;; Debounced demap update for smooth text-scale changes
-  (defvar iota/demap-update-timer nil
-    "Timer for debounced demap updates.")
-
-  (defun iota/demap-update-debounced ()
-    "Schedule a debounced demap minimap update."
-    (when (and (bound-and-true-p demap-minimap-window)
-               (window-live-p demap-minimap-window))
-      (when (timerp iota/demap-update-timer)
-        (cancel-timer iota/demap-update-timer))
-      (setq iota/demap-update-timer
-            (run-with-idle-timer 0.3 nil
-                                 (lambda ()
-                                   (when (and (bound-and-true-p demap-minimap-window)
-                                              (window-live-p demap-minimap-window))
-                                     (demap-minimap-update)))))))
-
-  (add-hook 'text-scale-mode-hook #'iota/demap-update-debounced))
+                         (derived-mode-p 'diffview-mode)))))))))
 
 (use-package olivetti
   :ensure t)

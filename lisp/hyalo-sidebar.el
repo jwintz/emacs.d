@@ -941,5 +941,17 @@ Returns the slot string or nil if not an embedded frame."
     (hyalo-sidebar-setup-right)
     (run-at-time 0.3 nil #'hyalo-sidebar--do-focus-right))))
 
+;;;###autoload
+(defun hyalo-sidebar-focus-center ()
+  "Focus the main Emacs frame (center window)."
+  (interactive)
+  (let ((frame (or (and hyalo-sidebar--main-frame
+                        (frame-live-p hyalo-sidebar--main-frame)
+                        hyalo-sidebar--main-frame)
+                   (hyalo-sidebar--get-parent-frame))))
+    (when (and frame (frame-live-p frame))
+      (select-frame-set-input-focus frame)
+      (hyalo-log 'sidebar "Focused main frame"))))
+
 (provide 'hyalo-sidebar)
 ;;; hyalo-sidebar.el ends here
