@@ -70,29 +70,7 @@ This allows the prompt to adapt immediately when the theme changes."
 (defvar-local iota-shell--pending-right-prompt nil
   "Cached content of the right-side prompt for the current input cycle.")
 
-(defun iota-shell--starship-get-right-prompt (status width pwd)
-  "Fetch the right prompt from starship."
-  (with-temp-buffer
-    (let ((process-environment (copy-sequence process-environment))
-          (default-directory pwd))
-      (setenv "TERM" "xterm")
-      (setenv "INSIDE_EMACS" nil)
-      (setenv "CLICOLOR_FORCE" "1")
-      (setenv "STARSHIP_CONFIG" iota-shell-starship-config)
-      (setenv "STARSHIP_SHELL" "sh")
 
-      (if (zerop (call-process "starship" nil t nil
-                               "prompt" "--right"
-                               "--status" (number-to-string status)
-                               "--terminal-width" (number-to-string width)
-                               "--path" pwd))
-          (let ((output (string-trim (buffer-string))))
-            (if (string-empty-p output)
-                nil
-              (let ((ansi-color-map (iota-shell--make-theme-aware-color-map))
-                    (ansi-color-context nil)) ;; Isolate from previous state
-                (ansi-color-apply output))))
-        nil))))
 
 (defun iota-shell--update-right-prompt-from-property (&optional force)
   "Update right prompt using text property from the current prompt.
@@ -102,12 +80,22 @@ If FORCE is non-nil, update even if `this-command` is `eshell-send-input`."
              (boundp 'eshell-last-output-end)
              eshell-last-output-end
              (> eshell-last-output-end (point-min)))
-    (let ((right-prompt (get-text-property (1- eshell-last-output-end) 'iota-right-prompt)))
+    (let* ((end-pos (if (markerp eshell-last-output-end)
+                        (marker-position eshell-last-output-end)
+                      eshell-last-output-end))
+           (right-prompt (get-text-property (1- end-pos) 'iota-right-prompt)))
       (when right-prompt
         (let* ((str right-prompt)
                (str-width (string-width str))
                (win-width (window-width))
-               (current-col (save-excursion (goto-char eshell-last-output-end) (current-column))))
+               ;; Determine the end of the prompt line.
+               (prompt-line-end (save-excursion
+                                  (goto-char end-pos)
+                                  (line-end-position)))
+               ;; Measure the visual width used on the prompt line.
+               (current-col (save-excursion
+                              (goto-char prompt-line-end)
+                              (current-column))))
 
           ;; Create overlay if needed
           (unless (and iota-shell--right-prompt-overlay
@@ -116,10 +104,10 @@ If FORCE is non-nil, update even if `this-command` is `eshell-send-input`."
             (overlay-put iota-shell--right-prompt-overlay 'priority -1)
             (overlay-put iota-shell--right-prompt-overlay 'face 'default))
 
-          ;; Position at end of line
+          ;; Position at end of the prompt line
           (move-overlay iota-shell--right-prompt-overlay
-                        (line-end-position)
-                        (line-end-position))
+                        prompt-line-end
+                        prompt-line-end)
 
           ;; Update content and handle overlap
           ;; Use 4 chars margin to avoid wrapping issues
@@ -160,31 +148,44 @@ Returns nil if starship fails, allowing fallback."
           (setenv "STARSHIP_CONFIG" iota-shell-starship-config)
           (setenv "STARSHIP_SHELL" "sh")
 
-          (if (zerop (call-process "starship" nil t nil
-                                   "prompt"
-                                   "--status" (number-to-string status)
-                                   "--terminal-width" (number-to-string width)
-                                   "--path" pwd))
-              (let ((output (buffer-string)))
-                (cond
-                 ((string-empty-p output) nil)
-                 ((string-match-p "TERM=dumb" output) nil)
-                 (t
-                  (let ((right-prompt (iota-shell--starship-get-right-prompt status width pwd))
-                        (ansi-color-map (iota-shell--make-theme-aware-color-map))
-                        (ansi-color-context nil))
+          ;; Combine left and right prompt generation into a single shell command
+          ;; to avoid double process invocation overhead.
+          (let ((cmd (format "starship prompt --status %d --terminal-width %d --path %s && printf '\\0' && starship prompt --right --status %d --terminal-width %d --path %s"
+                             status width (shell-quote-argument pwd)
+                             status width (shell-quote-argument pwd))))
 
-                    (let ((colored (ansi-color-apply output)))
-                      ;; Attach properties: Read-only, field, AND right-prompt content
-                      (add-text-properties 0 (length colored)
-                                           `(read-only t
-                                             field prompt
-                                             front-sticky (read-only field)
-                                             rear-nonsticky (read-only field)
-                                             iota-right-prompt ,right-prompt)
-                                           colored)
-                      colored)))))
-            nil))))))
+            (if (zerop (call-process "sh" nil t nil "-c" cmd))
+                (let* ((full-output (buffer-string))
+                       (parts (split-string full-output "\0"))
+                       (left-raw (car parts))
+                       (right-raw (cadr parts)))
+
+                  (cond
+                   ((string-empty-p left-raw) nil)
+                   ((string-match-p "TERM=dumb" left-raw) nil)
+                   (t
+                    (let ((ansi-color-map (iota-shell--make-theme-aware-color-map))
+                          (ansi-color-context nil))
+
+                      ;; Process right prompt
+                      (let ((right-prompt
+                             (when (and right-raw (not (string-empty-p right-raw)))
+                               (let ((str (string-trim right-raw)))
+                                 (unless (string-empty-p str)
+                                   (ansi-color-apply str))))))
+
+                        ;; Process left prompt
+                        (let ((colored (ansi-color-apply left-raw)))
+                          ;; Attach properties: Read-only, field, AND right-prompt content
+                          (add-text-properties 0 (length colored)
+                                               `(read-only t
+                                                 field prompt
+                                                 front-sticky (read-only field)
+                                                 rear-nonsticky (read-only field)
+                                                 iota-right-prompt ,right-prompt)
+                                               colored)
+                          colored))))))
+              nil)))))))
 
 ;;; Aliases
 

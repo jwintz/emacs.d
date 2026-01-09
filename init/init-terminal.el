@@ -5,14 +5,14 @@
 (use-package eshell
   :bind ("C-c s s" . eshell)
   :init
-  (setq eshell-scroll-to-bottom-on-input 'all
-        eshell-error-if-no-glob t
-        eshell-hist-ignoredups t
-        eshell-save-history-on-exit t
-        eshell-prefer-lisp-functions nil
-        eshell-destroy-buffer-when-process-dies t
-        eshell-login-script (expand-file-name "conf/eshlogin" emacs-config-dir)
-        eshell-rc-script (expand-file-name "conf/eshrc" emacs-config-dir))
+  (setq eshell-save-history-on-exit t)
+  (setq eshell-hist-ignoredups t)
+  ;; eshell-scroll-to-bottom-on-input 'all
+  ;; eshell-error-if-no-glob t
+  ;; eshell-prefer-lisp-functions nil
+  ;; eshell-destroy-buffer-when-process-dies t
+  (setq eshell-login-script (expand-file-name "conf/eshlogin" emacs-config-dir))
+  (setq eshell-rc-script (expand-file-name "conf/eshrc" emacs-config-dir))
   :config
   (with-eval-after-load 'esh-mode
     (bind-key "C-c s k" #'iota-shell-clear eshell-mode-map))
