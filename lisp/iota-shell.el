@@ -27,7 +27,7 @@
 ;;; Starship Integration
 
 (defcustom iota-shell-starship-config
-  (expand-file-name "config/eshprompt" emacs-config-dir)
+  (expand-file-name "conf/eshprompt" emacs-config-dir)
   "Path to starship configuration file for eshell."
   :type 'file
   :group 'iota-shell)

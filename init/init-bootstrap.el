@@ -15,7 +15,7 @@
 (setq file-name-handler-alist nil)
 
 (add-hook 'emacs-startup-hook
-          (lambda () 
+          (lambda ()
             (setq gc-cons-threshold hyalo--default-gc-cons-threshold)
             (setq file-name-handler-alist hyalo--default-file-name-handler-alist)))
 
@@ -90,8 +90,8 @@
 
 ;;;; Load Paths
 
+(add-to-list 'load-path (expand-file-name "init" emacs-config-dir))
 (add-to-list 'load-path (expand-file-name "lisp" emacs-config-dir))
-(add-to-list 'load-path (expand-file-name "modules" emacs-config-dir))
 
 ;;; ===========================================================================
 ;;; Environment & Shell

@@ -11,8 +11,8 @@
         eshell-save-history-on-exit t
         eshell-prefer-lisp-functions nil
         eshell-destroy-buffer-when-process-dies t
-        eshell-login-script (expand-file-name "config/eshlogin" emacs-config-dir)
-        eshell-rc-script (expand-file-name "config/eshrc" emacs-config-dir))
+        eshell-login-script (expand-file-name "conf/eshlogin" emacs-config-dir)
+        eshell-rc-script (expand-file-name "conf/eshrc" emacs-config-dir))
   :config
   (with-eval-after-load 'esh-mode
     (bind-key "C-c s k" #'iota-shell-clear eshell-mode-map))

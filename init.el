@@ -8,7 +8,7 @@
   (file-name-directory (or load-file-name buffer-file-name))
   "The root directory of Emacs configuration.")
 
-(add-to-list 'load-path (expand-file-name "modules" emacs-config-dir))
+(add-to-list 'load-path (expand-file-name "init" emacs-config-dir))
 
 (require 'init-bootstrap)
 
