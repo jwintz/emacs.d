@@ -103,18 +103,15 @@
 
 (use-package ef-themes
   :ensure t
-  :demand t
   :after modus-themes
   :config
   (modus-themes-include-derivatives-mode 1))
 
 (use-package doric-themes
-  :ensure t
-  :demand t)
+  :ensure t)
 
 (use-package kaolin-themes
   :ensure t
-  :demand t
   :config
   (defvar kaolin-themes-dark-list
     '(kaolin-dark kaolin-aurora kaolin-bubblegum kaolin-eclipse kaolin-ocean

@@ -50,7 +50,7 @@
   (show-paren-mode 1)
   ;; UI elements
   (when (fboundp 'scroll-bar-mode) (set-scroll-bar-mode nil))
-  (when (fboundp 'tool-bar-mode) (tool-bar-mode -1))
+  ;; UI elements are now handled via default-frame-alist in init.el
   (if (display-graphic-p) (menu-bar-mode 1) (menu-bar-mode -1))
   ;; Remove continuation indicators in fringe
   (setq-default fringe-indicator-alist
@@ -71,10 +71,9 @@
 
 (use-package recentf
   :ensure nil
-  :demand t
+  :defer 1
   :init
   (defvar recentf-mode nil)
-  (require 'recentf)
   :custom
   (recentf-auto-cleanup (if (daemonp) 300 'never))
   (recentf-max-saved-items 200)
@@ -86,12 +85,14 @@
   ;; Suppress "Loading .../recentf.eld...done" message
   (advice-add 'recentf-load-list :around
               (lambda (orig-fun &rest args)
-                (let ((inhibit-message t))
+                (cl-letf (((symbol-function 'load-file)
+                           (lambda (file) (load file nil t))))
                   (apply orig-fun args))))
   (recentf-mode 1))
 
 (use-package saveplace
   :ensure nil
+  :defer 1
   :init
   (defvar save-place-mode nil)
   :config
@@ -99,6 +100,7 @@
 
 (use-package savehist
   :ensure nil
+  :defer 1
   :init
   (defvar savehist-mode nil)
   :config
@@ -106,6 +108,7 @@
 
 (use-package autorevert
   :ensure nil
+  :defer 1
   :init (global-auto-revert-mode 1)
   :custom
   (global-auto-revert-non-file-buffers nil)

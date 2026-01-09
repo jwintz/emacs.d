@@ -28,10 +28,8 @@
     (let ((inhibit-message t))
       (apply orig-fun args)))
 
-  (when (fboundp 'copilot--start-agent)
-    (advice-add 'copilot--start-agent :around #'emacs/copilot-suppress-warnings))
-  (when (fboundp 'copilot--start-server)
-    (advice-add 'copilot--start-server :around #'emacs/copilot-suppress-warnings))
+  (advice-add 'copilot--start-agent :around #'emacs/copilot-suppress-warnings)
+  (advice-add 'copilot--start-server :around #'emacs/copilot-suppress-warnings)
 
   (defun emacs/copilot-redirect-stderr (orig-fun &rest args)
     (let ((stderr-file (locate-user-emacs-file "copilot-stderr")))
@@ -43,7 +41,7 @@
 
   ;; Suppress "Copilot server started" message
   (defun emacs/copilot-suppress-log (orig-fun type msg &rest args)
-    (unless (and (eq type 'info) (string-prefix-p "Copilot server started" msg))
+    (unless (string-match-p "Copilot server started" msg)
       (apply orig-fun type msg args)))
 
   (advice-add 'copilot--log :around #'emacs/copilot-suppress-log))

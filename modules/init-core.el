@@ -6,18 +6,7 @@
   :ensure t
   :demand t)
 
-(use-package elog
-  :ensure t
-  :vc (:url "https://github.com/Kinneyzhang/elog" :rev :newest)
-  :demand t
-  :config
-  ;; Initialize main Emacs logger
-  (defvar emacs-logger
-    (elog-logger
-     :name "emacs"
-     :level 'info
-     :buffer "*elog*"
-     :handlers '(buffer))))
+
 
 (use-package general
   :ensure t
