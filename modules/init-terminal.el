@@ -14,11 +14,31 @@
         eshell-rc-script (expand-file-name "config/eshrc" emacs-config-dir))
   :config
   (use-package capf-autosuggest
-    :hook (eshell-mode . capf-autosuggest-mode))
-  (use-package esh-help
-    :config
-    (setup-esh-help-eldoc))
-  (use-package eshell-outline))
+    :hook (eshell-mode . capf-autosuggest-mode)
+    :init
+    (with-eval-after-load 'capf-autosuggest
+      (defun hyalo-capf-autosuggest-history-capf ()
+        "Wrapper for history capf that requires 1 char of input in Eshell."
+        (let ((allow t))
+          (when (derived-mode-p 'eshell-mode)
+            (setq allow (and (boundp 'eshell-last-output-end)
+                             eshell-last-output-end
+                             (> (point) eshell-last-output-end))))
+          (when allow
+            (capf-autosuggest-history-capf))))
+
+      (setq capf-autosuggest-capf-functions
+            '(hyalo-capf-autosuggest-history-capf capf-autosuggest-orig-if-at-eol-capf)))))
+
+;; (use-package completion-preview
+;;   :ensure nil
+;;   :hook (eshell-mode . completion-preview-mode)
+;;   :custom
+;;   (completion-preview-minimum-symbol-length 2)
+;;   :bind
+;;   (:map completion-preview-active-mode-map
+;; 	("M-n" . completion-preview-next-candidate)
+;; 	("M-p" . completion-preview-prev-candidate)))
 
 (use-package eat
   :ensure t
