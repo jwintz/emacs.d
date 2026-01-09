@@ -1,4 +1,4 @@
-;;; iota-shell.el --- Eshell with starship prompt and eza -*- lexical-binding: t -*-
+;;; iota-shell.el --- Eshell with starship prompt -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2025
 ;; Author: Julien Wintz
@@ -6,8 +6,8 @@
 
 ;;; Commentary:
 
-;; Eshell enhancements with starship prompt integration and eza alias.
-;; Uses starship binary if available, otherwise falls back to built-in prompt.
+;; Eshell enhancements with starship prompt integration. Uses starship
+;; binary if available, otherwise falls back to built-in prompt.
 
 ;;; Code:
 
@@ -187,21 +187,20 @@ Returns nil if starship fails, allowing fallback."
                           colored))))))
               nil)))))))
 
-;;; Aliases
+;; ;;; Aliases
 
-(defcustom iota-shell-eza-options
-  '("--group-directories-first" "--header" "--git")
-  "Options to pass to eza when used as ls."
-  :type '(repeat string)
-  :group 'iota-shell)
+;; (defcustom iota-shell-eza-options
+;;   '("--header" "--git")
+;;   "Options to pass to eza when used as ls."
+;;   :type '(repeat string)
+;;   :group 'iota-shell)
 
-(defun iota-shell-ls (&rest args)
-  "Use eza as ls if available, otherwise fallback to standard eshell ls."
-  (if (executable-find "eza")
-      (throw 'eshell-replace-command
-             (eshell-parse-command "eza" (append iota-shell-eza-options args)))
-    (apply #'eshell/ls-orig args)))
-
+;; (defun iota-shell-ls (&rest args)
+;;   "Use eza as ls if available, otherwise fallback to standard eshell ls."
+;;   (if (executable-find "eza")
+;;       (throw 'eshell-replace-command
+;;              (eshell-parse-command "eza" (append iota-shell-eza-options args)))
+;;     (apply #'eshell/ls-orig args)))
 
 ;;; Variables
 
