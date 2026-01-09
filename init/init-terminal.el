@@ -16,8 +16,13 @@
   :config
   (with-eval-after-load 'esh-mode
     (bind-key "C-c s k" #'iota-shell-clear eshell-mode-map))
-  (with-eval-after-load 'em-term
-    (add-to-list 'eshell-visual-commands "bat"))
+
+  ;; Ensure em-term is loaded and add bat to visual commands
+  (require 'em-term)
+
+  (add-to-list 'eshell-visual-commands "bat")
+  (add-to-list 'eshell-visual-commands "more")
+
   (use-package capf-autosuggest
     :hook (eshell-mode . capf-autosuggest-mode)
     :init
@@ -33,12 +38,17 @@
             (capf-autosuggest-history-capf))))
 
       (setq capf-autosuggest-capf-functions
-            '(hyalo-capf-autosuggest-history-capf capf-autosuggest-orig-if-at-eol-capf)))))
+            '(hyalo-capf-autosuggest-history-capf)))))
 
 (use-package eat
   :ensure t
+  :hook (eshell-load-hook . eat-eshell-mode)
   :config
-  (add-hook 'eshell-load-hook #'eat-eshell-visual-command-mode))
+  ;; Robustly ensure Eat integration is active in every Eshell buffer
+  (defun init-terminal--setup-eat ()
+    (eat-eshell-mode)
+    (eat-eshell-visual-command-mode))
+  (add-hook 'eshell-mode-hook #'init-terminal--setup-eat))
 
 (use-package iota-shell
    :ensure nil
