@@ -35,16 +35,6 @@
       (setq capf-autosuggest-capf-functions
             '(hyalo-capf-autosuggest-history-capf capf-autosuggest-orig-if-at-eol-capf)))))
 
-;; (use-package completion-preview
-;;   :ensure nil
-;;   :hook (eshell-mode . completion-preview-mode)
-;;   :custom
-;;   (completion-preview-minimum-symbol-length 2)
-;;   :bind
-;;   (:map completion-preview-active-mode-map
-;; 	("M-n" . completion-preview-next-candidate)
-;; 	("M-p" . completion-preview-prev-candidate)))
-
 (use-package eat
   :ensure t
   :config

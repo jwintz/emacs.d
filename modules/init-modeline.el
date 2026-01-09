@@ -4,8 +4,27 @@
 
 (defvar rcirc-track-minor-mode nil) ;; Fix doom-modeline error
 
+(use-package which-func
+  :ensure nil
+  :config
+  (which-function-mode 1))
+
 (use-package keycast
   :ensure t
+  :custom
+  ;; (keycast-prefix "⎈ ")
+  ;; (keycast-separator " ⦿ ")
+  ;; (keycast-command-format "%s")
+  (keycast-modifiers-format '((control . "C-")
+			      (meta . "M-")
+			      (shift . "S-")
+			      (super . "s-")))
+  (keycast-special-keys-format '((return . "RET")
+				 (escape . "ESC")
+				 (space . "SPC")
+				 (tab . "TAB")
+				 (backspace . "BS")))
+  (keycast-show-mouse-buttons nil)
   :config
   ;; Keycast uses mode-line-misc-info, which doom-modeline displays via misc-info segment
   (defun hyalo-keycast-update-safe ()
@@ -44,25 +63,7 @@ This prevents keycast from flickering/disappearing when demap updates."
         (remove-hook 'pre-command-hook 'hyalo-keycast-update-safe)
         (setq mode-line-misc-info (delete '("" keycast-mode-line " ") mode-line-misc-info)))))
 
-  :custom
-  (keycast-prefix "⎈ ")
-  (keycast-separator " ⦿ ")
-  (keycast-command-format "%s")
-  (keycast-modifiers-format '((control . "C-")
-			      (meta . "M-")
-			      (shift . "S-")
-			      (super . "s-")))
-  (keycast-special-keys-format '((return . "RET")
-				 (escape . "ESC")
-				 (space . "SPC")
-				 (tab . "TAB")
-				 (backspace . "BS")))
-  (keycast-show-mouse-buttons nil))
-
-(use-package which-func
-  :ensure nil
-  :config
-  (which-function-mode 1))
+  (keycast-mode 1))
 
 (use-package doom-modeline
   :ensure t

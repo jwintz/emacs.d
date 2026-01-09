@@ -58,6 +58,29 @@
   :ensure t
   :hook (embark-collect-mode . consult-preview-at-point-mode))
 
+(use-package corfu
+  :ensure t
+  :init
+  (global-corfu-mode)
+  (corfu-echo-mode)              ;; Show candidates in echo area
+  :custom
+  (corfu-cycle t)                ;; Enable cycling for "fast" completion
+  (corfu-auto nil)               ;; Disable auto completion
+  (corfu-separator ?\s)          ;; Orderless field separator
+  (corfu-preview-current t)      ;; Enable inline preview
+  (corfu-min-width 1)            ;; Minimal width
+  ;; (corfu-popupinfo-mode nil)     ;; Disable documentation popup (default)
+  :bind
+  (:map corfu-map
+        ("TAB" . corfu-next)
+        ([tab] . corfu-next)
+        ("S-TAB" . corfu-previous)
+        ([backtab] . corfu-previous))
+  :config
+  ;; Suppress the popup frame entirely
+  (advice-add #'corfu--popup-show :override #'ignore)
+  (advice-add #'corfu--popup-hide :override #'ignore))
+
 (provide 'init-completion)
 
 ;;; init-completion.el ends here
