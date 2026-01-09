@@ -1,51 +1,13 @@
+# -*- mode: conf-toml -*-
+
 format = """
-$username\
-${custom.ssh_host}\
-${custom.local_host}\
-$localip\
-$shlvl\
-$singularity\
-$kubernetes\
 $directory\
-$custom\
 $character"""
 
 right_format = """$all"""
 
-[custom.screen]
-command = "echo $STY"
-when = "test -n \"$STY\""
-shell = ["bash", "--noprofile", "--norc"]
-description = "Display the screen session name"
-style = "bold green"
-symbol = "screen"
-format = "on [$symbol $output]($style) "
-disabled = false
-
-[custom.tmux]
-command = "tmux display-message -p '#S'"
-when = "test -n \"$TMUX\""
-shell = ["bash", "--noprofile", "--norc"]
-description = "Display the tmux session name"
-style = "bold green"
-symbol = "multiplexed"
-format = "on [$symbol $output]($style) "
-disabled = false
-
 [line_break]
 disabled = false
-
-[custom.ssh_host]
-command = "hostname -s"
-when = "test -n \"$SSH_CONNECTION\""
-style = "bold red"
-format = "[$output]($style) "
-
-[custom.local_host]
-command = "hostname -s"
-when = "test -z \"$SSH_CONNECTION\""
-style = "bold purple"
-format = "[$output]($style) "
 
 [username]
 disabled = false
@@ -56,9 +18,9 @@ format = "[$user]($style) at "
 detect_env_vars = ["NONE"]
 
 [character]
-success_symbol = "[⦿](bold green)"
-error_symbol = "[⦿](bold red)"
-vicmd_symbol = "[⦿](bold green)"
+success_symbol = "[λ](bold green)"
+error_symbol = "[λ](bold red)"
+vicmd_symbol = "[λ](bold green)"
 
 [git_commit]
 tag_symbol = " tag "
@@ -73,31 +35,19 @@ deleted = "x"
 [jobs]
 symbol = "◉ "
 
-[aws]
-symbol = "aws "
-
 [bun]
 symbol = "bun "
 
 [c]
 symbol = "C "
 
-[cobol]
-symbol = "cobol "
-
 [conda]
 symbol = "shell "
 ignore_base = false
 detect_env_vars = ["CONDA_DEFAULT_ENV"]
 
-[crystal]
-symbol = "cr "
-
 [cmake]
 symbol = "cmake "
-
-[daml]
-symbol = "daml "
 
 [dart]
 symbol = "dart "
@@ -105,21 +55,12 @@ symbol = "dart "
 [deno]
 symbol = "deno "
 
-[dotnet]
-symbol = ".NET "
-
 [directory]
 format = 'in [$path]($style)[$read_only]($read_only_style) '
 read_only = " ro"
 
 [docker_context]
 symbol = "docker "
-
-[elixir]
-symbol = "exs "
-
-[elm]
-symbol = "elm "
 
 [git_branch]
 symbol = "git "
@@ -171,17 +112,8 @@ symbol = "pl "
 [php]
 symbol = "php "
 
-[pulumi]
-symbol = "pulumi "
-
-[purescript]
-symbol = "purs "
-
 [python]
 symbol = "py "
-
-[raku]
-symbol = "raku "
 
 [ruby]
 symbol = "rb "
@@ -192,9 +124,6 @@ symbol = "rs "
 [scala]
 symbol = "scala "
 
-[spack]
-symbol = "spack "
-
 [sudo]
 symbol = "sudo "
 
@@ -203,9 +132,6 @@ disabled = false
 
 [swift]
 symbol = "swift "
-
-[terraform]
-symbol = "terraform "
 
 [zig]
 symbol = "zig "

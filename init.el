@@ -131,6 +131,7 @@
 (init--require-with-trace 'init-terminal)   ;; eat
 (init--require-with-trace 'init-markdown)   ;; markdown-mode, obsidian
 (init--require-with-trace 'init-tengwar)    ;; tengwar transliteration
+(init--require-with-trace 'init-modes)      ;; major language modes
 
 ;;; ===========================================================================
 ;;; Finalize

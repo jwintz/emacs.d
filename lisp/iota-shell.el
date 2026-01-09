@@ -97,9 +97,11 @@ This allows the prompt to adapt immediately when the theme changes."
 
 
 
-(defun iota-shell--update-right-prompt-from-property ()
-  "Update right prompt using text property from the current prompt."
-  (when (and (eq major-mode 'eshell-mode)
+(defun iota-shell--update-right-prompt-from-property (&optional force)
+  "Update right prompt using text property from the current prompt.
+If FORCE is non-nil, update even if `this-command` is `eshell-send-input`."
+  (when (and (or force (not (eq this-command 'eshell-send-input)))
+             (eq major-mode 'eshell-mode)
              (boundp 'eshell-last-output-end)
              eshell-last-output-end
              (> eshell-last-output-end (point-min)))
@@ -114,7 +116,8 @@ This allows the prompt to adapt immediately when the theme changes."
           (unless (and iota-shell--right-prompt-overlay
                        (overlayp iota-shell--right-prompt-overlay))
             (setq iota-shell--right-prompt-overlay (make-overlay (point) (point)))
-            (overlay-put iota-shell--right-prompt-overlay 'priority -1))
+            (overlay-put iota-shell--right-prompt-overlay 'priority -1)
+            (overlay-put iota-shell--right-prompt-overlay 'face 'default))
           
           ;; Position at end of line
           (move-overlay iota-shell--right-prompt-overlay 
@@ -122,10 +125,17 @@ This allows the prompt to adapt immediately when the theme changes."
                         (line-end-position))
           
           ;; Update content and handle overlap
-          (if (> (+ current-col str-width 2) win-width)
+          ;; Use 4 chars margin to avoid wrapping issues
+          (if (> (+ current-col str-width 4) win-width)
               (overlay-put iota-shell--right-prompt-overlay 'after-string nil)
-            (let ((padding (propertize " " 'display `(space :align-to (- right ,str-width)))))
+            (let ((padding (propertize " " 
+                                       'display `(space :align-to (- right ,str-width))
+                                       'face 'default)))
               (overlay-put iota-shell--right-prompt-overlay 'after-string (concat padding str)))))))))
+
+(defun iota-shell--force-update-right-prompt ()
+  "Force update of the right prompt."
+  (iota-shell--update-right-prompt-from-property t))
 
 
 (defun iota-shell--cleanup-overlay (&rest _)
@@ -320,6 +330,7 @@ Uses starship if available, otherwise falls back to built-in prompt."
   (add-hook 'post-command-hook #'iota-shell--update-right-prompt-from-property nil t)
   (add-hook 'window-configuration-change-hook #'iota-shell--update-right-prompt-from-property nil t)
   (add-hook 'eshell-input-filter-functions #'iota-shell--cleanup-overlay nil t)
+  (add-hook 'eshell-after-prompt-hook #'iota-shell--force-update-right-prompt nil t)
 
   ;; Force initial prompt update and clean slate
   (when (and (eq major-mode 'eshell-mode)
