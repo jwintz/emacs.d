@@ -1,38 +1,28 @@
-;;; init-terminal.el --- Terminal emulation: eat -*- lexical-binding: t; -*-
+;;; init-terminal.el --- Eshell with starship prompt and eat -*- lexical-binding: t; -*-
 
 ;;; Code:
 
+(use-package eshell
+  :init
+  (setq eshell-scroll-to-bottom-on-input 'all
+        eshell-error-if-no-glob t
+        eshell-hist-ignoredups t
+        eshell-save-history-on-exit t
+        eshell-prefer-lisp-functions nil
+        eshell-destroy-buffer-when-process-dies t
+        eshell-login-script (expand-file-name "config/eshlogin" emacs-config-dir)
+        eshell-rc-script (expand-file-name "config/eshrc" emacs-config-dir))
+  :config
+  (use-package capf-autosuggest
+    :hook (eshell-mode . capf-autosuggest-mode))
+  (use-package esh-help
+    :config
+    (setup-esh-help-eldoc))
+  (use-package eshell-outline))
+
 (use-package eat
   :ensure t
-  :general
-  (:prefix "C-c s"
-   "" '(:ignore t :which-key "shell")
-   "s" 'eat
-   "p" 'eat-project
-   "e" 'eat-eshell-mode
-   "v" 'eat-eshell-visual-command-mode)
-  :custom
-  (eat-enable-directory-tracking t)
-  (eat-enable-shell-prompt-annotation t)
-  (eat-term-name "xterm-256color")
-  (eat-kill-process-on-exit t)
   :config
-  (add-hook 'eat-mode-hook
-            (lambda ()
-              (when (fboundp 'god-local-mode)
-                (god-local-mode -1))))
-
-  (with-eval-after-load 'eat
-    (when (boundp 'eat-semi-char-mode-map)
-      (define-key eat-semi-char-mode-map (kbd "DEL") 'eat-self-input)
-      (define-key eat-semi-char-mode-map (kbd "<backspace>") 'eat-self-input)
-      (define-key eat-semi-char-mode-map (kbd "C-?") 'eat-self-input)
-      (define-key eat-semi-char-mode-map (kbd "C-c C-k") 'eat-char-mode))
-
-    (when (boundp 'eat-mode-map)
-      (define-key eat-mode-map (kbd "C-c C-j") 'eat-semi-char-mode)))
-
-  (add-hook 'eshell-load-hook #'eat-eshell-mode)
   (add-hook 'eshell-load-hook #'eat-eshell-visual-command-mode))
 
 (use-package iota-shell

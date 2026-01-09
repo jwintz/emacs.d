@@ -1,0 +1,6 @@
+# -*- mode: eshell -*-
+# Eshell login script - runs once per session
+
+# Environment setup
+# Note: PATH is inherited from Emacs process
+
