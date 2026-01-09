@@ -51,9 +51,9 @@ Case-insensitive matching."
   :type '(repeat string)
   :group 'hyalo-markdown)
 
-(defcustom hyalo-markdown-tag-height 0.85
+(defcustom hyalo-markdown-tag-height 0.90
   "Height ratio for tags (multiplied by line height).
-A value of 0.85 means tags are 85% of the line height."
+A value of 0.90 means tags are 90% of the line height."
   :type 'float
   :group 'hyalo-markdown)
 
@@ -77,26 +77,32 @@ A value of 0.85 means tags are 85% of the line height."
 
 (defun hyalo-markdown--make-tag (tag)
   "Create SVG tag for TAG.
-Scales radius and stroke with text-scale-mode.
-Note: font-size not overridden - svg-lib computes it from height for proper vertical centering."
+Uses window-font-height to derive proper font-size for vertical centering.
+Scales all internal dimensions with text-scale-mode."
   (let* ((face (if (hyalo-markdown--special-tag-p tag)
                    'hyalo-markdown-tag-special
                  'hyalo-markdown-tag))
          (fg (face-foreground face nil 'default))
          (bg (face-background 'default nil t))
          (tg (string-trim-left tag "#"))
-         (scale (hyalo-markdown--text-scale-factor))
-         ;; Base dimensions (at scale 1.0)
-         (base-radius 4)
-         (base-stroke 2)
-         ;; Scale dimensions - font-size left to svg-lib for proper centering
-         (scaled-radius (ceiling (* base-radius scale)))
-         (scaled-stroke (max 2 (ceiling (* base-stroke scale)))))
+         ;; Use window-font-height directly for consistent sizing
+         ;; Container height = window-font-height * height-ratio
+         ;; Font-size should be ~85% of container height for good fit
+         (wfh (window-font-height))
+         (container-height (* wfh hyalo-markdown-tag-height))
+         ;; Font-size in points: approximate conversion from pixels
+         ;; Typical: 1pt ≈ 1.33px at 96 DPI, so px/1.33 ≈ pt
+         (font-size (max 8 (round (/ (* container-height 0.925) 1.33))))
+         (radius (max 2 (round (* container-height 0.15))))
+         (stroke (max 1 (round (* container-height 0.08)))))
     (svg-lib-icon+tag "tag" tg nil
                       :font-family "Roboto Mono"
                       :font-weight 500
-                      :stroke scaled-stroke
-                      :radius scaled-radius
+                      :font-size font-size
+                      :stroke stroke
+                      :radius radius
+                      :padding 1
+                      :scale 0.75
                       :height hyalo-markdown-tag-height
                       :background bg
                       :foreground fg)))
@@ -106,7 +112,7 @@ Note: font-size not overridden - svg-lib computes it from height for proper vert
 (defun hyalo-markdown--make-hr (width)
   "Create SVG horizontal rule of WIDTH pixels.
 Minimal height to reduce background visibility."
-  (let* ((height 3)
+  (let* ((height 1)
          (fg (face-foreground 'hyalo-markdown-hr nil 'default))
          (bg (face-background 'default nil t))
          (svg (svg-create width height))
