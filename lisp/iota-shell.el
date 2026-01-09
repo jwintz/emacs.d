@@ -27,8 +27,7 @@
 ;;; Starship Integration
 
 (defcustom iota-shell-starship-config
-  (expand-file-name "config/eshprompt" (or (bound-and-true-p emacs-config-dir)
-                                          (file-name-directory (or load-file-name buffer-file-name))))
+  (expand-file-name "config/eshprompt" emacs-config-dir)
   "Path to starship configuration file for eshell."
   :type 'file
   :group 'iota-shell)
@@ -66,6 +65,81 @@ This allows the prompt to adapt immediately when the theme changes."
     (aset map 37 '(font-lock-face default))                 ; White
     map))
 
+(defvar-local iota-shell--right-prompt-overlay nil
+  "Overlay for displaying the right-side prompt.")
+
+(defvar-local iota-shell--pending-right-prompt nil
+  "Cached content of the right-side prompt for the current input cycle.")
+
+(defun iota-shell--starship-get-right-prompt (status width pwd)
+  "Fetch the right prompt from starship."
+  (with-temp-buffer
+    (let ((process-environment (copy-sequence process-environment))
+          (default-directory pwd))
+      (setenv "TERM" "xterm")
+      (setenv "INSIDE_EMACS" nil)
+      (setenv "CLICOLOR_FORCE" "1")
+      (setenv "STARSHIP_CONFIG" iota-shell-starship-config)
+      (setenv "STARSHIP_SHELL" "sh")
+      
+      (if (zerop (call-process "starship" nil t nil
+                               "prompt" "--right"
+                               "--status" (number-to-string status)
+                               "--terminal-width" (number-to-string width)
+                               "--path" pwd))
+          (let ((output (string-trim (buffer-string))))
+            (if (string-empty-p output)
+                nil
+              (let ((ansi-color-map (iota-shell--make-theme-aware-color-map))
+                    (ansi-color-context nil)) ;; Isolate from previous state
+                (ansi-color-apply output))))
+        nil))))
+
+
+
+(defun iota-shell--update-right-prompt-from-property ()
+  "Update right prompt using text property from the current prompt."
+  (when (and (eq major-mode 'eshell-mode)
+             (boundp 'eshell-last-output-end)
+             eshell-last-output-end
+             (> eshell-last-output-end (point-min)))
+    (let ((right-prompt (get-text-property (1- eshell-last-output-end) 'iota-right-prompt)))
+      (when right-prompt
+        (let* ((str right-prompt)
+               (str-width (string-width str))
+               (win-width (window-width))
+               (current-col (save-excursion (goto-char eshell-last-output-end) (current-column))))
+          
+          ;; Create overlay if needed
+          (unless (and iota-shell--right-prompt-overlay
+                       (overlayp iota-shell--right-prompt-overlay))
+            (setq iota-shell--right-prompt-overlay (make-overlay (point) (point)))
+            (overlay-put iota-shell--right-prompt-overlay 'priority -1))
+          
+          ;; Position at end of line
+          (move-overlay iota-shell--right-prompt-overlay 
+                        (line-end-position) 
+                        (line-end-position))
+          
+          ;; Update content and handle overlap
+          (if (> (+ current-col str-width 2) win-width)
+              (overlay-put iota-shell--right-prompt-overlay 'after-string nil)
+            (let ((padding (propertize " " 'display `(space :align-to (- right ,str-width)))))
+              (overlay-put iota-shell--right-prompt-overlay 'after-string (concat padding str)))))))))
+
+
+(defun iota-shell--cleanup-overlay (&rest _)
+
+  "Remove the right prompt overlay."
+
+  (when iota-shell--right-prompt-overlay
+
+    (delete-overlay iota-shell--right-prompt-overlay)
+
+    (setq iota-shell--right-prompt-overlay nil)))
+
+
+
 (defun iota-shell--starship-prompt ()
   "Generate prompt using starship.
 Returns nil if starship fails, allowing fallback."
@@ -75,10 +149,11 @@ Returns nil if starship fails, allowing fallback."
                        eshell-last-command-status 0))
            (width (window-width))
            (pwd (eshell/pwd)))
+      
       (with-temp-buffer
         (let ((process-environment (copy-sequence process-environment))
               (default-directory pwd))
-          (setenv "TERM" "xterm") ;; Force standard ANSI colors
+          (setenv "TERM" "xterm")
           (setenv "INSIDE_EMACS" nil)
           (setenv "CLICOLOR_FORCE" "1")
           (setenv "STARSHIP_CONFIG" iota-shell-starship-config)
@@ -91,15 +166,23 @@ Returns nil if starship fails, allowing fallback."
                                    "--path" pwd))
               (let ((output (buffer-string)))
                 (cond
-                 ((string-empty-p output)
-                  nil)
-                 ((string-match-p "TERM=dumb" output)
-                  nil)
+                 ((string-empty-p output) nil)
+                 ((string-match-p "TERM=dumb" output) nil)
                  (t
-                  ;; Apply face-based color map for dynamic theming
-                  (let ((ansi-color-map (iota-shell--make-theme-aware-color-map)))
-                    (ansi-color-apply output)))))
-            (message "Debug: Starship process failed with exit code %d" 1)
+                  (let ((right-prompt (iota-shell--starship-get-right-prompt status width pwd))
+                        (ansi-color-map (iota-shell--make-theme-aware-color-map))
+                        (ansi-color-context nil))
+                    
+                    (let ((colored (ansi-color-apply output)))
+                      ;; Attach properties: Read-only, field, AND right-prompt content
+                      (add-text-properties 0 (length colored)
+                                           `(read-only t
+                                             field prompt
+                                             front-sticky (read-only field)
+                                             rear-nonsticky (read-only field)
+                                             iota-right-prompt ,right-prompt)
+                                           colored)
+                      colored)))))
             nil))))))
 
 ;;; Aliases
@@ -232,6 +315,11 @@ Uses starship if available, otherwise falls back to built-in prompt."
   (setq-local eshell-prompt-function #'iota-shell-prompt)
   (setq-local eshell-highlight-prompt nil) ;; Disable default highlighting to let Starship colors show
   (setq-local eshell-prompt-regexp (concat "^.*" (regexp-quote iota-shell-prompt-char) " "))
+
+  ;; Add persistent right-prompt updater
+  (add-hook 'post-command-hook #'iota-shell--update-right-prompt-from-property nil t)
+  (add-hook 'window-configuration-change-hook #'iota-shell--update-right-prompt-from-property nil t)
+  (add-hook 'eshell-input-filter-functions #'iota-shell--cleanup-overlay nil t)
 
   ;; Force initial prompt update and clean slate
   (when (and (eq major-mode 'eshell-mode)
