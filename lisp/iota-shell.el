@@ -8,7 +8,6 @@
 
 ;; Eshell enhancements with starship prompt integration and eza alias.
 ;; Uses starship binary if available, otherwise falls back to built-in prompt.
-;; Layout: user at host in dir on git via lang λ
 
 ;;; Code:
 
@@ -95,8 +94,6 @@ This allows the prompt to adapt immediately when the theme changes."
                 (ansi-color-apply output))))
         nil))))
 
-
-
 (defun iota-shell--update-right-prompt-from-property (&optional force)
   "Update right prompt using text property from the current prompt.
 If FORCE is non-nil, update even if `this-command` is `eshell-send-input`."
@@ -130,6 +127,7 @@ If FORCE is non-nil, update even if `this-command` is `eshell-send-input`."
               (overlay-put iota-shell--right-prompt-overlay 'after-string nil)
             (let ((padding (propertize " "
                                        'display `(space :align-to (- right ,str-width))
+                                       'cursor 0
                                        'face 'default)))
               (overlay-put iota-shell--right-prompt-overlay 'after-string (concat padding str)))))))))
 
@@ -137,18 +135,11 @@ If FORCE is non-nil, update even if `this-command` is `eshell-send-input`."
   "Force update of the right prompt."
   (iota-shell--update-right-prompt-from-property t))
 
-
 (defun iota-shell--cleanup-overlay (&rest _)
-
   "Remove the right prompt overlay."
-
   (when iota-shell--right-prompt-overlay
-
     (delete-overlay iota-shell--right-prompt-overlay)
-
     (setq iota-shell--right-prompt-overlay nil)))
-
-
 
 (defun iota-shell--starship-prompt ()
   "Generate prompt using starship.

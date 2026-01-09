@@ -1,9 +1,10 @@
-;; # -*- mode: eshell -*-
-;; # Eshell rc script - runs for each new shell
+# -*- mode: shell -*-
+# Eshell rc script - runs for each new shell
 
-;; # Aliases managed by iota-shell.el:
-;; # - ls -> eza (with git integration)
+# Aliases managed by iota-shell.el:
+# - ls -> eza (with git integration)
 
-;; # Additional aliases
-;; alias ll "ls -l"
+# Additional aliases
+alias more "bat"
 
+(message "eshrc loaded")

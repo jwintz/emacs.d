@@ -41,9 +41,9 @@
   (add-hook 'eshell-load-hook #'eat-eshell-visual-command-mode))
 
 (use-package iota-shell
-  :ensure nil
-  :after eshell
-  :hook (eshell-mode . iota-shell-mode))
+   :ensure nil
+   :after eshell
+   :hook (eshell-mode . iota-shell-mode))
 
 (provide 'init-terminal)
 

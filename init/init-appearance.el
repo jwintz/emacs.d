@@ -157,7 +157,7 @@
   :config
   (iota-dimmer-mode 1))
 
-;;; Minimap
+;;;; Minimap
 
 (use-package hide-mode-line
   :ensure t)

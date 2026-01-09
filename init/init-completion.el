@@ -58,6 +58,14 @@
   :ensure t
   :hook (embark-collect-mode . consult-preview-at-point-mode))
 
+(defun my/corfu-complete-and-send ()
+  "Insert completion and send input if in eshell at end of line."
+  (interactive)
+  (corfu-insert)
+  (when (and (derived-mode-p 'eshell-mode)
+             (eolp))
+    (eshell-send-input)))
+
 (use-package corfu
   :ensure t
   :init
@@ -75,11 +83,25 @@
         ("TAB" . corfu-next)
         ([tab] . corfu-next)
         ("S-TAB" . corfu-previous)
-        ([backtab] . corfu-previous))
+        ([backtab] . corfu-previous)
+        ("RET" . my/corfu-complete-and-send)
+        ([return] . my/corfu-complete-and-send))
   :config
   ;; Suppress the popup frame entirely
   (advice-add #'corfu--popup-show :override #'ignore)
   (advice-add #'corfu--popup-hide :override #'ignore))
+
+;; (use-package completion-preview
+;;   :ensure nil  ;; Built-in to Emacs 30+
+;;   :hook ((prog-mode . completion-preview-mode)
+;;          (text-mode . completion-preview-mode))
+;; ;;       (eshell-mode . completion-preview-mode))
+;;   :custom
+;;   (completion-preview-minimum-symbol-length 2)
+;;   :bind (:map completion-preview-active-mode-map
+;;               ("M-n" . completion-preview-next-candidate)
+;;               ("M-p" . completion-preview-prev-candidate)
+;;               ("M-i" . completion-preview-insert)))
 
 (provide 'init-completion)
 
