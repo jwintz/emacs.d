@@ -81,7 +81,7 @@ This allows the prompt to adapt immediately when the theme changes."
       (setenv "CLICOLOR_FORCE" "1")
       (setenv "STARSHIP_CONFIG" iota-shell-starship-config)
       (setenv "STARSHIP_SHELL" "sh")
-      
+
       (if (zerop (call-process "starship" nil t nil
                                "prompt" "--right"
                                "--status" (number-to-string status)
@@ -111,24 +111,24 @@ If FORCE is non-nil, update even if `this-command` is `eshell-send-input`."
                (str-width (string-width str))
                (win-width (window-width))
                (current-col (save-excursion (goto-char eshell-last-output-end) (current-column))))
-          
+
           ;; Create overlay if needed
           (unless (and iota-shell--right-prompt-overlay
                        (overlayp iota-shell--right-prompt-overlay))
             (setq iota-shell--right-prompt-overlay (make-overlay (point) (point)))
             (overlay-put iota-shell--right-prompt-overlay 'priority -1)
             (overlay-put iota-shell--right-prompt-overlay 'face 'default))
-          
+
           ;; Position at end of line
-          (move-overlay iota-shell--right-prompt-overlay 
-                        (line-end-position) 
+          (move-overlay iota-shell--right-prompt-overlay
+                        (line-end-position)
                         (line-end-position))
-          
+
           ;; Update content and handle overlap
           ;; Use 4 chars margin to avoid wrapping issues
           (if (> (+ current-col str-width 4) win-width)
               (overlay-put iota-shell--right-prompt-overlay 'after-string nil)
-            (let ((padding (propertize " " 
+            (let ((padding (propertize " "
                                        'display `(space :align-to (- right ,str-width))
                                        'face 'default)))
               (overlay-put iota-shell--right-prompt-overlay 'after-string (concat padding str)))))))))
@@ -159,7 +159,7 @@ Returns nil if starship fails, allowing fallback."
                        eshell-last-command-status 0))
            (width (window-width))
            (pwd (eshell/pwd)))
-      
+
       (with-temp-buffer
         (let ((process-environment (copy-sequence process-environment))
               (default-directory pwd))
@@ -168,7 +168,7 @@ Returns nil if starship fails, allowing fallback."
           (setenv "CLICOLOR_FORCE" "1")
           (setenv "STARSHIP_CONFIG" iota-shell-starship-config)
           (setenv "STARSHIP_SHELL" "sh")
-          
+
           (if (zerop (call-process "starship" nil t nil
                                    "prompt"
                                    "--status" (number-to-string status)
@@ -182,7 +182,7 @@ Returns nil if starship fails, allowing fallback."
                   (let ((right-prompt (iota-shell--starship-get-right-prompt status width pwd))
                         (ansi-color-map (iota-shell--make-theme-aware-color-map))
                         (ansi-color-context nil))
-                    
+
                     (let ((colored (ansi-color-apply output)))
                       ;; Attach properties: Read-only, field, AND right-prompt content
                       (add-text-properties 0 (length colored)
@@ -210,113 +210,26 @@ Returns nil if starship fails, allowing fallback."
              (eshell-parse-command "eza" (append iota-shell-eza-options args)))
     (apply #'eshell/ls-orig args)))
 
-;;; Faces
-
-(defface iota-shell-user-face
-  '((t (:inherit font-lock-variable-name-face :weight bold)))
-  "Face for username."
-  :group 'iota-shell)
-
-(defface iota-shell-host-face
-  '((t (:inherit font-lock-warning-face :weight bold)))
-  "Face for hostname."
-  :group 'iota-shell)
-
-(defface iota-shell-dir-face
-  '((t (:inherit font-lock-function-name-face :weight bold)))
-  "Face for directory."
-  :group 'iota-shell)
-
-(defface iota-shell-git-face
-  '((t (:inherit font-lock-string-face)))
-  "Face for git info."
-  :group 'iota-shell)
-
-(defface iota-shell-lang-face
-  '((t (:inherit font-lock-constant-face)))
-  "Face for language info."
-  :group 'iota-shell)
-
-(defface iota-shell-prompt-char-success
-  '((t (:inherit success :weight bold)))
-  "Face for prompt char on success."
-  :group 'iota-shell)
-
-(defface iota-shell-prompt-char-error
-  '((t (:inherit error :weight bold)))
-  "Face for prompt char on error."
-  :group 'iota-shell)
-
-(defface iota-shell-dim-face
-  '((t (:inherit shadow)))
-  "Face for separators (at, in, via)."
-  :group 'iota-shell)
 
 ;;; Variables
 
-(defvar iota-shell-prompt-char "⦿"
+(defvar iota-shell-prompt-char "λ"
   "Character used for the input prompt.")
 
-;;; Helper Functions
-
-(defun iota-shell--dim (str)
-  "Return STR with dim face."
-  (propertize str 'face 'iota-shell-dim-face))
-
-;;; Prompt Components
-
-(defun iota-shell--git ()
-  "Return git branch info or nil."
-  (when-let* ((branch (ignore-errors (car (vc-git-branches)))))
-    (concat (iota-shell--dim " on ")
-            (propertize branch 'face 'iota-shell-git-face))))
-
-(defun iota-shell--lang ()
-  "Return detected language or nil."
-  (let ((lang (cond
-               ((file-exists-p "Package.swift") "swift")
-               ((file-exists-p "Cargo.toml") "rs")
-               ((file-exists-p "package.json") "js")
-               ((file-exists-p "go.mod") "go")
-               ((file-exists-p "mix.exs") "ex")
-               ((file-exists-p "pyproject.toml") "py")
-               ((or (file-exists-p "Cask") (file-exists-p "Eask")) "elisp"))))
-    (when lang
-      (concat (iota-shell--dim " via ")
-              (propertize lang 'face 'iota-shell-lang-face)))))
-
-;;; Prompt
-
-(defun iota-shell--fallback-prompt ()
-  "Generate fallback prompt when starship is unavailable."
-  (message "Debug: Using fallback prompt")
-  (let* ((user (propertize (user-login-name) 'face 'iota-shell-user-face))
-         (host (propertize (car (split-string (system-name) "\\."))
-                           'face 'iota-shell-host-face))
-         (pwd (eshell/pwd))
-         (root (or (vc-root-dir) (locate-dominating-file pwd ".git")))
-         (path (if root
-                   (file-relative-name pwd (file-name-directory (directory-file-name root)))
-                 (abbreviate-file-name pwd)))
-         (dir (propertize path 'face 'iota-shell-dir-face))
-         (git (iota-shell--git))
-         (lang (iota-shell--lang))
-         (success (or (not (boundp 'eshell-last-command-status))
-                      (zerop eshell-last-command-status)))
-         (char-face (if success 'iota-shell-prompt-char-success 'iota-shell-prompt-char-error))
-         (char (propertize iota-shell-prompt-char 'face char-face))
-         (nl (if (and (boundp 'eshell-last-output-end)
-                      (= eshell-last-output-end (point-min)))
-                 "" "\n")))
-    (concat nl user (iota-shell--dim " at ") host (iota-shell--dim " in ") dir
-            (or git "") (or lang "") " " char " ")))
+;;;###autoload
+(defun iota-shell-clear ()
+  "Clear the eshell buffer and emit a new prompt."
+  (interactive)
+  (let ((inhibit-read-only t))
+    (erase-buffer)
+    (eshell-emit-prompt)))
 
 ;;;###autoload
 (defun iota-shell-prompt ()
   "Generate the eshell prompt.
-Uses starship if available, otherwise falls back to built-in prompt."
+Uses starship if available, otherwise falls back to default prompt."
   (or (iota-shell--starship-prompt)
-      (iota-shell--fallback-prompt)))
+      (funcall 'eshell-default-prompt-function)))
 
 ;;; Minor Mode
 

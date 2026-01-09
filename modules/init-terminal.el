@@ -3,6 +3,7 @@
 ;;; Code:
 
 (use-package eshell
+  :bind ("C-c s s" . eshell)
   :init
   (setq eshell-scroll-to-bottom-on-input 'all
         eshell-error-if-no-glob t
@@ -13,6 +14,10 @@
         eshell-login-script (expand-file-name "config/eshlogin" emacs-config-dir)
         eshell-rc-script (expand-file-name "config/eshrc" emacs-config-dir))
   :config
+  (with-eval-after-load 'esh-mode
+    (bind-key "C-c s k" #'iota-shell-clear eshell-mode-map))
+  (with-eval-after-load 'em-term
+    (add-to-list 'eshell-visual-commands "bat"))
   (use-package capf-autosuggest
     :hook (eshell-mode . capf-autosuggest-mode)
     :init
