@@ -45,17 +45,6 @@
   :config
   (hyalo-header-mode 1))
 
-;;;; Fonts
-
-(use-package fontaine
-  :ensure t
-  :if (display-graphic-p))
-
-(use-package hyalo-fonts
-  :ensure nil
-  :if (eq window-system 'ns)
-  :after (hyalo fontaine))
-
 ;;;; Hyalo Appearance
 
 (use-package hyalo-appearance
@@ -71,50 +60,6 @@
       (notes . (:appearance dark  :theme kaolin-eclispe  :vibrancy "regular" :opacity 0.6)))
     "Alist of Hyalo appearance profiles.")
 
-  (defun hyalo-set-highlights (&rest _)
-    "Set highlight faces using weight differentiation."
-    (let ((m 'medium)
-          (b 'bold)
-          (wb 'ultra-bold))
-      (set-face-attribute 'region nil :weight b)
-      (set-face-attribute 'isearch nil :weight wb :underline t)
-      (set-face-attribute 'lazy-highlight nil :weight b)
-      (set-face-attribute 'match nil :weight b)
-      (set-face-attribute 'show-paren-match nil :weight b)
-      (when (facep 'hl-line)
-        (set-face-attribute 'hl-line nil :weight m))
-      (when (facep 'highlight)
-        (set-face-attribute 'highlight nil :weight m))
-      (when (facep 'vertico-current)
-        (set-face-attribute 'vertico-current nil :weight b))
-      ;; Completion faces
-      (dolist (face '(orderless-match-face-0
-                      orderless-match-face-1
-                      orderless-match-face-2
-                      orderless-match-face-3
-                      consult-highlight-match
-                      consult-preview-match))
-        (when (facep face)
-          (set-face-attribute face nil :weight wb)))
-      ;; Magit faces
-      (dolist (mface '(magit-section-highlight
-                       magit-diff-hunk-heading-highlight
-                       magit-diff-context-highlight))
-        (when (facep mface)
-          (set-face-attribute mface nil :weight wb)))
-      ;; Markdown faces
-      (dolist (mdface '(markdown-bold-face
-                        markdown-italic-face
-                        markdown-header-face
-                        markdown-header-face-1
-                        markdown-header-face-2
-                        markdown-header-face-3
-                        markdown-header-face-4
-                        markdown-link-face
-                        markdown-url-face))
-        (when (facep mdface)
-          (set-face-attribute mdface nil :weight b)))))
-
   (defun hyalo-load-profile (name)
     "Load the profile NAME and persist settings."
     (let ((profile (alist-get name hyalo-profiles)))
@@ -127,7 +72,7 @@
           (when theme
             (mapc #'disable-theme custom-enabled-themes)
             (load-theme theme t)
-            (hyalo-set-highlights)
+            (hyalo-fonts-set-highlights)
             (customize-save-variable 'hyalo-appearance-current-theme theme))
           ;; Apply appearance (won't reload theme since not in auto mode)
           (when appearance
@@ -166,11 +111,6 @@
 
   :config
   (hyalo-appearance-mode 1)
-  (add-hook 'fontaine-set-preset-hook #'hyalo-set-highlights)
-  (add-hook 'enable-theme-functions #'hyalo-set-highlights)
-  (hyalo-set-highlights)
-  (with-eval-after-load 'magit
-    (hyalo-set-highlights))
 
   ;; Hyalo Appearance menu
   ;; Pass nil to easy-menu-define map arg so it doesn't auto-install.

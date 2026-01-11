@@ -193,8 +193,25 @@
   :diminish outline-minor-mode
   :hook (prog-mode . outline-minor-mode)
   :general
-  (:prefix "C-c @"
-   "" '(:ignore t :which-key "outline"))
+  (:prefix "C-c o"
+   :wk "outline"
+   "a" '(outline-show-all :wk "show all")
+   "b" '(outline-hide-body :wk "hide body")
+   "c" '(outline-hide-entry :wk "hide entry")
+   "e" '(outline-show-entry :wk "show entry")
+   "l" '(outline-hide-leaves :wk "hide leaves")
+   "k" '(outline-show-branches :wk "show branches")
+   "q" '(outline-hide-sublevels :wk "hide sublevels")
+   "o" '(outline-hide-other :wk "hide other")
+   "n" '(outline-next-visible-heading :wk "next")
+   "p" '(outline-previous-visible-heading :wk "prev")
+   "f" '(outline-forward-same-level :wk "forward")
+   "B" '(outline-backward-same-level :wk "backward")
+   "u" '(outline-up-heading :wk "up")
+   "^" '(outline-move-subtree-up :wk "move up")
+   "v" '(outline-move-subtree-down :wk "move down")
+   "<" '(outline-promote :wk "promote")
+   ">" '(outline-demote :wk "demote"))
   :config
   (add-hook 'outline-minor-mode-hook
             (lambda ()
@@ -211,6 +228,13 @@
   :after nerd-icons
   :custom
   (outline-indent-ellipsis (concat " " (nerd-icons-codicon "nf-cod-chevron_down")))
+  :general
+  (:keymaps 'outline-indent-minor-mode-map
+   :prefix "C-c o"
+   "<up>" '(outline-indent-move-line-up :wk "move line up")
+   "<down>" '(outline-indent-move-line-down :wk "move line down")
+   "<left>" '(outline-indent-shift-left :wk "shift left")
+   "<right>" '(outline-indent-shift-right :wk "shift right"))
   :hook
   ((python-mode . outline-indent-minor-mode)
    (python-ts-mode . outline-indent-minor-mode)

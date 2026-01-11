@@ -31,6 +31,71 @@
 ;; Fontaine Presets
 ;; -----------------------------------------------------------------------------
 
+(defun hyalo-fonts--apply-comment-font ()
+  "Apply Monaspace Radon to comment faces."
+  (when (display-graphic-p)
+    (set-face-attribute 'font-lock-comment-face nil
+                        :family "Monaspace Radon Frozen"
+                        :slant 'normal)
+    (set-face-attribute 'font-lock-comment-delimiter-face nil
+                        :family "Monaspace Radon Frozen"
+                        :slant 'normal)))
+
+(defun hyalo-fonts-set-highlights (&rest _)
+  "Set highlight faces using weight differentiation.
+Updates weights for region, search, and completion faces to ensure
+proper visual hierarchy without relying solely on colors."
+  (let ((m 'medium)
+        (b 'bold)
+        (wb 'ultra-bold))
+    (set-face-attribute 'region nil :weight b)
+    (set-face-attribute 'isearch nil :weight wb :underline t)
+    (set-face-attribute 'lazy-highlight nil :weight b)
+    (set-face-attribute 'match nil :weight b)
+    (set-face-attribute 'show-paren-match nil :weight b)
+    (when (facep 'hl-line)
+      (set-face-attribute 'hl-line nil :weight m))
+    (when (facep 'highlight)
+      (set-face-attribute 'highlight nil :weight m))
+    (when (facep 'vertico-current)
+      (set-face-attribute 'vertico-current nil :weight b))
+    ;; Completion faces
+    (dolist (face '(orderless-match-face-0
+                    orderless-match-face-1
+                    orderless-match-face-2
+                    orderless-match-face-3
+                    consult-highlight-match
+                    consult-preview-match))
+      (when (facep face)
+        (set-face-attribute face nil :weight wb)))
+    ;; Magit faces
+    (dolist (mface '(magit-section-highlight
+                     magit-diff-hunk-heading-highlight
+                     magit-diff-context-highlight))
+      (when (facep mface)
+        (set-face-attribute mface nil :weight wb)))
+    ;; Markdown faces
+    (dolist (mdface '(markdown-bold-face
+                      markdown-italic-face
+                      markdown-header-face
+                      markdown-header-face-1
+                      markdown-header-face-2
+                      markdown-header-face-3
+                      markdown-header-face-4
+                      markdown-link-face
+                      markdown-url-face))
+      (when (facep mdface)
+        (set-face-attribute mdface nil :weight b)))))
+
+(add-hook 'fontaine-set-preset-hook #'hyalo-fonts--apply-comment-font)
+(add-hook 'after-init-hook #'hyalo-fonts--apply-comment-font)
+(add-hook 'enable-theme-functions (lambda (&rest _) (hyalo-fonts--apply-comment-font)))
+
+(add-hook 'fontaine-set-preset-hook #'hyalo-fonts-set-highlights)
+(add-hook 'enable-theme-functions #'hyalo-fonts-set-highlights)
+(with-eval-after-load 'magit
+  (hyalo-fonts-set-highlights))
+
 (when (fboundp 'fontaine-mode)
   (setq fontaine-presets
         '((default
@@ -64,26 +129,12 @@
            :fixed-pitch-family "SF Mono"
            :variable-pitch-family "SF Mono")))
 
-  ;; Explicitly apply Monaspace Radon to comment faces
-  ;; (fontaine's :italic-family doesn't auto-apply to font-lock-comment-face)
-  (defun hyalo-fonts--apply-comment-font ()
-    "Apply Monaspace Radon to comment faces."
-    (when (display-graphic-p)
-      (set-face-attribute 'font-lock-comment-face nil
-                          :family "Monaspace Radon Frozen"
-                          :slant 'normal)
-      (set-face-attribute 'font-lock-comment-delimiter-face nil
-                          :family "Monaspace Radon Frozen"
-                          :slant 'normal)))
-  (add-hook 'fontaine-set-preset-hook #'hyalo-fonts--apply-comment-font)
-  (add-hook 'after-init-hook #'hyalo-fonts--apply-comment-font)
-  (add-hook 'enable-theme-functions (lambda (&rest _) (hyalo-fonts--apply-comment-font)))
-
   (fontaine-mode 1)
   (fontaine-set-preset 'default)
 
   ;; Apply once immediately in case we are reloading
-  (hyalo-fonts--apply-comment-font))
+  (hyalo-fonts--apply-comment-font)
+  (hyalo-fonts-set-highlights))
 
 ;; -----------------------------------------------------------------------------
 ;; Mode-Specific Font Hooks
