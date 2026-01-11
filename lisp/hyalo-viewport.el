@@ -353,9 +353,9 @@ Combines post-command and window-config-change behavior."
   ;; Keep buffer-change hook separate (receives frame arg)
   (when (boundp 'window-buffer-change-functions)
     (add-hook 'window-buffer-change-functions #'hyalo-viewport--on-buffer-change))
-  ;; Enable smooth scrolling support
-  (when (fboundp 'pixel-scroll-precision-mode)
-    (pixel-scroll-precision-mode 1))
+  ;; Enable smooth scrolling support - if not using ultra-scroll
+  ;; (when (fboundp 'pixel-scroll-precision-mode)
+  ;;   (pixel-scroll-precision-mode 1))
   (setq scroll-preserve-screen-position 'always)
   ;; Setup Magit support
   (hyalo-viewport--setup-magit)

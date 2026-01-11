@@ -9,25 +9,8 @@
   (inhibit-startup-screen t)
   (inhibit-startup-message t)
   (inhibit-startup-echo-area-message t)
-  (initial-buffer-choice nil)
-  (initial-scratch-message ";; - *scratch*
-
-;; (require 'color)
-
-;; Towards using box instead of highlight for visible region indication
-;;
-
-;; (let* ((base-color (face-attribute 'default :background))
-;;        (tint-color (face-attribute 'highlight :background))
-;;        (alpha      0.9)
-;;        (blended-color (apply 'color-rgb-to-hex
-;;                              (color-blend (color-name-to-rgb tint-color)
-;;                                           (color-name-to-rgb base-color)
-;;                                           alpha))))
-;;   ;; Apply the face attribute
-;;   (set-face-attribute 'highlight nil
-;;                       :box (list :line-width -4
-;;                                  :color blended-color)))")
+  (initial-buffer-choice t)
+  (initial-scratch-message "")
   ;; Cursor
   (cursor-in-non-selected-windows nil)
   (cursor-type '(hbar . 2))

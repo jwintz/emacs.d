@@ -149,7 +149,7 @@
     "Dim whitespace faces to 10% of the default foreground color."
     (let* ((fg-color (face-attribute 'default :foreground nil t))
            (bg-color (face-attribute 'default :background nil t))
-           (alpha 0.2))
+           (alpha 0.15))
 
       ;; Ensure we have valid colors (sometimes nil during early init)
       (when (and (stringp fg-color) (stringp bg-color))
@@ -216,15 +216,6 @@
    (python-ts-mode . outline-indent-minor-mode)
    (yaml-mode . outline-indent-minor-mode)
    (yaml-ts-mode . outline-indent-minor-mode)))
-
-(use-package ultra-scroll
-  :ensure t
-  :vc (:url "https://github.com/jdtsmith/ultra-scroll")
-  :custom
-  (scroll-conservatively 3)
-  (scroll-margin 0)
-  :config
-  (ultra-scroll-mode 1))
 
 (provide 'init-editing)
 

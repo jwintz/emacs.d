@@ -15,6 +15,17 @@
   (set-frame-parameter nil 'ns-transparent-titlebar t)
   (general-unbind "C-z" "C-x C-z"))
 
+;;;; Better scrolling
+
+(use-package ultra-scroll
+  :ensure t
+  :vc (:url "https://github.com/jdtsmith/ultra-scroll")
+  ;; :custom
+  ;; (scroll-conservatively 3)
+  ;; (scroll-margin 0)
+  :config
+  (ultra-scroll-mode 1))
+
 ;;;; Hyalo Core Module
 
 (use-package hyalo
@@ -54,8 +65,10 @@
   :demand t
   :preface
   (defvar hyalo-profiles
-    '((light . (:appearance light :theme ef-summer        :vibrancy "regular" :opacity 0.6))
-      (dark  . (:appearance dark  :theme ef-melissa-dark  :vibrancy "regular" :opacity 0.6)))
+    '((light . (:appearance light :theme ef-summer       :vibrancy "regular" :opacity 0.6))
+      (dark  . (:appearance dark  :theme ef-melissa-dark :vibrancy "regular" :opacity 0.6))
+      (shell . (:appearance dark  :theme kaolin-temple   :vibrancy "regular" :opacity 0.6))
+      (notes . (:appearance dark  :theme kaolin-eclispe  :vibrancy "regular" :opacity 0.6)))
     "Alist of Hyalo appearance profiles.")
 
   (defun hyalo-set-highlights (&rest _)
@@ -197,8 +210,8 @@
   :custom
   (hyalo-viewport-debug nil)
   (hyalo-viewport-excluded-modes '(agent-shell-mode
-                                          agent-shell-viewport-view-mode
-                                          agent-shell-viewport-edit-mode))
+                                   agent-shell-viewport-view-mode
+                                   agent-shell-viewport-edit-mode))
   :config
   (hyalo-viewport-mode 1))
 

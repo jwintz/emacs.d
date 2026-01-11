@@ -24,9 +24,9 @@
 (use-package orderless
   :ensure t
   :custom
-  (completion-styles '(orderless basic))
+  (completion-styles '(basic partial-completion orderless))
   (completion-category-defaults nil)
-  (completion-category-overrides '((file (styles partial-completion orderless))))
+  (completion-category-overrides nil)
   (orderless-component-separator #'orderless-escapable-split-on-space))
 
 (use-package consult

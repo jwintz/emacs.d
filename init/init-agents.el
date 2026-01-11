@@ -11,7 +11,7 @@
   (copilot-idle-delay 0.2)
   (copilot-indent-offset-warning-disable t)
   (copilot-install-dir (locate-user-emacs-file "copilot/"))
-  :hook ((prog-mode text-mode) . copilot-mode)
+;;:hook ((prog-mode text-mode) . copilot-mode)
   :config
   (diminish 'copilot-mode (concat " " (nerd-icons-codicon "nf-cod-copilot")))
 

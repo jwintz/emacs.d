@@ -5,9 +5,9 @@
 (defvar rcirc-track-minor-mode nil) ;; Fix doom-modeline error
 
 (use-package which-func
-  :ensure nil
-  :config
-  (which-function-mode 1))
+  :ensure nil)
+  ;; :config
+  ;; (which-function-mode 1))
 
 (use-package keycast
   :ensure t
@@ -24,7 +24,7 @@
 				 (space . "SPC")
 				 (tab . "TAB")
 				 (backspace . "BS")))
-  (keycast-show-mouse-buttons nil)
+  ;; (keycast-show-mouse-buttons nil)
   :config
   ;; Keycast uses mode-line-misc-info, which doom-modeline displays via misc-info segment
   (defun hyalo-keycast-update-safe ()
@@ -61,9 +61,9 @@ This prevents keycast from flickering/disappearing when demap updates."
           (add-to-list 'mode-line-misc-info '("" keycast-mode-line " ")))
       (progn
         (remove-hook 'pre-command-hook 'hyalo-keycast-update-safe)
-        (setq mode-line-misc-info (delete '("" keycast-mode-line " ") mode-line-misc-info)))))
+        (setq mode-line-misc-info (delete '("" keycast-mode-line " ") mode-line-misc-info))))))
 
-  (keycast-mode 1))
+  ;;(keycast-mode 1))
 
 (use-package doom-modeline
   :ensure t

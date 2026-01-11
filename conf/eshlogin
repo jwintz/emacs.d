@@ -3,4 +3,6 @@
 # Environment setup
 # Note: PATH is inherited from Emacs process
 
+# (setenv "TERM" "xterm-256color")
+
 (message "eshlogin loaded")

@@ -5,11 +5,12 @@
 (use-package eshell
   :bind ("C-c s s" . eshell)
   :init
-  ;; eshell-error-if-no-glob t
-  ;; eshell-prefer-lisp-functions nil
+  (setq eshell-error-if-no-glob t)
+  (setq eshell-prefer-lisp-functions nil)
   (setq eshell-save-history-on-exit t)
   (setq eshell-hist-ignoredups t)
   (setq eshell-scroll-to-bottom-on-input 'all)
+  (setq eshell-scroll-to-bottom-on-output 'all)
   (setq eshell-destroy-buffer-when-process-dies t)
   (setq eshell-login-script (expand-file-name "conf/eshlogin" emacs-config-dir))
   (setq eshell-rc-script (expand-file-name "conf/eshrc" emacs-config-dir))
