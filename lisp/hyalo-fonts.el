@@ -136,6 +136,22 @@ proper visual hierarchy without relying solely on colors."
   (hyalo-fonts--apply-comment-font)
   (hyalo-fonts-set-highlights))
 
+(defun hyalo-fonts--fix-line-numbers ()
+  "Ensure line number faces use SF Mono at 0.9 height.
+Prevents line height changes when toggling display-line-numbers-mode."
+  (when (display-graphic-p)
+    (dolist (face '(line-number line-number-current-line))
+      (when (facep face)
+        (set-face-attribute face nil
+                            :family "SF Mono"
+                            :height 0.9
+                            :weight 'normal)))))
+
+(add-hook 'fontaine-set-preset-hook #'hyalo-fonts--fix-line-numbers)
+(add-hook 'enable-theme-functions (lambda (&rest _) (hyalo-fonts--fix-line-numbers)))
+;; Apply immediately
+(hyalo-fonts--fix-line-numbers)
+
 ;; -----------------------------------------------------------------------------
 ;; Mode-Specific Font Hooks
 ;; -----------------------------------------------------------------------------

@@ -6,8 +6,6 @@
   :ensure t
   :demand t)
 
-
-
 (use-package general
   :ensure t
   :demand t

@@ -137,7 +137,7 @@ Returns the created frame."
   (let* ((parent (selected-frame))
          ;; Create font-spec safely - catch any errors from malformed face specs
          (safe-font (condition-case nil
-                        (font-spec :family (or hyalo-sidebar-font "Menlo")
+                        (font-spec :family (or hyalo-sidebar-font "SF Mono")
                                    :height hyalo-sidebar-font-height
                                    :weight 'regular)
                       (error nil)))

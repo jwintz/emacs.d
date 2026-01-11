@@ -4,6 +4,7 @@
 
 (use-package project
   :ensure nil
+  :defer t
   :general
   (leader-def
     "p f" '(project-find-file :wk "find file")
@@ -45,7 +46,7 @@
   :config
   ;; Ensure margin module is loaded
   (require 'diff-hl-margin)
-  
+
   (defun hyalo-diff-hl--update-faces (&rest _)
     "Update diff-hl margin colors from theme."
     (let ((insert-fg (or (face-foreground 'success nil t)
@@ -60,16 +61,16 @@
       (set-face-attribute 'diff-hl-insert nil :foreground insert-fg :background 'unspecified)
       (set-face-attribute 'diff-hl-delete nil :foreground delete-fg :background 'unspecified)
       (set-face-attribute 'diff-hl-change nil :foreground change-fg :background 'unspecified)))
-  
+
   (add-hook 'enable-theme-functions #'hyalo-diff-hl--update-faces)
   (hyalo-diff-hl--update-faces)
-  
+
   ;; Force enable in correct order
   (global-diff-hl-mode 1)
   (diff-hl-margin-mode 1)
   (diff-hl-flydiff-mode 1)
   (add-hook 'magit-post-refresh-hook #'diff-hl-magit-post-refresh)
-  
+
   ;; Safety: Ensure margins are actually allocated
   (defun hyalo-diff-hl-ensure-margins ()
     "Ensure window margins are allocated for diff-hl."
@@ -77,7 +78,7 @@
       (unless (= right-margin-width 1)
         (setq right-margin-width 1)
         (set-window-buffer (selected-window) (current-buffer)))))
-        
+
   (add-hook 'window-configuration-change-hook #'hyalo-diff-hl-ensure-margins)
   (add-hook 'diff-hl-mode-hook #'hyalo-diff-hl-ensure-margins))
 
@@ -176,11 +177,13 @@
 
 (use-package swift-mode
   :ensure t
+  :defer t
   :mode "\\.swift\\'")
 
 (use-package eglot
   :disabled t
   :ensure nil
+  :defer t
   :hook (swift-mode . eglot-ensure)
   :config
   (add-to-list 'eglot-server-programs

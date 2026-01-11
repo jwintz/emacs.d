@@ -660,7 +660,7 @@ Extracts ALL text, including non-interactive spans (for icons)."
                                          (hyalo-header--extract-menu-items menu))))
                                     (t nil)))
                        (command (when (and (not menu-items) (commandp menu-binding))
-                                  (symbol-name menu-binding))))
+                                  (if (symbolp menu-binding) (symbol-name menu-binding) ""))))
                   ;; Only add non-empty, non-whitespace-only segments
                   (when (string-match-p "[^ \t]" text)
                     ;; Trim leading/trailing whitespace for clean Swift display
@@ -690,7 +690,7 @@ Extracts ALL text, including non-interactive spans (for icons)."
                  (menu-items (when (keymapp menu-binding)
                                (hyalo-header--extract-menu-items menu-binding)))
                  (command (when (and (not menu-items) (commandp menu-binding))
-                            (symbol-name menu-binding))))
+                            (if (symbolp menu-binding) (symbol-name menu-binding) ""))))
             (when (string-match-p "[^ \t]" text)
               ;; Trim leading/trailing whitespace for clean Swift display
               (let ((trimmed-text (string-trim text)))

@@ -4,6 +4,7 @@
 
 (use-package copilot
   :ensure t
+  :defer t
   :vc (:url "https://github.com/copilot-emacs/copilot.el"
             :rev :newest
             :branch "main")
@@ -51,6 +52,7 @@
 
 (use-package agent-shell
   :ensure t
+  :defer t
   :vc (:url "https://github.com/xenodium/agent-shell"
             :rev :newest)
   :custom

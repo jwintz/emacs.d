@@ -100,7 +100,6 @@
 
   (advice-add 'modus-themes-select-light :after #'hyalo-switch-to-light)
   (advice-add 'modus-themes-load-random-light :after #'hyalo-switch-to-light))
-
 (use-package ef-themes
   :ensure t
   :after modus-themes
@@ -226,7 +225,8 @@
                          (derived-mode-p 'diffview-mode)))))))))
 
 (use-package olivetti
-  :ensure t)
+  :ensure t
+  :defer t)
 
 (provide 'init-appearance)
 
