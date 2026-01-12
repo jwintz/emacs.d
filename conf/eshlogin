@@ -1,46 +1,45 @@
-;;; -*- mode: emacs-lisp; lexical-binding: t; -*-
+(progn
+  ;; Eshell login script - runs once per session
 
-;; Eshell login script - runs once per session
-;; Dynamically configures PATH for Node (NVM), Pixi, and local binaries
+  (message "eshlogin: configuring environment...")
 
-(message "eshlogin: configuring environment...")
+  (defun hyalo--add-to-path (path)
+    "Prepend PATH to `exec-path' and PATH env var if not already present.
+This function ensures paths are added only once to avoid duplication."
+    (when (and path (file-directory-p path))
+      (unless (member path exec-path)
+        (setq exec-path (cons path exec-path))
+        (setenv "PATH" (concat path path-separator (getenv "PATH"))))))
 
-(defun hyalo--add-to-path (path)
-  "Prepend PATH to `exec-path' and PATH env var if not already present."
-  (when (and path (file-directory-p path))
-    (unless (member path exec-path)
-      (setq exec-path (cons path exec-path))
-      (setenv "PATH" (concat path path-separator (getenv "PATH"))))))
+  ;; 1. Add .local/bin (user scripts)
+  (hyalo--add-to-path (expand-file-name ".local/bin" (getenv "HOME")))
 
-;; 1. .local/bin
-(hyalo--add-to-path (expand-file-name ".local/bin" (getenv "HOME")))
+  ;; 2. Add Pixi binaries
+  (hyalo--add-to-path (expand-file-name ".pixi/bin" (getenv "HOME")))
 
-;; 2. Pixi
-(hyalo--add-to-path (expand-file-name ".pixi/bin" (getenv "HOME")))
+  ;; 3. NVM (Node Version Manager) integration
+  (let* ((nvm-dir (expand-file-name ".nvm" (getenv "HOME")))
+         (alias-default (expand-file-name "alias/default" nvm-dir)))
+    (when (file-directory-p nvm-dir)
+      (let ((version "node"))
+        ;; Try to read default alias
+        (when (file-exists-p alias-default)
+          (with-temp-buffer
+            (insert-file-contents alias-default)
+            (setq version (string-trim (buffer-string)))))
 
-;; 3. NVM (Node Version Manager)
-(let* ((nvm-dir (expand-file-name ".nvm" (getenv "HOME")))
-       (alias-default (expand-file-name "alias/default" nvm-dir)))
-  (when (file-directory-p nvm-dir)
-    (let ((version "node"))
-      ;; Try to read default alias
-      (when (file-exists-p alias-default)
-        (with-temp-buffer
-          (insert-file-contents alias-default)
-          (setq version (string-trim (buffer-string)))))
+        ;; If alias is generic "node", find latest version directory
+        (when (string= version "node")
+          (let ((versions-dir (expand-file-name "versions/node" nvm-dir)))
+            (when (file-directory-p versions-dir)
+              (let ((versions (directory-files versions-dir nil "^v[0-9]")))
+                (when versions
+                  (setq version (car (last (sort versions #'string-version-lessp)))))))))
 
-      ;; If alias is generic "node", find latest version directory
-      (when (string= version "node")
-        (let ((versions-dir (expand-file-name "versions/node" nvm-dir)))
-          (when (file-directory-p versions-dir)
-            (let ((versions (directory-files versions-dir nil "^v[0-9]")))
-              (when versions
-                (setq version (car (last (sort versions #'string-version-lessp)))))))))
+        ;; Construct and add bin path
+        (hyalo--add-to-path (expand-file-name (format "versions/node/%s/bin" version) nvm-dir)))))
 
-      ;; Construct and add bin path
-      (hyalo--add-to-path (expand-file-name (format "versions/node/%s/bin" version) nvm-dir)))))
+  ;; Specific to Eshell: synchronizes command lookup and completion
+  (setq eshell-path-env (getenv "PATH"))
 
-;; Specific to Eshell: synchronizes command lookup and completion
-(setq eshell-path-env (getenv "PATH"))
-
-(message "eshlogin: environment ready")
+  (message "eshlogin: environment ready"))
