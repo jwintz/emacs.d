@@ -4,8 +4,9 @@
 
 (use-package copilot
   :ensure t
-  :defer t
   :commands (copilot-mode)
+  :init
+  (autoload 'copilot-mode "copilot" "Copilot" t)
   :vc (:url "https://github.com/copilot-emacs/copilot.el"
             :rev :newest
             :branch "main")
@@ -13,14 +14,9 @@
   (copilot-idle-delay 0.2)
   (copilot-indent-offset-warning-disable t)
   (copilot-install-dir (locate-user-emacs-file "copilot/"))
-;;:hook ((prog-mode text-mode) . copilot-mode)
+  ;;:hook ((prog-mode text-mode) . copilot-mode)
   :config
   (diminish 'copilot-mode (concat " " (nerd-icons-codicon "nf-cod-copilot")))
-
-  (let ((server-bin (expand-file-name "bin" copilot-install-dir)))
-    (unless (file-directory-p server-bin)
-      (when (yes-or-no-p "Copilot language server not installed. Install now? ")
-        (copilot-install-server))))
 
   (general-def copilot-completion-map
     "<tab>" 'copilot-accept-completion
