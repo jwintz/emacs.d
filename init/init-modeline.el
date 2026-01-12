@@ -71,6 +71,24 @@ This prevents keycast from flickering/disappearing when demap updates."
   :config
   (doom-modeline-mode 1)
 
+  ;; Define custom Copilot segment
+  (doom-modeline-def-segment hyalo-copilot
+    "Display Copilot status."
+    (when (bound-and-true-p copilot-mode)
+      (let ((color (if (copilot--overlay-visible)
+                       (face-attribute 'success :foreground)
+                     (face-attribute 'shadow :foreground))))
+        (concat
+         (doom-modeline-spc)
+         (nerd-icons-octicon "nf-oct-copilot"
+                             :face `(:inherit doom-modeline-icon :foreground ,color)
+                             :v-adjust -0.1)))))
+
+  ;; Redefine main modeline to include hyalo-copilot at the end of RHS
+  (doom-modeline-def-modeline 'main
+    '(bar matches buffer-info remote-host buffer-position parrot selection-info)
+    '(misc-info minor-modes input-method indent-info buffer-encoding major-mode process vcs check hyalo-copilot))
+
   :custom
   (doom-modeline-height 22)
   (doom-modeline-bar-width 4)
