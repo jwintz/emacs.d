@@ -97,45 +97,8 @@
 ;;; Environment & Shell
 ;;; ===========================================================================
 
-;; Protect against mode variable checks during package install
-(defvar cua-mode nil)
-(defvar display-battery-mode nil)
-(defvar display-time-mode nil)
-(defvar size-indication-mode nil)
-(defvar column-number-mode nil)
-(defvar recentf-mode nil)
-(defvar global-auto-revert-mode nil)
-(defvar save-place-mode nil)
-
-(defvar hyalo-env-cache-file (expand-file-name "env-cache.el" user-emacs-directory))
-
-(defun hyalo-refresh-env ()
-  "Force refresh of environment variables from shell."
-  (interactive)
-  (when (file-exists-p hyalo-env-cache-file)
-    (delete-file hyalo-env-cache-file))
-  (message "Environment cache cleared. Restart Emacs to refresh."))
-
-(if (and (file-exists-p hyalo-env-cache-file)
-         (not (member "-no-env-cache" command-line-args)))
-    (load hyalo-env-cache-file 'noerror 'nomessage)
-  (use-package exec-path-from-shell
-    :ensure t
-    :demand t
-    :custom
-    (exec-path-from-shell-debug t)
-    (exec-path-from-shell-check-startup-files nil)
-    (exec-path-from-shell-warn-duration-millis 10000)
-    :config
-    (when (memq window-system '(mac ns x))
-      (exec-path-from-shell-copy-env "PATH")
-      (with-temp-file hyalo-env-cache-file
-        (insert
-         (format ";; Cached environment variables. Run M-x hyalo-refresh-env to update.\n")
-         (format "(setenv \"PATH\" \"%s\")\n" (getenv "PATH"))
-         (format "(setq exec-path '%S)\n" exec-path))))))
-
-(hyalo-log-step "Exec-path-from-shell loaded")
+;; Initialize environment (PATH, exec-path)
+(load (expand-file-name "conf/eshlogin" emacs-config-dir) 'noerror 'nomessage)
 
 (provide 'init-bootstrap)
 ;;; init-bootstrap.el ends here

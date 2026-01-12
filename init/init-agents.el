@@ -5,6 +5,7 @@
 (use-package copilot
   :ensure t
   :defer t
+  :commands (copilot-mode)
   :vc (:url "https://github.com/copilot-emacs/copilot.el"
             :rev :newest
             :branch "main")

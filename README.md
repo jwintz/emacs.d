@@ -96,6 +96,37 @@ This will:
 
 ---
 
+## Package Management
+
+Hyalo uses `package.el` with `use-package` for configuration. To ensure fast startup and stability, package contents are **not** refreshed automatically on launch.
+
+### Update Workflow
+
+1.  **Installing New Packages**:
+    Add the `(use-package ...)` block to your config and restart. If the package is not found, run `M-x package-refresh-contents` manually and try again.
+
+2.  **Updating Packages**:
+    - **ELPA/MELPA**: Run `M-x list-packages`, press `U` to mark upgrades, and `x` to execute.
+    - **Git/Source Packages**: Run `M-x package-vc-upgrade-all` to update packages installed via `:vc`.
+
+---
+
+## Shell & Environment
+
+Hyalo manages its environment variables (specifically `PATH` and `exec-path`) using a native Elisp-based approach, replacing the need for external tools like `exec-path-from-shell`.
+
+### Dynamic Path Resolution
+
+The configuration in `conf/eshlogin` is loaded at startup to dynamically resolve and prepend critical paths to the environment:
+
+- **Node.js (NVM)**: Automatically resolves the default Node version path from `~/.nvm` by reading aliases or detecting the latest installed version.
+- **Pixi**: Adds `~/.pixi/bin` if present.
+- **Local Binaries**: Adds `~/.local/bin` if present.
+
+This ensures that language servers (LSP), compilers, and Eshell commands are always available without requiring manual path management or slow shell-spawning during startup.
+
+---
+
 ## Core Libraries (`lisp/`)
 
 Custom Elisp libraries providing Hyalo functionality and TTY-compatible utilities.
