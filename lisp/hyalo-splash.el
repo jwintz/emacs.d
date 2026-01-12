@@ -262,7 +262,7 @@ Splash is not shown if:
   ;; Remove hooks
   (remove-hook 'window-configuration-change-hook #'hyalo-splash--maybe-kill)
   ;; Kill the buffer
-  (when-let ((buf (get-buffer hyalo-splash--buffer-name)))
+  (when-let* ((buf (get-buffer hyalo-splash--buffer-name)))
     (kill-buffer buf))
   ;; Clear any message
   (message nil))

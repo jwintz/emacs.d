@@ -226,7 +226,9 @@
 
 (use-package olivetti
   :ensure t
-  :defer t)
+  :defer t
+  :init
+  (autoload 'olivetti-mode "olivetti" "Writing mode" t))
 
 ;;;; Splash Screen
 
