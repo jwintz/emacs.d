@@ -150,6 +150,7 @@ Custom Elisp libraries providing Hyalo functionality and TTY-compatible utilitie
 | **hyalo-tengwar.el**       | Tengwar script rendering             | `hyalo-tengwar-minor-mode`, `hyalo-tengwar-partial-mode`           |
 | **hyalo-system.el**        | macOS system integration             | `hyalo-reveal-in-finder`, `hyalo-share`, `hyalo-show-emoji-picker` |
 | **hyalo-agent-extras.el**  | Agent-shell UI customization         | *(automatic)*                                                      |
+| **hyalo-splash.el**        | Startup splash screen                | `hyalo-splash`, `hyalo-splash-setup`                               |
 
 ### Iota Libraries (TTY Compatible)
 
@@ -171,6 +172,7 @@ Custom Elisp libraries providing Hyalo functionality and TTY-compatible utilitie
 | hyalo-viewport   | `window-scroll-functions`, `post-command-hook`, `window-configuration-change-hook`              |
 | hyalo-sidebar    | `dired-sidebar-mode-hook`, `agent-shell-mode-hook`, `buffer-list-update-hook`                   |
 | hyalo-tengwar    | `post-command-hook`, `window-scroll-functions`                                                  |
+| hyalo-splash     | `window-setup-hook`, `window-configuration-change-hook`                                         |
 | hyalo-fonts      | `fontaine-set-preset-hook`, `enable-theme-functions`                                            |
 | iota-dimmer      | `window-selection-change-functions`, `after-focus-change-function`                              |
 
@@ -272,6 +274,21 @@ Three pre-configured profiles for different contexts:
 | **Dark**  | Dark       | `ef-melissa-dark` | regular  | 0.60    |
 
 Switch profiles with `C-c l .` or `M-x hyalo-load-profile`.
+
+---
+
+## SVG Transparency with Alpha-Background
+
+When using `alpha-background` for frame transparency, SVG images by default render with an opaque canvas (Emacs/librsvg limitation). To achieve true transparency:
+
+```elisp
+(create-image svg-data 'svg t
+              :mask 'heuristic)
+```
+
+The `:mask 'heuristic` property instructs Emacs to detect and mask transparent regions, allowing the frame's alpha-background to show through. This is currently the only reliable method for transparent SVG rendering in frames with `alpha-background`.
+
+**Note**: Without `:mask 'heuristic`, transparent SVG regions are filled with the `default` face background color.
 
 ---
 

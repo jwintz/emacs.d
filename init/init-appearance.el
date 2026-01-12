@@ -228,6 +228,24 @@
   :ensure t
   :defer t)
 
+;;;; Splash Screen
+
+(use-package hyalo-splash
+  :ensure nil
+  :if (display-graphic-p)
+  :defer t
+  :init
+  ;; Lightweight setup - just inhibit default splash and schedule ours
+  (when (and (not noninteractive)
+             (not (member "-no-splash" command-line-args))
+             (not (member "--file" command-line-args))
+             (not (member "--find-file" command-line-args)))
+    (setq inhibit-startup-screen t
+          inhibit-startup-message t
+          inhibit-startup-echo-area-message (user-login-name))
+    (add-hook 'window-setup-hook
+              (lambda () (require 'hyalo-splash) (hyalo-splash)))))
+
 (provide 'init-appearance)
 
 ;;; init-appearance.el ends here
