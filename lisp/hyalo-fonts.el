@@ -224,9 +224,11 @@ Also configures cursor style and header-line font."
     (message "DEBUG hyalo-fonts: setting input font to %s height %s" family height)
     (face-remap-add-relative 'default :family family :height height)
     ;; Header-line must have explicit family and height to display correctly
-    ;; even when the window is not selected
+    ;; even when the window is not selected (Emacs 29+ uses header-line-inactive)
     (message "DEBUG hyalo-fonts: setting header-line font explicitly")
-    (face-remap-add-relative 'header-line :family family :height height))
+    (face-remap-add-relative 'header-line :family family :height height)
+    (when (facep 'header-line-inactive)
+      (face-remap-add-relative 'header-line-inactive :family family :height height)))
   ;; Cursor style: horizontal bar
   (message "DEBUG hyalo-fonts: setting cursor-type to (hbar . 2)")
   (setq-local cursor-type '(hbar . 2)))
