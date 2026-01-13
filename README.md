@@ -150,6 +150,7 @@ Custom Elisp libraries providing Hyalo functionality and TTY-compatible utilitie
 | **hyalo-tengwar.el**       | Tengwar script rendering             | `hyalo-tengwar-minor-mode`, `hyalo-tengwar-partial-mode`           |
 | **hyalo-system.el**        | macOS system integration             | `hyalo-reveal-in-finder`, `hyalo-share`, `hyalo-show-emoji-picker` |
 | **hyalo-splash.el**        | Startup splash screen                | `hyalo-splash`, `hyalo-splash-setup`                               |
+| **hyalo-agent.el** | SVG backgrounds for pi-coding-agent | *(automatic via hook)*                                             |
 
 ### Iota Libraries (TTY Compatible)
 
@@ -173,6 +174,7 @@ Custom Elisp libraries providing Hyalo functionality and TTY-compatible utilitie
 | hyalo-tengwar    | `post-command-hook`, `window-scroll-functions`                                                  |
 | hyalo-splash     | `window-setup-hook`, `window-configuration-change-hook`                                         |
 | hyalo-fonts      | `fontaine-set-preset-hook`, `enable-theme-functions`                                            |
+| hyalo-agent | `enable-theme-functions`, `window-configuration-change-hook`, `after-change-functions`     |
 | iota-dimmer      | `window-selection-change-functions`, `after-focus-change-function`                              |
 
 </details>

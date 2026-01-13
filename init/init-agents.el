@@ -62,6 +62,11 @@
   :hook
   (pi-coding-agent-chat-mode . (lambda ()
                                  (face-remap-add-relative 'default :family "Monaspace Krypton")))
+  :init
+  ;; Set up SVG backgrounds for tool blocks (Hyalo transparency compatibility)
+  (with-eval-after-load 'hyalo
+    (require 'hyalo-agent)
+    (hyalo-agent-setup))
   :config
   ;; Use a smaller input window for embedded sidebar
   (setq pi-coding-agent-input-window-height 6)
