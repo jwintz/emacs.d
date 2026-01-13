@@ -218,7 +218,11 @@ If FACE is provided, apply it to the text."
   (buffer-disable-undo)
   ;; Add window resize hook for re-centering
   (add-hook 'window-size-change-functions
-            #'hyalo-splash--on-window-resize nil t))
+            #'hyalo-splash--on-window-resize nil t)
+  ;; Ensure chrome is restored when buffer is killed by any means
+  (add-hook 'kill-buffer-hook #'hyalo-splash--on-kill nil t)
+  ;; Also check when buffer is buried/hidden
+  (add-hook 'buffer-list-update-hook #'hyalo-splash--check-visibility))
 
 (defun hyalo-splash--on-window-resize (frame)
   "Refresh splash when window is resized.
@@ -229,6 +233,45 @@ FRAME is the frame that changed."
       (when (eq major-mode 'hyalo-splash-mode)
         ;; Recreate the buffer content with new centering
         (hyalo-splash--create-buffer)))))
+
+(defun hyalo-splash--on-kill ()
+  "Called when splash buffer is killed. Restore chrome visibility."
+  ;; Mark splash as inactive
+  (setq hyalo-splash--active nil)
+  (setq hyalo-splash--check-pending nil)
+  ;; Remove hooks
+  (remove-hook 'window-configuration-change-hook #'hyalo-splash--maybe-kill)
+  (remove-hook 'buffer-list-update-hook #'hyalo-splash--check-visibility)
+  ;; Cancel any pending timer
+  (when hyalo-splash--kill-timer
+    (cancel-timer hyalo-splash--kill-timer)
+    (setq hyalo-splash--kill-timer nil))
+  ;; Show chrome
+  (when (fboundp 'hyalo-set-decorations-visible)
+    (hyalo-set-decorations-visible t)))
+
+(defvar hyalo-splash--active nil
+  "Non-nil when splash is fully displayed and should be monitored.")
+
+(defvar hyalo-splash--check-pending nil
+  "Non-nil when a visibility check is scheduled.")
+
+(defun hyalo-splash--check-visibility ()
+  "Schedule a deferred check if splash buffer is still visible."
+  (when (and hyalo-splash--active
+             (not hyalo-splash--check-pending)
+             (get-buffer hyalo-splash--buffer-name))
+    (setq hyalo-splash--check-pending t)
+    (run-with-timer 0 nil #'hyalo-splash--do-check-visibility)))
+
+(defun hyalo-splash--do-check-visibility ()
+  "Actually check if splash buffer is still visible, kill it if not."
+  (setq hyalo-splash--check-pending nil)
+  (when (and hyalo-splash--active
+             (get-buffer hyalo-splash--buffer-name))
+    ;; If splash buffer exists but is not displayed in any window, kill it
+    (unless (get-buffer-window (get-buffer hyalo-splash--buffer-name) t)
+      (hyalo-splash-kill))))
 
 ;;; Lifecycle Management
 
@@ -255,18 +298,9 @@ Splash is not shown if:
 (defun hyalo-splash-kill ()
   "Kill the splash screen buffer immediately."
   (interactive)
-  ;; Cancel any pending timer
-  (when hyalo-splash--kill-timer
-    (cancel-timer hyalo-splash--kill-timer)
-    (setq hyalo-splash--kill-timer nil))
-  ;; Remove hooks
-  (remove-hook 'window-configuration-change-hook #'hyalo-splash--maybe-kill)
-  ;; Kill the buffer
+  ;; Kill the buffer (cleanup handled by kill-buffer-hook via hyalo-splash--on-kill)
   (when-let* ((buf (get-buffer hyalo-splash--buffer-name)))
     (kill-buffer buf))
-  ;; Show chrome when splash is dismissed
-  (when (fboundp 'hyalo-set-decorations-visible)
-    (hyalo-set-decorations-visible t))
   ;; Clear any message
   (message nil))
 
@@ -297,6 +331,8 @@ Splash is not shown if:
     (let ((splash-buffer (hyalo-splash--create-buffer)))
       ;; Display in current window
       (switch-to-buffer splash-buffer)
+      ;; Mark splash as active (enables visibility monitoring)
+      (setq hyalo-splash--active t)
       ;; Clear any startup messages
       (run-with-idle-timer 0.05 nil (lambda () (message nil)))
       ;; Set up auto-kill on window config change
