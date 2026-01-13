@@ -12,6 +12,7 @@ import SwiftUI
 struct SidebarSectionHeader: View {
     let title: String
     let systemImage: String
+    var subtitle: String = ""
     var isBusy: Bool = false
     var isFirst: Bool = false
 
@@ -19,30 +20,46 @@ struct SidebarSectionHeader: View {
 
     /// Standard margin matching embedded frame padding
     private let sideMargin: CGFloat = 12
+    /// Icon width + spacing to align subtitle with title
+    private let iconWidth: CGFloat = 10
+    private let iconSpacing: CGFloat = 6
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemImage)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.secondary)
-                .symbolEffect(.pulse, isActive: isBusy)
-                .rotationEffect(.degrees(rotation))
-                .onChange(of: isBusy, initial: true) { _, busy in
-                    if busy {
-                        rotation = 0
-                        withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
-                            rotation = 360
-                        }
-                    } else {
-                        withAnimation(.default) {
+        VStack(alignment: .leading, spacing: 2) {
+            // Primary row: icon + title
+            HStack(spacing: iconSpacing) {
+                Image(systemName: systemImage)
+                    .font(.system(size: iconWidth, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .symbolEffect(.pulse, isActive: isBusy)
+                    .rotationEffect(.degrees(rotation))
+                    .onChange(of: isBusy, initial: true) { _, busy in
+                        if busy {
                             rotation = 0
+                            withAnimation(.linear(duration: 2).repeatForever(autoreverses: false)) {
+                                rotation = 360
+                            }
+                        } else {
+                            withAnimation(.default) {
+                                rotation = 0
+                            }
                         }
                     }
-                }
-            Text(title)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(.secondary)
-            Spacer()
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+            }
+            // Secondary row: subtitle (token stats), aligned with title
+            if !subtitle.isEmpty {
+                Text(subtitle)
+                    .font(.system(size: 9, weight: .regular, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help(subtitle)  // Full text in tooltip on hover
+                    .padding(.leading, iconWidth + iconSpacing)  // Align with title
+            }
         }
         .padding(.horizontal, sideMargin)
         .padding(.top, isFirst ? 6 : sideMargin)
@@ -256,6 +273,7 @@ struct DetailPlaceholderView: View {
                     SidebarSectionHeader(
                         title: state.inspectorTitle.uppercased(),
                         systemImage: state.inspectorIcon,
+                        subtitle: state.inspectorSubtitle,
                         isBusy: state.inspectorBusy
                     )
                     EmbeddedEmacsView(embeddedView: rightView, originalWindow: state.rightWindow, slot: "right", onResize: onResize)

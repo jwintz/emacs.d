@@ -163,8 +163,8 @@ final class NavigationSidebarManager {
         controllers[window.windowNumber]?.toggleDecorations()
     }
 
-    func setInspectorHeader(for window: NSWindow, title: String, icon: String, busy: Bool) {
-        controllers[window.windowNumber]?.setInspectorHeader(title: title, icon: icon, busy: busy)
+    func setInspectorHeader(for window: NSWindow, title: String, icon: String, busy: Bool, subtitle: String = "") {
+        controllers[window.windowNumber]?.setInspectorHeader(title: title, icon: icon, busy: busy, subtitle: subtitle)
     }
 
     func areDecorationsVisible(for window: NSWindow) -> Bool {

@@ -432,11 +432,12 @@ final class NavigationSidebarController: NSObject {
         state.sidebarVisible
     }
 
-    func setInspectorHeader(title: String, icon: String, busy: Bool) {
-        print("[NavigationSidebarController] setInspectorHeader. Title: \(title), Busy: \(busy)")
+    func setInspectorHeader(title: String, icon: String, busy: Bool, subtitle: String = "") {
+        print("[NavigationSidebarController] setInspectorHeader. Title: \(title), Busy: \(busy), Subtitle: \(subtitle)")
         state.inspectorTitle = title
         state.inspectorIcon = icon
         state.inspectorBusy = busy
+        state.inspectorSubtitle = subtitle
     }
 
     // MARK: - Detail Panel

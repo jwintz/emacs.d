@@ -582,16 +582,17 @@ final class HyaloModule: Module {
             "hyalo-set-inspector-header",
             with: """
             Set the inspector header properties.
-            TITLE: The title string.
+            TITLE: The title string (e.g., model name).
             ICON: The SF Symbols icon name.
             BUSY: Whether to animate the icon (boolean).
+            SUBTITLE: Optional secondary text (e.g., token usage stats).
             """
-        ) { (env: Environment, title: String, icon: String, busy: Bool) throws -> Bool in
-            print("[Hyalo Module] hyalo-set-inspector-header called with title: \(title), busy: \(busy)")
+        ) { (env: Environment, title: String, icon: String, busy: Bool, subtitle: String) throws -> Bool in
+            print("[Hyalo Module] hyalo-set-inspector-header called with title: \(title), busy: \(busy), subtitle: \(subtitle)")
             if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
-                    NavigationSidebarManager.shared.setInspectorHeader(for: window, title: title, icon: icon, busy: busy)
+                    NavigationSidebarManager.shared.setInspectorHeader(for: window, title: title, icon: icon, busy: busy, subtitle: subtitle)
                 }
                 return true
             }

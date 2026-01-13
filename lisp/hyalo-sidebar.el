@@ -307,7 +307,10 @@ Sets up the two-window layout (chat + input) inside the frame."
               (hyalo-fonts--pi-coding-agent-chat-fonts)))
           (with-current-buffer input-buf
             (when (fboundp 'hyalo-fonts--pi-coding-agent-input-fonts)
-              (hyalo-fonts--pi-coding-agent-input-fonts)))
+              (hyalo-fonts--pi-coding-agent-input-fonts))
+            ;; Hide header-line - content is shown in Swift header instead
+            ;; We call pi-coding-agent--header-line-string directly for updates
+            (setq header-line-format nil))
           ;; Focus input window for typing
           (select-window input-win)))
       (message "DEBUG sidebar: finished window layout setup")
@@ -345,7 +348,117 @@ Sets up the two-window layout (chat + input) inside the frame."
         (hyalo-log 'sidebar "Pending focus, using fallback timer")
         (setq hyalo-sidebar--pending-focus-right nil)
         (run-at-time 0.4 nil #'hyalo-sidebar--do-focus-right))
-      (hyalo-log 'sidebar "Right sidebar (pi-coding-agent) setup complete."))))
+      (hyalo-log 'sidebar "Right sidebar (pi-coding-agent) setup complete.")
+      ;; Install inspector header update hook
+      (hyalo-sidebar--install-inspector-header-hook chat-buf))))
+
+;;; Inspector header integration
+
+(defvar hyalo-sidebar--inspector-header-installed nil
+  "Non-nil when inspector header hook is installed.")
+
+(defvar hyalo-sidebar--inspector-header-last nil
+  "Last inspector header state sent to Swift, for change detection.
+Plist with :title :subtitle :busy keys.")
+
+
+
+(defun hyalo-sidebar--parse-pi-header-line ()
+  "Parse pi-coding-agent header-line into components.
+Returns plist with :title, :subtitle, :busy keys.
+Title is the model name, subtitle is token stats."
+  (let ((input-buf (and (boundp 'pi-coding-agent--input-buffer)
+                        (buffer-local-value 'pi-coding-agent--input-buffer
+                                            (current-buffer)))))
+    (when (and input-buf (buffer-live-p input-buf))
+      (with-current-buffer input-buf
+        ;; Call pi-coding-agent's header-line function directly
+        ;; This works even when header-line-format is nil (hidden)
+        (when (fboundp 'pi-coding-agent--header-line-string)
+          (let* ((header-str (condition-case nil
+                                 (pi-coding-agent--header-line-string)
+                               (error nil)))
+                 (busy nil)
+                 title subtitle)
+            (when (stringp header-str)
+              ;; Split on │ (box drawing character) to separate title from stats
+              (let ((parts (split-string header-str "│" t)))
+                ;; Title part: model name, thinking level, spinner
+                (setq title (string-trim (or (car parts) "")))
+                ;; Check for spinner characters indicating busy state
+                (setq busy (string-match-p "[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]" title))
+                ;; Remove spinner from title for cleaner display
+                (setq title (string-trim (replace-regexp-in-string "[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]" "" title)))
+                ;; Subtitle part: token stats
+                (setq subtitle (if (cdr parts)
+                                   (string-trim (cadr parts))
+                                 ""))))
+            (list :title title :subtitle subtitle :busy busy)))))))
+
+(defun hyalo-sidebar--update-inspector-header ()
+  "Update the Swift inspector header from pi-coding-agent state.
+Only sends update if state has changed."
+  (when (and (hyalo-available-p)
+             (fboundp 'hyalo-set-inspector-header)
+             hyalo-sidebar--right-frame
+             (frame-live-p hyalo-sidebar--right-frame))
+    ;; Find the chat buffer in the right frame
+    (let ((chat-buf nil))
+      (dolist (win (window-list hyalo-sidebar--right-frame))
+        (when (and (not chat-buf)
+                   (buffer-local-value 'pi-coding-agent--input-buffer
+                                       (window-buffer win)))
+          (setq chat-buf (window-buffer win))))
+      (when chat-buf
+        (with-current-buffer chat-buf
+          (when-let* ((parsed (hyalo-sidebar--parse-pi-header-line))
+                      (title (or (plist-get parsed :title) ""))
+                      ((not (string-empty-p title))))
+            ;; Only update if changed
+            (let ((subtitle (or (plist-get parsed :subtitle) ""))
+                  (busy (plist-get parsed :busy)))
+              (unless (and (equal title (plist-get hyalo-sidebar--inspector-header-last :title))
+                           (equal subtitle (plist-get hyalo-sidebar--inspector-header-last :subtitle))
+                           (eq busy (plist-get hyalo-sidebar--inspector-header-last :busy)))
+                (setq hyalo-sidebar--inspector-header-last
+                      (list :title title :subtitle subtitle :busy busy))
+                (hyalo-set-inspector-header
+                 title
+                 "sparkles"
+                 (if busy t nil)
+                 subtitle)))))))))
+
+(defun hyalo-sidebar--install-inspector-header-hook (_chat-buf)
+  "Install advice to update inspector header on mode-line updates.
+_CHAT-BUF is the pi-coding-agent chat buffer (unused, for signature compat)."
+  (unless hyalo-sidebar--inspector-header-installed
+    ;; Advice force-mode-line-update to also update inspector header
+    ;; This is called by pi-coding-agent when header-line changes
+    (advice-add 'force-mode-line-update :after #'hyalo-sidebar--on-mode-line-update)
+    (setq hyalo-sidebar--inspector-header-installed t)
+    ;; Initial update - delay slightly to ensure frame is fully set up
+    (run-at-time 0.1 nil #'hyalo-sidebar--update-inspector-header)))
+
+(defun hyalo-sidebar--on-mode-line-update (&rest _)
+  "Hook called after force-mode-line-update.
+Updates inspector header if in a pi-coding-agent buffer."
+  ;; Only act if we're in a pi-coding-agent related buffer
+  (when (and hyalo-sidebar--right-frame
+             (frame-live-p hyalo-sidebar--right-frame)
+             (or (derived-mode-p 'pi-coding-agent-chat-mode)
+                 (derived-mode-p 'pi-coding-agent-input-mode)
+                 ;; Also check if current buffer is in the right frame
+                 (memq (current-buffer)
+                       (mapcar #'window-buffer
+                               (window-list hyalo-sidebar--right-frame)))))
+    (hyalo-sidebar--update-inspector-header)))
+
+(defun hyalo-sidebar--cleanup-inspector-header-hook ()
+  "Remove inspector header update advice."
+  (when hyalo-sidebar--inspector-header-installed
+    (advice-remove 'force-mode-line-update #'hyalo-sidebar--on-mode-line-update)
+    (setq hyalo-sidebar--inspector-header-installed nil)
+    (setq hyalo-sidebar--inspector-header-last nil)))
 
 ;;; Get parent frame helper
 
@@ -851,6 +964,8 @@ Returns the slot string or nil if not an embedded frame."
   (interactive)
   ;; Stop visibility watcher
   (hyalo-sidebar--stop-visibility-watcher)
+  ;; Clean up inspector header hook
+  (hyalo-sidebar--cleanup-inspector-header-hook)
   ;; Notify Swift to detach
   (when (and (hyalo-available-p)
              (fboundp 'hyalo-sidebar-detach-frames))

@@ -24,9 +24,10 @@ final class NavigationSidebarState {
     var decorationsVisible: Bool = true
 
     // Inspector Header
-    var inspectorTitle: String = "AGENT SHELL"
+    var inspectorTitle: String = "PI AGENT"
     var inspectorIcon: String = "sparkles"
     var inspectorBusy: Bool = false
+    var inspectorSubtitle: String = ""  // Secondary info (e.g., token usage)
 
     /// Available toolbar width (calculated from window geometry)
     var toolbarWidth: CGFloat = 600
