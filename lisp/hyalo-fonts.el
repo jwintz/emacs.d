@@ -173,24 +173,80 @@ This ensures they match the prose size exactly."
 ;; Also run immediately
 (hyalo-fonts--reset-markdown-faces)
 
-;; Agent Shell
-(defun hyalo-fonts--agent-shell-fonts ()
-  "Set agent-shell buffer to use Hubot Sans with Krypton code blocks."
-  (let ((height (if (boundp 'hyalo-sidebar-font-height)
-                    hyalo-sidebar-font-height
-                  100)))
-    (face-remap-add-relative 'default :family "Monaspace Krypton Frozen" :height height)
-    (face-remap-add-relative 'markdown-code-face :family "Monaspace Krypton Frozen" :height height)
-    (face-remap-add-relative 'markdown-inline-code-face :family "Monaspace Krypton Frozen" :height height)))
+;; Pi Coding Agent / Inspector
 
-(with-eval-after-load 'agent-shell
-  (add-hook 'agent-shell-mode-hook #'hyalo-fonts--agent-shell-fonts))
+(defcustom hyalo-inspector-font "Monaspace Krypton Frozen"
+  "Font family to use for inspector (right sidebar) frames.
+Used for pi-coding-agent and other inspector content."
+  :type 'string
+  :group 'hyalo-fonts)
+
+(defcustom hyalo-inspector-font-height 100
+  "Font height for inspector frames (100 = 10pt)."
+  :type 'integer
+  :group 'hyalo-fonts)
+
+(defun hyalo-fonts--pi-coding-agent-chat-fonts ()
+  "Set pi-coding-agent chat buffer to use Monaspace Krypton.
+Disables mixed-pitch-mode to ensure monospace display."
+  (message "DEBUG hyalo-fonts: pi-chat-fonts called in buffer %s" (buffer-name))
+  (message "DEBUG hyalo-fonts: mixed-pitch-mode BEFORE = %s" (bound-and-true-p mixed-pitch-mode))
+  ;; Disable mixed-pitch-mode if enabled (from text-mode-hook or markdown-mode-hook)
+  (when (bound-and-true-p mixed-pitch-mode)
+    (message "DEBUG hyalo-fonts: disabling mixed-pitch-mode NOW")
+    (mixed-pitch-mode -1))
+  (message "DEBUG hyalo-fonts: mixed-pitch-mode AFTER = %s" (bound-and-true-p mixed-pitch-mode))
+  ;; CRITICAL: Clear ALL face remappings to remove mixed-pitch leftovers
+  ;; mixed-pitch-mode -1 doesn't clean up its remappings properly
+  (setq-local face-remapping-alist nil)
+  (message "DEBUG hyalo-fonts: cleared face-remapping-alist")
+  (let ((family "Monaspace Krypton Frozen")
+        (height (or (bound-and-true-p hyalo-inspector-font-height) 100)))
+    (message "DEBUG hyalo-fonts: setting chat font to %s height %s" family height)
+    ;; Remap default face for monospace
+    (face-remap-add-relative 'default :family family :height height)
+    ;; Also remap variable-pitch to prevent mixed-pitch interference
+    (face-remap-add-relative 'variable-pitch :family family :height height)
+    ;; Markdown faces
+    (face-remap-add-relative 'markdown-code-face :family family :height height)
+    (face-remap-add-relative 'markdown-inline-code-face :family family :height height)))
+
+(defun hyalo-fonts--pi-coding-agent-input-fonts ()
+  "Set pi-coding-agent input buffer to use Monaspace Neon.
+Also configures cursor style and header-line font."
+  (message "DEBUG hyalo-fonts: pi-input-fonts called in buffer %s" (buffer-name))
+  ;; Disable mixed-pitch-mode if enabled (from text-mode-hook)
+  (when (bound-and-true-p mixed-pitch-mode)
+    (message "DEBUG hyalo-fonts: disabling mixed-pitch-mode in input buffer")
+    (mixed-pitch-mode -1))
+  (let ((family "Monaspace Neon Frozen")
+        (height (or (bound-and-true-p hyalo-inspector-font-height) 100)))
+    (message "DEBUG hyalo-fonts: setting input font to %s height %s" family height)
+    (face-remap-add-relative 'default :family family :height height)
+    ;; Header-line must have explicit family and height to display correctly
+    ;; even when the window is not selected
+    (message "DEBUG hyalo-fonts: setting header-line font explicitly")
+    (face-remap-add-relative 'header-line :family family :height height))
+  ;; Cursor style: horizontal bar
+  (message "DEBUG hyalo-fonts: setting cursor-type to (hbar . 2)")
+  (setq-local cursor-type '(hbar . 2)))
+
+(with-eval-after-load 'pi-coding-agent
+  (add-hook 'pi-coding-agent-chat-mode-hook #'hyalo-fonts--pi-coding-agent-chat-fonts)
+  (add-hook 'pi-coding-agent-input-mode-hook #'hyalo-fonts--pi-coding-agent-input-fonts))
 
 ;; Markdown
 (defun hyalo-fonts--markdown-setup ()
-  "Ensure mixed-pitch-mode is active for markdown."
-  (unless (bound-and-true-p mixed-pitch-mode)
-    (mixed-pitch-mode 1)))
+  "Ensure mixed-pitch-mode is active for markdown.
+Skips pi-coding-agent buffers which use monospace."
+  (message "DEBUG hyalo-fonts: markdown-setup called in buffer %s" (buffer-name))
+  (message "DEBUG hyalo-fonts: is pi-coding-agent buffer? %s" 
+           (string-match-p "\\*pi-coding-agent-" (buffer-name)))
+  (if (string-match-p "\\*pi-coding-agent-" (buffer-name))
+      (message "DEBUG hyalo-fonts: SKIPPING mixed-pitch for pi-coding-agent buffer")
+    (unless (bound-and-true-p mixed-pitch-mode)
+      (message "DEBUG hyalo-fonts: ENABLING mixed-pitch-mode")
+      (mixed-pitch-mode 1))))
 
 (add-hook 'markdown-mode-hook #'hyalo-fonts--markdown-setup)
 
@@ -290,21 +346,22 @@ allowing them to scale with the minimap."
     (demap-minimap-protect-variables t 'face-remapping-alist)))
 
 (defun hyalo-fonts--update-demap-face (&rest _args)
-  (let* ((base-color (face-attribute 'default :background))
-       (tint-color (face-attribute 'highlight :background))
-       (alpha      0.9)
-       (blended-color (apply 'color-rgb-to-hex
-                             (color-blend (color-name-to-rgb tint-color)
-                                          (color-name-to-rgb base-color)
-                                          alpha))))
-  ;; Apply the face attribute
-  (set-face-attribute 'demap-visible-region-face nil
-                      :box (list :line-width -4          ;; -4 ??
-                                 :color blended-color))))
-
-(hyalo-fonts--update-demap-face)
+  "Update demap visible region face with blended box color.
+Only runs when demap-visible-region-face exists."
+  (when (facep 'demap-visible-region-face)
+    (let* ((base-color (face-attribute 'default :background))
+           (tint-color (face-attribute 'highlight :background))
+           (alpha 0.9)
+           (blended-color (apply 'color-rgb-to-hex
+                                 (color-blend (color-name-to-rgb tint-color)
+                                              (color-name-to-rgb base-color)
+                                              alpha))))
+      (set-face-attribute 'demap-visible-region-face nil
+                          :box (list :line-width -4
+                                     :color blended-color)))))
 
 (with-eval-after-load 'demap
+  (hyalo-fonts--update-demap-face)
   (add-hook 'demap-minimap-construct-hook #'hyalo-fonts--update-demap-face)
   (add-hook 'demap-minimap-construct-hook #'hyalo-fonts--demap-fonts)
   (add-hook 'enable-theme-functions #'hyalo-fonts--update-demap-face))

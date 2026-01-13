@@ -166,14 +166,17 @@ Skips updates from embedded child-frames (hyalo-embedded parameter)."
 
 (defun hyalo-header--enforce-hidden ()
   "Enforce hidden mode-line in current buffer.
-Called by hooks to override modes that set mode-line-format buffer-locally."
-  (when hyalo-header--saved-mode-line-format
-    ;; Save the header-line before hiding (modes like info set it)
-    (when header-line-format
-      (hyalo-header--save-buffer-header-line)))
-  ;; Always hide, regardless of whether we saved a format
-  (setq mode-line-format nil)
-  (setq header-line-format nil))
+Called by hooks to override modes that set mode-line-format buffer-locally.
+Skips pi-coding-agent buffers which manage their own header-lines."
+  ;; Skip pi-coding-agent buffers - they need their header-line
+  (unless (derived-mode-p 'pi-coding-agent-input-mode 'pi-coding-agent-chat-mode)
+    (when hyalo-header--saved-mode-line-format
+      ;; Save the header-line before hiding (modes like info set it)
+      (when header-line-format
+        (hyalo-header--save-buffer-header-line)))
+    ;; Always hide, regardless of whether we saved a format
+    (setq mode-line-format nil)
+    (setq header-line-format nil)))
 
 (defun hyalo-header--restore-native ()
   "Restore native Emacs mode-line and header-line."

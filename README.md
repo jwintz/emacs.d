@@ -149,7 +149,6 @@ Custom Elisp libraries providing Hyalo functionality and TTY-compatible utilitie
 | **hyalo-markdown-tags.el** | SVG tag pills in markdown            | *(automatic via mode)*                                             |
 | **hyalo-tengwar.el**       | Tengwar script rendering             | `hyalo-tengwar-minor-mode`, `hyalo-tengwar-partial-mode`           |
 | **hyalo-system.el**        | macOS system integration             | `hyalo-reveal-in-finder`, `hyalo-share`, `hyalo-show-emoji-picker` |
-| **hyalo-agent-extras.el**  | Agent-shell UI customization         | *(automatic)*                                                      |
 | **hyalo-splash.el**        | Startup splash screen                | `hyalo-splash`, `hyalo-splash-setup`                               |
 
 ### Iota Libraries (TTY Compatible)
@@ -170,7 +169,7 @@ Custom Elisp libraries providing Hyalo functionality and TTY-compatible utilitie
 | hyalo-header     | `post-command-hook`, `window-configuration-change-hook`, `after-change-major-mode-hook`         |
 | hyalo-footer     | `minibuffer-setup-hook`, `minibuffer-exit-hook`, `post-command-hook`                            |
 | hyalo-viewport   | `window-scroll-functions`, `post-command-hook`, `window-configuration-change-hook`              |
-| hyalo-sidebar    | `dired-sidebar-mode-hook`, `agent-shell-mode-hook`, `buffer-list-update-hook`                   |
+| hyalo-sidebar    | `dired-sidebar-mode-hook`, `pi-coding-agent-input-mode-hook`, `buffer-list-update-hook`               |
 | hyalo-tengwar    | `post-command-hook`, `window-scroll-functions`                                                  |
 | hyalo-splash     | `window-setup-hook`, `window-configuration-change-hook`                                         |
 | hyalo-fonts      | `fontaine-set-preset-hook`, `enable-theme-functions`                                            |
@@ -198,7 +197,7 @@ Use-package based configuration modules loaded in sequence.
 | **init-hyalo**      | Liquid Glass      | `hyalo`, `hyalo-header`, `hyalo-appearance`, `hyalo-footer`   |
 | **init-tools**      | Development       | `project`, `magit`, `diff-hl`, `eglot`, `swift-mode`          |
 | **init-dired**      | File browsing     | `dired`, `dired-sidebar`, `hyalo-sidebar`                     |
-| **init-agents**     | AI assistants     | `copilot`, `agent-shell`                                      |
+| **init-agents**     | AI assistants     | `copilot`, `pi-coding-agent`                                  |
 | **init-terminal**   | Terminal          | `eat`, `iota-shell`                                           |
 | **init-markdown**   | Markdown/Notes    | `markdown-mode`, `obsidian`, `polymode`                       |
 | **init-tengwar**    | Tengwar script    | `hyalo-tengwar`                                               |
@@ -218,7 +217,7 @@ All leader bindings use `C-c` prefix (configured via `general.el`).
 | `C-c s` | Shell    | `s` terminal, `p` project, `e` eshell                                               |
 | `C-c t` | Toggle   | `e` sidebar, `i` inspector, `E` focus sidebar, `I` focus inspector, `m` minimap     |
 | `C-c v` | Version  | `s` status, `l` log, `b` blame, `d` diff                                            |
-| `C-c a` | Agents   | `c` Claude, `g` Gemini, `s` sidebar, `S` screenshot, `q` queue                      |
+| `C-c a` | Agents   | `p` pi, `m` menu, `s` sidebar, `f` focus                                        |
 | `C-c m` | Markdown | `l` link, `c` code, `C` code-block, `b` bold, `i` italic, `h` header                |
 
 ### Editing Bindings

@@ -44,7 +44,7 @@ Patterns are matched as substrings of buffer names."
     Custom-mode messages-buffer-mode
     treemacs-mode ibuffer-mode dired-mode
     minibuffer-inactive-mode echo-area-mode
-    dired-sidebar-mode agent-shell-mode)
+    dired-sidebar-mode pi-coding-agent-chat-mode pi-coding-agent-input-mode)
   "List of major modes to exclude from sidebar ibuffer."
   :type '(repeat symbol)
   :group 'hyalo-ibuffer)

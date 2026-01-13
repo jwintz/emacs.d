@@ -17,6 +17,7 @@
 
 (require 'dired)
 (require 'hyalo)
+(require 'hyalo-fonts)
 
 (defgroup hyalo-sidebar nil
   "Hyalo sidebar configuration."
@@ -66,14 +67,14 @@ This ensures proper layout calculation for embedded frames."
   "Reference to the left sidebar bottom frame (dired-sidebar).")
 
 (defvar hyalo-sidebar--right-frame nil
-  "Reference to the right sidebar frame (agent-shell).")
+  "Reference to the right sidebar frame (pi-coding-agent).")
 
 (defvar hyalo-sidebar--main-frame nil
   "The main Emacs frame (parent of all embedded sidebars).
 Used by sidebar buffers to open files in the correct frame.")
 
 (defvar hyalo-sidebar--pending-focus-right nil
-  "Non-nil when we need to focus right sidebar after agent-shell is ready.")
+  "Non-nil when we need to focus right sidebar after pi-coding-agent is ready.")
 
 (defvar hyalo-sidebar--visibility-timer nil
   "Timer for checking panel visibility changes.")
@@ -132,15 +133,19 @@ Preserves internal-border-width for SwiftUI-style margins."
   "Create a child-frame for BUFFER to be embedded in SLOT.
 SLOT is the embed slot identifier (\"left\", \"left-top\", \"left-bottom\", \"right\").
 PARAMS are additional frame parameters.
+For left sidebars, uses `hyalo-sidebar-font'. For right (inspector), uses buffer-local fonts.
 Returns the created frame."
   (hyalo-log 'sidebar "Creating embedded frame for slot %s" slot)
   (let* ((parent (selected-frame))
-         ;; Create font-spec safely - catch any errors from malformed face specs
-         (safe-font (condition-case nil
-                        (font-spec :family (or hyalo-sidebar-font "SF Mono")
-                                   :height hyalo-sidebar-font-height
-                                   :weight 'regular)
-                      (error nil)))
+         ;; Only apply sidebar font for left sidebars, not for inspector (right)
+         (use-sidebar-font (not (string= slot "right")))
+         ;; Create default font-spec safely - catch any errors from malformed face specs
+         (safe-font (when use-sidebar-font
+                      (condition-case nil
+                          (font-spec :family (or hyalo-sidebar-font "SF Mono")
+                                     :height hyalo-sidebar-font-height
+                                     :weight 'regular)
+                        (error nil))))
          (frame-params
           `((parent-frame . ,parent)
             (window-system . ns)
@@ -159,6 +164,7 @@ Returns the created frame."
             (vertical-scroll-bars . nil)
             (unsplittable . t)
             (no-accept-focus . nil)
+            (cursor-type . (hbar . 2))
             (width . 40)
             (height . 20)
             (left . -10000)
@@ -170,8 +176,8 @@ Returns the created frame."
     ;; Display buffer in the frame
     (with-selected-frame frame
       (switch-to-buffer buffer)
+      ;; Only hide mode-line, NOT header-line (inspector input needs it)
       (setq-local mode-line-format nil)
-      (setq-local header-line-format nil)
       ;; Force apply font to ensure Swift layout calculation is correct
       (when safe-font
         (condition-case nil
@@ -248,59 +254,98 @@ Restored for compatibility."
   (hyalo-sidebar-toggle-left))
 
 (defun hyalo-sidebar-setup-right ()
-  "Setup the right sidebar with agent-shell."
+  "Setup the right sidebar with pi-coding-agent.
+Creates a child frame containing the pi-coding-agent two-window layout."
   (interactive)
   (condition-case err
       (progn
-        (hyalo-log 'sidebar "Setting up right sidebar (agent-shell)...")
+        (hyalo-log 'sidebar "Setting up right sidebar (pi-coding-agent)...")
         ;; Clear any existing registration
         (when (and (hyalo-available-p)
                    (fboundp 'hyalo-sidebar-clear-registration))
           (hyalo-sidebar-clear-registration "right"))
-        (if (require 'agent-shell nil t)
-      (let ((existing-buf (cl-find-if (lambda (buf)
-                                        (with-current-buffer buf
-                                          (derived-mode-p 'agent-shell-mode)))
-                                      (buffer-list))))
-        ;; Create buffer if needed
-        (unless existing-buf
-          (hyalo-log 'sidebar "Creating new agent-shell...")
-          (save-window-excursion
-            (condition-case err
-                (agent-shell)
-              (error (hyalo-log 'sidebar "ERROR creating agent-shell: %s" err)))))
-        ;; Find agent-shell buffer
-        (let ((agent-buf (or existing-buf
-                             (cl-find-if (lambda (buf)
-                                           (with-current-buffer buf
-                                             (derived-mode-p 'agent-shell-mode)))
-                                         (buffer-list)))))
-          (when (and agent-buf (buffer-live-p agent-buf))
-            ;; Ensure cursor visibility for embedded frame
-            (with-current-buffer agent-buf
-              (setq-local cursor-type '(bar . 2))
-              (setq-local cursor-in-non-selected-windows t))
-            ;; Create the child frame
-            (setq hyalo-sidebar--right-frame
-                  (hyalo-sidebar--make-embedded-frame agent-buf "right"
-                                                      '((cursor-type . (bar . 2))
-                                                        (cursor-in-non-selected-windows . t))))
-            ;; Apply glass effect appearance
-            (hyalo-sidebar--strip-faces hyalo-sidebar--right-frame)
-            ;; Trigger embedding
-            (when (and (hyalo-available-p)
-                       (fboundp 'hyalo-sidebar-embed-frames))
-              (hyalo-log 'sidebar "Calling embed-frames for right")
-              (hyalo-sidebar-embed-frames "right"))
-            ;; Focus if buffer already existed (hook won't fire)
-            (when (and existing-buf hyalo-sidebar--pending-focus-right)
-              (hyalo-log 'sidebar "Buffer existed, using fallback focus timer")
-              (setq hyalo-sidebar--pending-focus-right nil)
-              (run-at-time 0.4 nil #'hyalo-sidebar--do-focus-right))
-            (hyalo-log 'sidebar "Right sidebar setup complete."))))
-          (hyalo-log 'sidebar "agent-shell not available")))
+        (if (require 'pi-coding-agent nil t)
+            (let* ((dir (hyalo-sidebar--get-root-directory))
+                   ;; Find existing chat buffer for this directory
+                   (existing-chat (get-buffer (pi-coding-agent--buffer-name :chat dir nil))))
+              (if existing-chat
+                  ;; Reuse existing session
+                  (progn
+                    (hyalo-log 'sidebar "Reusing existing pi-coding-agent session")
+                    (hyalo-sidebar--setup-pi-frame existing-chat))
+                ;; Create new session
+                (hyalo-log 'sidebar "Creating new pi-coding-agent session...")
+                (let ((chat-buf (pi-coding-agent--setup-session dir nil)))
+                  (when (and chat-buf (buffer-live-p chat-buf))
+                    (hyalo-sidebar--setup-pi-frame chat-buf)))))
+          (hyalo-log 'sidebar "pi-coding-agent not available")))
     (error
      (hyalo-log 'sidebar "ERROR in setup-right: %s" (error-message-string err)))))
+
+(defun hyalo-sidebar--setup-pi-frame (chat-buf)
+  "Create the embedded child frame for pi-coding-agent CHAT-BUF.
+Sets up the two-window layout (chat + input) inside the frame."
+  (message "DEBUG sidebar: setup-pi-frame called with chat-buf=%s" chat-buf)
+  (let ((input-buf (buffer-local-value 'pi-coding-agent--input-buffer chat-buf)))
+    (message "DEBUG sidebar: input-buf=%s" input-buf)
+    (if (not input-buf)
+        (hyalo-log 'sidebar "ERROR: pi-coding-agent chat buffer has no input buffer")
+      ;; Create the child frame with chat buffer initially
+      ;; Don't pass font - let buffer-local face remapping handle it
+      (setq hyalo-sidebar--right-frame
+            (hyalo-sidebar--make-embedded-frame
+             chat-buf "right"
+             nil))
+      ;; Set up the two-window layout inside the frame
+      (with-selected-frame hyalo-sidebar--right-frame
+        ;; Chat buffer is already displayed, now split for input
+        (let ((input-win (split-window nil (- (or (bound-and-true-p pi-coding-agent-input-window-height) 6)) 'below)))
+          (set-window-buffer input-win input-buf)
+          ;; Apply fonts to each buffer (different fonts for chat vs input)
+          (with-current-buffer chat-buf
+            (when (fboundp 'hyalo-fonts--pi-coding-agent-chat-fonts)
+              (hyalo-fonts--pi-coding-agent-chat-fonts)))
+          (with-current-buffer input-buf
+            (when (fboundp 'hyalo-fonts--pi-coding-agent-input-fonts)
+              (hyalo-fonts--pi-coding-agent-input-fonts)))
+          ;; Focus input window for typing
+          (select-window input-win)))
+      (message "DEBUG sidebar: finished window layout setup")
+      ;; Apply glass effect appearance with full transparency
+      (hyalo-sidebar--strip-faces hyalo-sidebar--right-frame)
+      (message "DEBUG sidebar: finished strip-faces")
+      ;; Ensure cursor is visible in this frame
+      (modify-frame-parameters hyalo-sidebar--right-frame
+                               '((cursor-type . (hbar . 2))))
+
+
+      ;; Force cursor settings in both buffers
+      (dolist (buf (list chat-buf input-buf))
+        (with-current-buffer buf
+          (setq-local cursor-type '(hbar . 2))
+          (setq-local cursor-in-non-selected-windows t)))
+      ;; Trigger embedding
+      (message "DEBUG sidebar: hyalo-available-p=%s, fboundp embed-frames=%s"
+               (hyalo-available-p) (fboundp 'hyalo-sidebar-embed-frames))
+      (message "DEBUG sidebar: right-frame=%s, live=%s"
+               hyalo-sidebar--right-frame
+               (and hyalo-sidebar--right-frame (frame-live-p hyalo-sidebar--right-frame)))
+      (when (and (hyalo-available-p)
+                 (fboundp 'hyalo-sidebar-embed-frames))
+        (hyalo-log 'sidebar "Calling embed-frames for right")
+        (message "DEBUG sidebar: About to call hyalo-sidebar-embed-frames 'right'")
+        (condition-case err
+            (progn
+              (hyalo-sidebar-embed-frames "right")
+              (message "DEBUG sidebar: embed-frames returned successfully"))
+          (error
+           (message "DEBUG sidebar: embed-frames ERROR: %s" (error-message-string err)))))
+      ;; Focus handling
+      (when hyalo-sidebar--pending-focus-right
+        (hyalo-log 'sidebar "Pending focus, using fallback timer")
+        (setq hyalo-sidebar--pending-focus-right nil)
+        (run-at-time 0.4 nil #'hyalo-sidebar--do-focus-right))
+      (hyalo-log 'sidebar "Right sidebar (pi-coding-agent) setup complete."))))
 
 ;;; Get parent frame helper
 
@@ -666,17 +711,17 @@ This handles toolbar button clicks that show panels."
 
 ;;; Agent-shell focus hook
 
-(defun hyalo-sidebar--agent-shell-mode-hook ()
-  "Hook to focus agent-shell after it's ready."
+(defun hyalo-sidebar--pi-input-mode-hook ()
+  "Hook to focus pi-coding-agent input buffer after it's ready."
   (when hyalo-sidebar--pending-focus-right
     (setq hyalo-sidebar--pending-focus-right nil)
-    (hyalo-log 'sidebar "agent-shell-mode-hook: focusing right sidebar")
+    (hyalo-log 'sidebar "pi-coding-agent-input-mode-hook: focusing right sidebar")
     ;; Small delay to ensure embedding is complete
     (run-at-time 0.3 nil #'hyalo-sidebar--do-focus-right)))
 
-;; Add hook for agent-shell focus
-(with-eval-after-load 'agent-shell
-  (add-hook 'agent-shell-mode-hook #'hyalo-sidebar--agent-shell-mode-hook))
+;; Add hook for pi-coding-agent focus
+(with-eval-after-load 'pi-coding-agent
+  (add-hook 'pi-coding-agent-input-mode-hook #'hyalo-sidebar--pi-input-mode-hook))
 
 ;;; Visibility change handlers
 
@@ -949,13 +994,23 @@ Returns the slot string or nil if not an embedded frame."
     (run-at-time 0.5 nil #'hyalo-sidebar--do-focus-right)))
 
 (defun hyalo-sidebar--do-focus-right ()
-  "Internal: Focus the right sidebar frame."
+  "Internal: Focus the right sidebar frame.
+For pi-coding-agent, focuses the input window (bottom) for typing."
   (when (and hyalo-sidebar--right-frame
              (frame-live-p hyalo-sidebar--right-frame))
     (select-frame-set-input-focus hyalo-sidebar--right-frame)
-    (let ((win (frame-first-window hyalo-sidebar--right-frame)))
-      (when win
-        (select-window win)))
+    ;; For pi-coding-agent, find and focus the input window
+    (let ((input-win nil))
+      (dolist (win (window-list hyalo-sidebar--right-frame))
+        (when (with-current-buffer (window-buffer win)
+                (derived-mode-p 'pi-coding-agent-input-mode))
+          (setq input-win win)))
+      (if input-win
+          (select-window input-win)
+        ;; Fallback: select first window
+        (let ((win (frame-first-window hyalo-sidebar--right-frame)))
+          (when win
+            (select-window win)))))
     (hyalo-log 'sidebar "Focused right frame")))
 
 ;;;###autoload

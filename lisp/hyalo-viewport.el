@@ -43,9 +43,8 @@
   :type 'boolean
   :group 'hyalo-viewport)
 
-(defcustom hyalo-viewport-excluded-modes '(agent-shell-mode
-                                           agent-shell-viewport-view-mode
-                                           agent-shell-viewport-edit-mode
+(defcustom hyalo-viewport-excluded-modes '(pi-coding-agent-chat-mode
+                                           pi-coding-agent-input-mode
                                            eat-mode)
   "List of major modes where viewport offset should NOT be applied."
   :type '(repeat symbol)

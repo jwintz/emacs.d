@@ -1,4 +1,4 @@
-;;; init-agents.el --- AI agents: copilot, agent-shell -*- lexical-binding: t; -*-
+;;; init-agents.el --- AI agents: copilot, pi-coding-agent -*- lexical-binding: t; -*-
 
 ;;; Code:
 
@@ -44,75 +44,27 @@
 
   (advice-add 'copilot--log :around #'emacs/copilot-suppress-log))
 
-(defvar agent-shell-home-dir (expand-file-name ".agent-shell" "~")
-  "Central directory for all agent-shell data.")
+;;;; Pi Coding Agent
 
-(use-package agent-shell
+(use-package pi-coding-agent
   :ensure t
   :defer t
-  :vc (:url "https://github.com/xenodium/agent-shell"
+  :vc (:url "https://github.com/dnouri/pi-coding-agent"
             :rev :newest)
-  :custom
-  (agent-shell-section-functions nil)
-  :hook (agent-shell-mode . agent-shell-completion-mode)
+  :commands (pi-coding-agent pi-coding-agent-menu)
   :general
   (leader-def
     "a" '(:ignore t :wk "agents")
-    "a c" '(agent-shell-anthropic-start-claude-code :wk "claude")
-    "a g" '(agent-shell-google-start-gemini :wk "gemini")
-    "a s" '(agent-shell-sidebar-toggle :wk "sidebar toggle")
-    "a S" '(agent-shell-send-screenshot :wk "screenshot")
-    "a q" '(agent-shell-queue-request :wk "queue request")
-    "a f" '(agent-shell-sidebar-toggle-focus :wk "sidebar focus"))
-  (:keymaps 'agent-shell-mode-map
-   "C-p" 'agent-shell-previous-input
-   "C-n" 'agent-shell-next-input)
+    "a p" '(pi-coding-agent :wk "pi")
+    "a m" '(pi-coding-agent-menu :wk "menu")
+    "a s" '(hyalo-sidebar-toggle-right :wk "sidebar toggle")
+    "a f" '(hyalo-sidebar-focus-right :wk "sidebar focus"))
+  :hook
+  (pi-coding-agent-chat-mode . (lambda ()
+                                 (face-remap-add-relative 'default :family "Monaspace Krypton")))
   :config
-  ;; Use central HOME directory for transcripts
-  (defun agent-shell--home-transcript-file-path ()
-    "Generate transcript path in ~/.agent-shell/transcripts/PROJECT/."
-    (let* ((project-name (or (when-let* ((proj (project-current)))
-                               (file-name-nondirectory
-                                (directory-file-name (project-root proj))))
-                             "default"))
-           (dir (expand-file-name (concat "transcripts/" project-name) agent-shell-home-dir))
-           (filename (format-time-string "%F-%H-%M-%S.md")))
-      (expand-file-name filename dir)))
-
-  (setq agent-shell-transcript-file-path-function #'agent-shell--home-transcript-file-path)
-
-  ;; Override screenshot directory to use central HOME location
-  (defun agent-shell--home-screenshots-dir (orig-fun &rest args)
-    "Redirect screenshots to ~/.agent-shell/screenshots/."
-    (let ((screenshots-dir (expand-file-name "screenshots" agent-shell-home-dir)))
-      (make-directory screenshots-dir t)
-      (cl-letf (((symbol-function 'agent-shell-cwd)
-                 (lambda () agent-shell-home-dir)))
-        (apply orig-fun args))))
-
-  (advice-add 'agent-shell-send-screenshot :around #'agent-shell--home-screenshots-dir))
-
-(use-package hyalo-agent-extras
-  :ensure nil
-
-  :after agent-shell
-  :config
-  (hyalo-agent-extras-mode 1))
-
-(use-package agent-shell-sidebar
-  :ensure t
-  :vc (:url "https://github.com/cmacrae/agent-shell-sidebar"
-            :rev :newest)
-  :after agent-shell)
-
-(use-package agent-shell-manager
-  :ensure t
-  :vc (:url "https://github.com/jethrokuan/agent-shell-manager"
-            :rev :newest)
-  :after agent-shell
-  :general
-  (leader-def
-    "a m" '(agent-shell-manager-toggle :wk "manager")))
+  ;; Use a smaller input window for embedded sidebar
+  (setq pi-coding-agent-input-window-height 6))
 
 (provide 'init-agents)
 
