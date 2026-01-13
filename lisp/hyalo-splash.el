@@ -264,6 +264,9 @@ Splash is not shown if:
   ;; Kill the buffer
   (when-let* ((buf (get-buffer hyalo-splash--buffer-name)))
     (kill-buffer buf))
+  ;; Show chrome when splash is dismissed
+  (when (fboundp 'hyalo-set-decorations-visible)
+    (hyalo-set-decorations-visible t))
   ;; Clear any message
   (message nil))
 
@@ -288,6 +291,9 @@ Splash is not shown if:
   "Display the Hyalo splash screen."
   (interactive)
   (when (hyalo-splash--should-display-p)
+    ;; Hide chrome before showing splash
+    (when (fboundp 'hyalo-set-decorations-visible)
+      (hyalo-set-decorations-visible nil))
     (let ((splash-buffer (hyalo-splash--create-buffer)))
       ;; Display in current window
       (switch-to-buffer splash-buffer)
@@ -307,6 +313,18 @@ Call this from your init file, after setting up the theme."
           inhibit-startup-echo-area-message (user-login-name))
     ;; Display splash after frame is ready
     (add-hook 'window-setup-hook #'hyalo-splash)))
+
+;;;###autoload
+(defun hyalo-splash-init-chrome ()
+  "Initialize chrome visibility based on whether splash will display.
+Call this after Hyalo module is loaded but before window-setup-hook."
+  (if (hyalo-splash--should-display-p)
+      ;; Splash will show - hide chrome
+      (when (fboundp 'hyalo-set-decorations-visible)
+        (hyalo-set-decorations-visible nil))
+    ;; No splash - show chrome
+    (when (fboundp 'hyalo-set-decorations-visible)
+      (hyalo-set-decorations-visible t))))
 
 (provide 'hyalo-splash)
 ;;; hyalo-splash.el ends here

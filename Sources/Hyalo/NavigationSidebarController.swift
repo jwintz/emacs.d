@@ -138,12 +138,8 @@ final class NavigationSidebarController: NSObject {
         // Setup modeline overlay with NSGlassEffectView in toolbar area
         setupModeLineOverlay(for: window)
 
-        // Show native traffic lights immediately and after a short delay
-        showTrafficLights(window)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self, weak window] in
-            guard let window = window else { return }
-            self?.showTrafficLights(window)
-        }
+        // Don't show traffic lights here - let Elisp control visibility
+        // via hyalo-set-decorations-visible based on splash screen state
 
         // Setup appearance change observer
         setupAppearanceObserver()

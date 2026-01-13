@@ -31,7 +31,10 @@
   :custom
   (hyalo-auto-build t)
   :config
-  (hyalo-load))
+  (hyalo-load)
+  ;; Initialize chrome visibility based on splash state
+  (require 'hyalo-splash)
+  (hyalo-splash-init-chrome))
 
 ;;;; Hyalo Header
 
