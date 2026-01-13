@@ -57,85 +57,6 @@ struct HyaloNavigationLayout: View {
         }
         return (trimmed, "")
     }
-
-    /// Log toolbar metrics for debugging layout calculations
-    private func logToolbarMetrics() {
-        guard let window = NSApp.keyWindow else {
-            return
-        }
-
-        // Traffic light buttons (close, minimize, zoom)
-        var trafficLightWidth: CGFloat = 0
-        var trafficLightDetails: [String] = []
-
-        if let closeButton = window.standardWindowButton(.closeButton) {
-            let frame = closeButton.frame
-            trafficLightDetails.append("close: x=\(frame.origin.x), w=\(frame.width)")
-            trafficLightWidth = max(trafficLightWidth, frame.maxX)
-        }
-        if let miniButton = window.standardWindowButton(.miniaturizeButton) {
-            let frame = miniButton.frame
-            trafficLightDetails.append("minimize: x=\(frame.origin.x), w=\(frame.width)")
-            trafficLightWidth = max(trafficLightWidth, frame.maxX)
-        }
-        if let zoomButton = window.standardWindowButton(.zoomButton) {
-            let frame = zoomButton.frame
-            trafficLightDetails.append("zoom: x=\(frame.origin.x), w=\(frame.width)")
-            trafficLightWidth = max(trafficLightWidth, frame.maxX)
-        }
-
-        // Toolbar and its items
-        if window.toolbar != nil {
-            if let contentView = window.contentView {
-                findToolbarItems(in: window, contentView: contentView)
-            }
-        }
-
-        // Sidebar toggle button
-        if let contentView = window.contentView {
-            findSidebarToggle(in: contentView)
-        }
-    }
-
-    /// Find toolbar items in the view hierarchy and log their frames
-    private func findToolbarItems(in window: NSWindow, contentView: NSView) {
-        if let titlebarView = window.standardWindowButton(.closeButton)?.superview?.superview {
-            enumerateViews(titlebarView, depth: 0) { view, depth in
-                let viewType = String(describing: type(of: view))
-                let _ = String(repeating: "  ", count: depth)
-
-                if viewType.contains("ToolbarItem") || viewType.contains("Button") || viewType.contains("Sidebar") {
-                    // Debug logging if needed
-                }
-            }
-        }
-    }
-
-    /// Find the sidebar toggle button
-    private func findSidebarToggle(in view: NSView) {
-        enumerateViews(view, depth: 0) { subview, _ in
-            let viewType = String(describing: type(of: subview))
-
-            if viewType.contains("SidebarToggle") || viewType.contains("NSSplitViewItemViewControllerWrapperView") {
-                // Debug logging if needed
-            }
-
-            if let button = subview as? NSButton {
-                if let image = button.image, image.name()?.contains("sidebar") == true {
-                    // Debug logging if needed
-                }
-            }
-        }
-    }
-
-    /// Enumerate views recursively
-    private func enumerateViews(_ view: NSView, depth: Int, handler: (NSView, Int) -> Void) {
-        handler(view, depth)
-        for subview in view.subviews {
-            enumerateViews(subview, depth: depth + 1, handler: handler)
-        }
-    }
-
     var body: some View {
         GeometryReader { geometry in
             // 2-column NavigationSplitView with inspector for symmetric toolbar behavior
@@ -200,10 +121,11 @@ struct HyaloNavigationLayout: View {
             }
             .navigationSplitViewStyle(.balanced)
             .transaction { $0.disablesAnimations = true }
-            .toolbarBackgroundVisibility(.visible, for: .windowToolbar)
+            .toolbarBackgroundVisibility(state.decorationsVisible ? .visible : .hidden, for: .windowToolbar)
             .toolbarTitleDisplayMode(.inline)
             .toolbar {
                 // Inspector toggle button - symmetric to sidebar toggle
+                // Visibility animated via AppKit in NavigationSidebarController.setToolbarItemsVisible
                 ToolbarItem(placement: .primaryAction) {
                     Button {
                         var transaction = Transaction()
@@ -265,7 +187,6 @@ struct HyaloNavigationLayout: View {
             }
             .onAppear {
                 state.toolbarWidth = geometry.size.width
-                logToolbarMetrics()
             }
         }
     }

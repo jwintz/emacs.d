@@ -74,6 +74,21 @@ final class HyaloManager {
         controllers[window.windowNumber]?.hideTrafficLights()
     }
 
+    // MARK: - Chrome Visibility
+    
+    func toggleChrome(for window: NSWindow) {
+        print("[Hyalo] toggleChrome called for window \(window.windowNumber)")
+        if #available(macOS 26.0, *) {
+            if NavigationSidebarManager.shared.isSetup(for: window) {
+                print("[Hyalo] Delegating to NavigationSidebarManager")
+                NavigationSidebarManager.shared.toggleDecorations(for: window)
+                return
+            }
+        }
+        print("[Hyalo] Delegating to HyaloController")
+        controllers[window.windowNumber]?.toggleChrome()
+    }
+
     // MARK: - Header View
 
     func updateHeader(for window: NSWindow, modeLineString: String) {

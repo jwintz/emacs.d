@@ -125,6 +125,17 @@ final class HyaloModule: Module {
             return true
         }
 
+        try env.defun(
+            "hyalo-toggle-chrome",
+            with: "Toggle the window chrome (toolbar and traffic lights) with animation."
+        ) { (env: Environment) throws -> Bool in
+            DispatchQueue.main.async {
+                guard let window = findEmacsWindow() else { return }
+                HyaloManager.shared.toggleChrome(for: window)
+            }
+            return true
+        }
+
         // MARK: - Appearance
 
         try env.defun(
@@ -445,7 +456,7 @@ final class HyaloModule: Module {
 
                 // Detail visibility callback - same async approach
                 let detailCallback: (String, Bool) -> Void = channel.hook("hyalo-on-detail-visibility-changed")
-                
+
                 // Command execution callback - this one works and is needed for modeline menus
                 let executeCommandCallback: (String) -> Void = channel.callback {
                     (env: Environment, command: String) in
@@ -482,29 +493,29 @@ final class HyaloModule: Module {
 
                 // Create callback for mode-line clicks
                 let modeLineClickCallback: (String, Double) -> Void = { segment, position in
-                    print("[Hyalo] Module: modeLineClickCallback triggered (segment=\(segment), position=\(position))")
+                    // print("[Hyalo] Module: modeLineClickCallback triggered (segment=\(segment), position=\(position))")
 
                     // Store click for polling fallback
                     HyaloModule.lastModeLineClick = (segment: segment, position: position)
 
                     // First try calling message to see if basic hook works
-                    print("[Hyalo] Module: testing message hook")
+                    // print("[Hyalo] Module: testing message hook")
                     let msgHook: (String) -> Void = channel.hook("message")
                     msgHook("[Hyalo] Mode-line click: \(segment) at \(position)")
-                    print("[Hyalo] Module: message hook called")
+                    // print("[Hyalo] Module: message hook called")
 
                     // Now try our custom hook
-                    print("[Hyalo] Module: getting hook for hyalo-on-modeline-click")
+                    // print("[Hyalo] Module: getting hook for hyalo-on-modeline-click")
                     let hook: (String, Double) -> Void = channel.hook("hyalo-on-modeline-click")
-                    print("[Hyalo] Module: calling hook with (\(segment), \(position))")
+                    // print("[Hyalo] Module: calling hook with (\(segment), \(position))")
                     hook(segment, position)
-                    print("[Hyalo] Module: hook called successfully")
+                    // print("[Hyalo] Module: hook called successfully")
                 }
 
                 // Set the callback on the manager
                 DispatchQueue.main.async {
                     NavigationSidebarManager.shared.onModeLineClick = modeLineClickCallback
-                    print("[Hyalo] Module: set NavigationSidebarManager.shared.onModeLineClick")
+                    // print("[Hyalo] Module: set NavigationSidebarManager.shared.onModeLineClick")
                 }
 
                 // NOTE: executeCommandCallback is now set up in hyalo-setup-visibility-callbacks
@@ -588,7 +599,7 @@ final class HyaloModule: Module {
             SUBTITLE: Optional secondary text (e.g., token usage stats).
             """
         ) { (env: Environment, title: String, icon: String, busy: Bool, subtitle: String) throws -> Bool in
-            print("[Hyalo Module] hyalo-set-inspector-header called with title: \(title), busy: \(busy), subtitle: \(subtitle)")
+            // print("[Hyalo Module] hyalo-set-inspector-header called with title: \(title), busy: \(busy), subtitle: \(subtitle)")
             if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else { return }
@@ -647,7 +658,7 @@ final class HyaloModule: Module {
                 // Show menu synchronously and return selected command
                 var selectedCommand: String? = nil
                 let semaphore = DispatchSemaphore(value: 0)
-                
+
                 DispatchQueue.main.async {
                     guard let window = findEmacsWindow() else {
                         semaphore.signal()
@@ -660,7 +671,7 @@ final class HyaloModule: Module {
                     )
                     semaphore.signal()
                 }
-                
+
                 _ = semaphore.wait(timeout: .now() + 30) // 30 second timeout
                 return selectedCommand
             }

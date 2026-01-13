@@ -103,5 +103,23 @@ independent of the current process."
         (call-process "open" nil 0 nil "-n" "-a" app-bundle)
       (user-error "Could not locate Emacs.app bundle from %s" invocation-directory))))
 
+
+;;;###autoload
+(defun hyalo-toggle-macos-menu-bar ()
+  "Toggle macOS menu bar auto-hide."
+  (interactive)
+  (message "[Hyalo] Toggling macOS menu bar...")
+  (let* ((script "tell application \"System Events\"\n if (get autohide menu bar of dock preferences) then\n return \"true\"\n else\n return \"false\"\n end if\n end tell")
+         (status (do-applescript script))
+         (status-str (format "%s" status)))
+    (message "[Hyalo] AppleScript status raw: %S, formatted: %S" status status-str)
+    (if (string-equal status-str "true")
+        (progn
+          (message "[Hyalo] Status is TRUE -> Setting autohide to FALSE (Show menu bar)")
+          (do-applescript "tell application \"System Events\" to set autohide menu bar of dock preferences to false"))
+      (progn
+        (message "[Hyalo] Status is FALSE -> Setting autohide to TRUE (Hide menu bar)")
+        (do-applescript "tell application \"System Events\" to set autohide menu bar of dock preferences to true")))))
+
 (provide 'hyalo-system)
 ;;; hyalo-system.el ends here

@@ -163,7 +163,10 @@
     "l r" '(hyalo-reveal-in-finder :wk "reveal")
     "l s" '(hyalo-share :wk "share")
     "l e" '(hyalo-show-emoji-picker :wk "emoji")
-    "l d" '(hyalo-debug-status :wk "debug")))
+    "l d" '(hyalo-debug-status :wk "debug")
+    ;; Toggles
+    "t M" '(hyalo-toggle-macos-menu-bar :wk "macos menu bar")
+    "t c" '(hyalo-toggle-chrome :wk "chrome")))
 
 ;;;; Hyalo Footer
 

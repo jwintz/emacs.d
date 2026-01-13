@@ -491,21 +491,91 @@ final class NavigationSidebarController: NSObject {
 
     /// Set visibility of decorations (toolbar area and traffic lights)
     func setDecorationsVisible(_ visible: Bool) {
-        guard let window = window else {
-            return
-        }
+        guard let window = window else { return }
+
+
+        // 1. Update SwiftUI State
         state.decorationsVisible = visible
-        window.toolbar?.isVisible = visible
+
+        // 2. Manage Glass Overlay
+        modeLineGlassOverlay?.setVisible(visible)
+
+        // 3. Manage Toolbar Items (sidebar toggle, inspector toggle)
+        setToolbarItemsVisible(visible, in: window)
+
+        // 4. Manage Traffic Lights
         if visible {
             showTrafficLights(window)
         } else {
             hideTrafficLights(window)
         }
+
+        // 5. Trigger geometry update after showing decorations
+        if visible {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+                self?.updateModeLineGeometry()
+            }
+        }
+    }
+
+    // MARK: - Toolbar Items Visibility
+
+    /// Hide/show toolbar items by setting isHidden on NSToolbarItemViewer and NSToolbarPlatterView
+    private func setToolbarItemsVisible(_ visible: Bool, in window: NSWindow) {
+        guard let closeButton = window.standardWindowButton(.closeButton),
+              let titlebarContainer = findTitlebarContainer(from: closeButton) else {
+            return
+        }
+
+        var toolbarViews: [NSView] = []
+        findToolbarViews(in: titlebarContainer, result: &toolbarViews)
+
+        for view in toolbarViews {
+            view.isHidden = !visible
+        }
+    }
+
+    /// Find the titlebar container view by walking up from a known button
+    private func findTitlebarContainer(from view: NSView) -> NSView? {
+        var current: NSView? = view.superview
+        while let parent = current?.superview {
+            let viewType = String(describing: type(of: parent))
+            if viewType.contains("TitlebarContainer") || viewType.contains("ThemeFrame") {
+                return parent
+            }
+            current = parent
+        }
+        return current
+    }
+
+    /// Find toolbar-related views (NSToolbarItemViewer and NSToolbarPlatterView)
+    private func findToolbarViews(in view: NSView, result: inout [NSView]) {
+        for subview in view.subviews {
+            let viewType = String(describing: type(of: subview))
+
+            // NSToolbarItemViewer contains the button icons
+            if viewType.contains("NSToolbarItemViewer") {
+                result.append(subview)
+                continue
+            }
+
+            // NSToolbarPlatterView contains the glass pill background
+            if viewType.contains("NSToolbarPlatterView") {
+                result.append(subview)
+                continue
+            }
+
+            // Recurse
+            findToolbarViews(in: subview, result: &result)
+        }
     }
 
     /// Toggle visibility of decorations
     func toggleDecorations() {
-        setDecorationsVisible(!state.decorationsVisible)
+        guard window != nil else { return }
+        let targetVisible = !state.decorationsVisible
+
+        setDecorationsVisible(targetVisible)
     }
 
     /// Check if decorations are currently visible
@@ -516,18 +586,9 @@ final class NavigationSidebarController: NSObject {
     // MARK: - Traffic Lights
 
     private func showTrafficLights(_ window: NSWindow) {
-        if let close = window.standardWindowButton(.closeButton) {
-            close.isHidden = false
-            close.alphaValue = 1.0
-        }
-        if let mini = window.standardWindowButton(.miniaturizeButton) {
-            mini.isHidden = false
-            mini.alphaValue = 1.0
-        }
-        if let zoom = window.standardWindowButton(.zoomButton) {
-            zoom.isHidden = false
-            zoom.alphaValue = 1.0
-        }
+        window.standardWindowButton(.closeButton)?.isHidden = false
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+        window.standardWindowButton(.zoomButton)?.isHidden = false
     }
 
     private func hideTrafficLights(_ window: NSWindow) {

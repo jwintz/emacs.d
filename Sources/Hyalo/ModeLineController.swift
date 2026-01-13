@@ -258,6 +258,12 @@ final class ModeLineGlassOverlayController {
         return window.frame.width - 50
     }
 
+    /// Set visibility of the overlay
+    func setVisible(_ visible: Bool) {
+        glassView?.isHidden = !visible
+        modeLineView?.isHidden = !visible
+    }
+
     /// Update content and store geometry parameters
     func updateGeometry(
         content: String,
@@ -382,7 +388,8 @@ final class ModeLineGlassOverlayController {
 
         // Force layout pass to ensure subviews (stack items) get their frames assigned
         // Otherwise they might have intrinsic size (sizing the stack) but 0 frame
-        modeLineView?.layoutSubtreeIfNeeded()
+        // REMOVED: modeLineView?.layoutSubtreeIfNeeded() - caused layout cycle crashes
+        // The runloop will handle layout naturally.
     }
 
     private func parseSegments(_ input: String) -> (lhs: String, rhs: String) {

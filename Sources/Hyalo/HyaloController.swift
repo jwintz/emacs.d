@@ -307,6 +307,11 @@ final class HyaloController: NSObject {
     func showTrafficLights() {
         guard let window = window else { return }
 
+        // Ensure buttons are visible before animating
+        window.standardWindowButton(.closeButton)?.isHidden = false
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+        window.standardWindowButton(.zoomButton)?.isHidden = false
+
         NSAnimationContext.runAnimationGroup { context in
             context.duration = 0.2
             window.standardWindowButton(.closeButton)?.animator().alphaValue = 1
@@ -340,6 +345,60 @@ final class HyaloController: NSObject {
 
     deinit {
         // Tracking area is automatically removed when contentView is deallocated
+    }
+    
+    // MARK: - Chrome Visibility (Toolbar + Traffic Lights)
+    
+    /// Toggle chrome visibility (toolbar and traffic lights)
+    func toggleChrome() {
+        guard let window = window else { return }
+        
+        // Determine target state based on toolbar visibility
+        // If toolbar is visible or has no toolbar, we want to hide.
+        // If hidden, we want to show.
+        let isToolbarVisible = window.toolbar?.isVisible ?? false
+        let targetVisible = !isToolbarVisible
+        
+        setChromeVisible(targetVisible)
+    }
+    
+    /// Set chrome visibility (toolbar and traffic lights)
+    /// - Parameter visible: true to show, false to hide
+    func setChromeVisible(_ visible: Bool) {
+        guard let window = window else { return }
+        print("[Hyalo] HyaloController: setChromeVisible(\(visible))")
+        
+        if visible {
+            // Restore titlebar and toolbar
+            window.titleVisibility = .visible
+            window.titlebarAppearsTransparent = false
+            window.styleMask.insert(.titled)
+            
+            // 1. Show Toolbar
+            if let toolbar = window.toolbar, !toolbar.isVisible {
+                window.toggleToolbarShown(self)
+            }
+            
+            // 2. Show Traffic Lights
+            trafficLightsEnabled = true
+            showTrafficLights()
+            
+        } else {
+            // Hide titlebar and toolbar
+            // 1. Hide Toolbar
+            if let toolbar = window.toolbar, toolbar.isVisible {
+                window.toggleToolbarShown(self)
+            }
+            
+            // 2. Hide Traffic Lights
+            trafficLightsEnabled = false
+            hideTrafficLights()
+            
+            // 3. Hide Titlebar entirely
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
+            // We keep .titled to allow resizing, but effectively hide the bar content
+        }
     }
 
     // MARK: - Header View
