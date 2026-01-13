@@ -64,7 +64,24 @@
                                  (face-remap-add-relative 'default :family "Monaspace Krypton")))
   :config
   ;; Use a smaller input window for embedded sidebar
-  (setq pi-coding-agent-input-window-height 6))
+  (setq pi-coding-agent-input-window-height 6)
+
+  ;; Fix: upstream bug - :content is a vector, not a string
+  ;; Use :streaming-content for text delta accumulation
+  (defun pi-coding-agent--handle-message-update-fixed (event)
+    "Handle a message_update EVENT by accumulating text deltas.
+Fixed version that uses :streaming-content instead of :content."
+    (let* ((msg-event (plist-get event :assistantMessageEvent))
+           (event-type (plist-get msg-event :type))
+           (current (plist-get pi-coding-agent--state :current-message)))
+      (when (and current (equal event-type "text_delta"))
+        (let* ((delta (plist-get msg-event :delta))
+               (content (or (plist-get current :streaming-content) ""))
+               (new-content (concat content delta)))
+          (plist-put current :streaming-content new-content)))))
+
+  (advice-add 'pi-coding-agent--handle-message-update
+              :override #'pi-coding-agent--handle-message-update-fixed))
 
 (provide 'init-agents)
 
