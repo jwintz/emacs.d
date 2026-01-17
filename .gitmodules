@@ -1,0 +1,3 @@
+[submodule "contrib/pi-coding-agent"]
+	path = contrib/pi-coding-agent
+	url = git@github.com:jwintz/pi-coding-agent.git

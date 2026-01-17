@@ -57,7 +57,8 @@
     '((light . (:appearance light :theme ef-summer       :vibrancy "regular" :opacity 0.6))
       (dark  . (:appearance dark  :theme ef-melissa-dark :vibrancy "regular" :opacity 0.6))
       (shell . (:appearance dark  :theme kaolin-temple   :vibrancy "regular" :opacity 0.6))
-      (notes . (:appearance dark  :theme kaolin-eclipse  :vibrancy "regular" :opacity 0.6)))
+      (notes . (:appearance dark  :theme kaolin-eclipse  :vibrancy "regular" :opacity 0.6))
+      (agent . (:appearance dark  :theme modus-vivendi  :vibrancy "regular" :opacity 0.6)))
     "Alist of Hyalo appearance profiles.")
 
   (defun hyalo-load-profile (name)

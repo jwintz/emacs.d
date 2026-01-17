@@ -47,10 +47,8 @@
 ;;;; Pi Coding Agent
 
 (use-package pi-coding-agent
-  :ensure t
+  :ensure nil  ; loaded from contrib/pi-coding-agent (local fork)
   :defer t
-  :vc (:url "https://github.com/dnouri/pi-coding-agent"
-            :rev :newest)
   :commands (pi-coding-agent pi-coding-agent-menu)
   :general
   (leader-def

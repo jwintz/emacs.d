@@ -109,6 +109,36 @@ Hyalo uses `package.el` with `use-package` for configuration. To ensure fast sta
     - **ELPA/MELPA**: Run `M-x list-packages`, press `U` to mark upgrades, and `x` to execute.
     - **Git/Source Packages**: Run `M-x package-vc-upgrade-all` to update packages installed via `:vc`.
 
+### Contrib Packages
+
+The `contrib/` directory holds forked or local packages that take precedence over ELPA/MELPA. Each subdirectory is automatically added to `load-path` during bootstrap.
+
+**Current contrib packages:**
+
+| Package | Source | Purpose |
+|---------|--------|---------|
+| `pi-coding-agent` | [jwintz/pi-coding-agent](https://github.com/jwintz/pi-coding-agent) | AI coding agent with editor features |
+
+**Usage:**
+
+1. Clone the fork into `contrib/`:
+   ```bash
+   cd contrib
+   git clone https://github.com/jwintz/pi-coding-agent
+   ```
+
+2. Configure with `use-package` using `:ensure nil`:
+   ```elisp
+   (use-package pi-coding-agent
+     :ensure nil  ; loaded from contrib/
+     :commands (pi-coding-agent))
+   ```
+
+3. To update, pull in the contrib directory:
+   ```bash
+   cd contrib/pi-coding-agent && git pull
+   ```
+
 ---
 
 ## Shell & Environment

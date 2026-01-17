@@ -94,6 +94,13 @@
 (add-to-list 'load-path (expand-file-name "init" emacs-config-dir))
 (add-to-list 'load-path (expand-file-name "lisp" emacs-config-dir))
 
+;; Contrib: local package forks (takes precedence over ELPA/MELPA)
+(let ((contrib-dir (expand-file-name "contrib" emacs-config-dir)))
+  (when (file-directory-p contrib-dir)
+    (dolist (pkg-dir (directory-files contrib-dir t "^[^.]"))
+      (when (file-directory-p pkg-dir)
+        (add-to-list 'load-path pkg-dir)))))
+
 ;;; ===========================================================================
 ;;; Environment & Shell
 ;;; ===========================================================================
