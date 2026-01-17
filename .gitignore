@@ -1,8 +1,6 @@
 .build
 .local
-.agent-shell
-#CLAUDE.md
-#GEMINI.md
-#AGENT*
-FONTS*
-
+CLAUDE.md
+GEMINI.md
+AGENT*
+lisp/tecendil/fonts

@@ -1,15 +1,13 @@
-# Hyalo Emacs
+<h1 align="center">
+  <hr/>
+  H Y A L O &nbsp; E m a c s
+  <br>
+  <sub>Liquid Glass for macOS Tahoe</sub>
+  <hr/>
+</h1>
 
-```
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-                            H Y A L O  Emacs
-                      Liquid Glass for macOS Tahoe
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
-<!-- Screenshot placeholder -->
 <p align="center">
-  <img src="screenshot.png" alt="Hyalo Emacs Screenshot" width="800"/>
+  <img src="screenshot.png" alt="Hyalo Emacs Screenshot" width="100%"/>
 </p>
 
 > **hy·a·lo** | ˈhīəˌlo | *adjective*: glassy; transparent.
@@ -163,24 +161,25 @@ Custom Elisp libraries providing Hyalo functionality and TTY-compatible utilitie
 
 ### Hyalo Libraries (macOS GUI)
 
-| Library                    | Purpose                              | Key Commands                                                       |
-|----------------------------|--------------------------------------|--------------------------------------------------------------------|
-| **hyalo.el**               | Module loader and build system       | `hyalo-load`, `hyalo-build`, `hyalo-rebuild-and-reload`            |
-| **hyalo-appearance.el**    | Theme, vibrancy, and opacity control | `hyalo-appearance-set`, `hyalo-appearance-show-panel`              |
-| **hyalo-header.el**        | SwiftUI header and mode-line sync    | `hyalo-toggle-decorations-command`                                 |
-| **hyalo-footer.el**        | Decorative footer patterns           | `hyalo-footer-set-pattern`                                         |
-| **hyalo-viewport.el**      | Buffer viewport offset for header    | *(automatic)*                                                      |
-| **hyalo-sidebar.el**       | Embedded sidebar frames              | `hyalo-sidebar-toggle-left`, `hyalo-sidebar-toggle-right`          |
-| **hyalo-minibuffer.el**    | Glass effect for mini-frame          | *(automatic)*                                                      |
-| **hyalo-fonts.el**         | Fontaine presets with Monaspace      | *(configuration)*                                                  |
-| **hyalo-icons.el**         | Monochromatic icon helpers           | *(helper functions)*                                               |
-| **hyalo-ibuffer.el**       | Sidebar ibuffer configuration        | *(automatic)*                                                      |
-| **hyalo-minimap.el**       | Demap mouse interaction              | `hyalo-minimap-click`, `hyalo-minimap-drag-scroll`                 |
-| **hyalo-markdown-tags.el** | SVG tag pills in markdown            | *(automatic via mode)*                                             |
-| **hyalo-tengwar.el**       | Tengwar script rendering             | `hyalo-tengwar-minor-mode`, `hyalo-tengwar-partial-mode`           |
-| **hyalo-system.el**        | macOS system integration             | `hyalo-reveal-in-finder`, `hyalo-share`, `hyalo-show-emoji-picker` |
-| **hyalo-splash.el**        | Startup splash screen                | `hyalo-splash`, `hyalo-splash-setup`                               |
-| **hyalo-agent.el** | SVG backgrounds for pi-coding-agent | *(automatic via hook)*                                             |
+| Library                       | Purpose                              | Key Commands                                                       |
+|-------------------------------|--------------------------------------|--------------------------------------------------------------------|
+| **hyalo.el**                  | Module loader and build system       | `hyalo-load`, `hyalo-build`, `hyalo-rebuild-and-reload`            |
+| **hyalo-appearance.el**       | Theme, vibrancy, and opacity control | `hyalo-appearance-set`, `hyalo-appearance-show-panel`              |
+| **hyalo-header.el**           | SwiftUI header and mode-line sync    | `hyalo-toggle-decorations-command`                                 |
+| **hyalo-footer.el**           | Decorative footer patterns           | `hyalo-footer-set-pattern`                                         |
+| **hyalo-viewport.el**         | Buffer viewport offset for header    | *(automatic)*                                                      |
+| **hyalo-sidebar.el**          | Embedded sidebar frames              | `hyalo-sidebar-toggle-left`, `hyalo-sidebar-toggle-right`          |
+| **hyalo-minibuffer.el**       | Glass effect for mini-frame          | *(automatic)*                                                      |
+| **hyalo-fonts.el**            | Fontaine presets with Monaspace      | *(configuration)*                                                  |
+| **hyalo-icons.el**            | Monochromatic icon helpers           | *(helper functions)*                                               |
+| **hyalo-ibuffer.el**          | Sidebar ibuffer configuration        | *(automatic)*                                                      |
+| **hyalo-minimap.el**          | Demap mouse interaction              | `hyalo-minimap-click`, `hyalo-minimap-drag-scroll`                 |
+| **hyalo-markdown-mode.el**    | Markdown mode enhancements           | *(automatic via mode)*                                             |
+| **hyalo-tengwar.el**          | Tengwar script rendering             | `hyalo-tengwar-minor-mode`, `hyalo-tengwar-partial-mode`           |
+| **hyalo-tengwar-tutorial.el** | Interactive Tengwar tutorial         | `hyalo-tengwar-tutorial`                                           |
+| **hyalo-system.el**           | macOS system integration             | `hyalo-reveal-in-finder`, `hyalo-share`, `hyalo-show-emoji-picker` |
+| **hyalo-splash.el**           | Startup splash screen                | `hyalo-splash`, `hyalo-splash-setup`                               |
+| **hyalo-agent.el**            | SVG backgrounds for pi-coding-agent  | *(automatic via hook)*                                             |
 
 ### Iota Libraries (TTY Compatible)
 
@@ -204,7 +203,7 @@ Custom Elisp libraries providing Hyalo functionality and TTY-compatible utilitie
 | hyalo-tengwar    | `post-command-hook`, `window-scroll-functions`                                                  |
 | hyalo-splash     | `window-setup-hook`, `window-configuration-change-hook`                                         |
 | hyalo-fonts      | `fontaine-set-preset-hook`, `enable-theme-functions`                                            |
-| hyalo-agent | `enable-theme-functions`, `window-configuration-change-hook`, `after-change-functions`     |
+| hyalo-agent      | `enable-theme-functions`, `window-configuration-change-hook`, `after-change-functions`      |
 | iota-dimmer      | `window-selection-change-functions`, `after-focus-change-function`                              |
 
 </details>
@@ -217,22 +216,23 @@ Use-package based configuration modules loaded in sequence.
 
 ### Module Overview
 
-| Module              | Theme             | Primary Packages                                              |
-|---------------------|-------------------|---------------------------------------------------------------|
-| **init-core**       | Infrastructure    | `general`, `which-key`, `diminish`, `elog`                    |
-| **init-emacs**      | Built-in settings | `recentf`, `saveplace`, `savehist`, `autorevert`              |
-| **init-help**       | Help system       | `helpful`, `elisp-refs`                                       |
-| **init-appearance** | Visual styling    | `fontaine`, `nerd-icons`, `modus-themes`, `ligature`, `demap` |
-| **init-modeline**   | Status line       | `doom-modeline`, `keycast`                                    |
-| **init-completion** | Completion UI     | `vertico`, `consult`, `marginalia`, `orderless`, `corfu`, `completion-preview` |
-| **init-editing**    | Editing features  | `god-mode`, `multiple-cursors`, `outline`, `hl-todo`          |
-| **init-hyalo**      | Liquid Glass      | `hyalo`, `hyalo-header`, `hyalo-appearance`, `hyalo-footer`   |
-| **init-tools**      | Development       | `project`, `magit`, `diff-hl`, `eglot`, `swift-mode`          |
-| **init-dired**      | File browsing     | `dired`, `dired-sidebar`, `hyalo-sidebar`                     |
-| **init-agents**     | AI assistants     | `copilot`, `pi-coding-agent`                                  |
-| **init-terminal**   | Terminal          | `eat`, `iota-shell`                                           |
-| **init-markdown**   | Markdown/Notes    | `markdown-mode`, `obsidian`, `polymode`                       |
-| **init-tengwar**    | Tengwar script    | `hyalo-tengwar`                                               |
+| Module              | Theme             | Primary Packages                                                       |
+|---------------------|-------------------|------------------------------------------------------------------------|
+| **init-core**       | Infrastructure    | `general`, `which-key`, `diminish`, `elog`                             |
+| **init-emacs**      | Built-in settings | `recentf`, `saveplace`, `savehist`, `autorevert`                       |
+| **init-help**       | Help system       | `helpful`, `elisp-refs`                                                |
+| **init-appearance** | Visual styling    | `fontaine`, `nerd-icons`, `modus-themes`, `ligature`, `demap`          |
+| **init-modeline**   | Status line       | `doom-modeline`, `keycast`                                             |
+| **init-completion** | Completion UI     | `vertico`, `consult`, `marginalia`, `orderless`, `corfu`               |
+| **init-editing**    | Editing features  | `god-mode`, `multiple-cursors`, `outline`, `hl-todo`                   |
+| **init-hyalo**      | Liquid Glass      | `hyalo`, `hyalo-header`, `hyalo-appearance`, `hyalo-footer`            |
+| **init-tools**      | Development       | `project`, `magit`, `diff-hl`, `eglot`, `swift-mode`                   |
+| **init-dired**      | File browsing     | `dired`, `dired-sidebar`, `hyalo-sidebar`                              |
+| **init-agents**     | AI assistants     | `copilot`, `pi-coding-agent`                                           |
+| **init-terminal**   | Terminal          | `eat`, `iota-shell`                                                    |
+| **init-markdown**   | Markdown/Notes    | `markdown-mode`, `obsidian`, `polymode`                                |
+| **init-tengwar**    | Tengwar script    | `hyalo-tengwar`                                                        |
+| **init-modes**      | Language modes    | `toml-mode`, eshell auto-mode-alist                                    |
 
 ### Key Bindings
 
@@ -249,8 +249,25 @@ All leader bindings use `C-c` prefix (configured via `general.el`).
 | `C-c s` | Shell    | `s` terminal, `p` project, `e` eshell                                               |
 | `C-c t` | Toggle   | `e` sidebar, `i` inspector, `E` focus sidebar, `I` focus inspector, `m` minimap     |
 | `C-c v` | Version  | `s` status, `l` log, `b` blame, `d` diff                                            |
-| `C-c a` | Agents   | `p` pi, `m` menu, `s` sidebar, `f` focus                                        |
+| `C-c a` | Agents   | `p` pi, `m` menu, `s` sidebar toggle, `f` sidebar focus                         |
 | `C-c m` | Markdown | `l` link, `c` code, `C` code-block, `b` bold, `i` italic, `h` header                |
+
+### Pi Coding Agent Bindings
+
+In the pi-coding-agent input buffer:
+
+| Binding   | Command                                         |
+|-----------|-------------------------------------------------|
+| `C-c C-c` | Send prompt                                     |
+| `C-c C-s` | Queue steering message (interrupts after tool)  |
+| `C-c C-q` | Queue follow-up message (waits for completion)  |
+| `C-c C-u` | Restore queued messages to input                |
+| `C-c C-k` | Abort streaming                                 |
+| `C-c C-p` | Open transient menu                             |
+| `C-c C-r` | Resume previous session                         |
+| `@`       | File reference (auto-completes project files)   |
+| `/`       | Slash command (at line start, auto-completes)   |
+| `TAB`     | Complete paths, files, commands                 |
 
 ### Editing Bindings
 
