@@ -100,13 +100,13 @@ proper visual hierarchy without relying solely on colors."
   (setq fontaine-presets
         '((default
            ;; Default code: Monaspace Neon
-           :default-family "Monaspace Neon Frozen"
+           :default-family "SF Mono" ;; "Monaspace Neon Frozen"
            :default-height 110
-           :line-spacing 0.1
-           :fixed-pitch-family "Monaspace Neon Frozen"
+           :line-spacing 0.2
+           :fixed-pitch-family "SF Mono" ;; "Monaspace Neon Frozen"
 
            ;; Prose, documentation: Monaspace Xenon Var
-           :variable-pitch-family "Monaspace Xenon Frozen"
+           :variable-pitch-family "SF Mono" ;; "Monaspace Xenon Frozen"
            :variable-pitch-height 1.0  ; Relative height (1.0x) ensures scaling with text-scale-increase
 
            ;; Comments, italics: Monaspace Radon (handwriting style)
@@ -242,7 +242,7 @@ Also configures cursor style and header-line font."
   "Ensure mixed-pitch-mode is active for markdown.
 Skips pi-coding-agent buffers which use monospace."
   (message "DEBUG hyalo-fonts: markdown-setup called in buffer %s" (buffer-name))
-  (message "DEBUG hyalo-fonts: is pi-coding-agent buffer? %s" 
+  (message "DEBUG hyalo-fonts: is pi-coding-agent buffer? %s"
            (string-match-p "\\*pi-coding-agent-" (buffer-name)))
   (if (string-match-p "\\*pi-coding-agent-" (buffer-name))
       (message "DEBUG hyalo-fonts: SKIPPING mixed-pitch for pi-coding-agent buffer")
@@ -255,7 +255,9 @@ Skips pi-coding-agent buffers which use monospace."
 ;; Magit
 (defun hyalo-fonts--magit-fonts ()
   "Set Magit buffers to use Monaspace Neon for italics (avoiding Radon)."
-  (face-remap-add-relative 'italic :family "Monaspace Neon Frozen" :slant 'italic))
+  ;; (face-remap-add-relative 'italic :family "Monaspace Neon Frozen" :slant 'italic)
+  (face-remap-add-relative 'italic :family "SF Mono" :slant 'italic)
+  )
 
 (add-hook 'magit-mode-hook #'hyalo-fonts--magit-fonts)
 (add-hook 'magit-status-mode-hook #'hyalo-fonts--magit-fonts)
@@ -271,9 +273,9 @@ Git commit messages should use monospace font for proper formatting."
   (when (bound-and-true-p mixed-pitch-mode)
     (mixed-pitch-mode -1))
   ;; Ensure fixed-pitch
-  (face-remap-add-relative 'default :family "Monaspace Neon Frozen")
+  (face-remap-add-relative 'default :family "SF Mono") ;; "Monaspace Neon Frozen")
   ;; Remove variable-pitch inheritance
-  (face-remap-add-relative 'variable-pitch :family "Monaspace Neon Frozen"))
+  (face-remap-add-relative 'variable-pitch :family "SF Mono")) ;; "Monaspace Neon Frozen"))
 
 (add-hook 'git-commit-mode-hook #'hyalo-fonts--git-commit-fonts)
 
