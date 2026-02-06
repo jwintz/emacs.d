@@ -31,12 +31,71 @@
     "v s" '(magit-status :wk "status")
     "v l" '(magit-log :wk "log")
     "v b" '(magit-blame :wk "blame")
-    "v d" '(magit-diff :wk "diff"))
+    "v d" '(magit-diff :wk "diff")
+    "v g" '(magit-generate-commit-message :wk "generate message"))
+  (:keymaps 'git-commit-mode-map
+   "C-c C-g" '(magit-generate-commit-message :wk "generate message"))
   :custom
   (magit-display-buffer-function
    (lambda (buffer) (display-buffer buffer '(display-buffer-same-window))))
   :config
-  (add-hook 'after-save-hook 'magit-after-save-refresh-status t))
+  (add-hook 'after-save-hook 'magit-after-save-refresh-status t)
+
+  (defconst magit--commit-system-message
+    "You are a commit message generator. Follow these rules strictly:
+
+1. Use conventional commits format: <type>(<scope>): <description>
+2. Types: feat, fix, docs, style, refactor, perf, test, chore
+3. Keep the first line under 50 characters
+4. Use imperative mood (\"add\" not \"added\", \"fix\" not \"fixed\")
+5. Do not end with a period
+6. Be specific but concise
+7. If breaking change, add \"BREAKING CHANGE:\" footer
+
+Respond with ONLY the commit message, no explanation, no markdown, no quotes."
+    "System message for Gemini CLI commit message generation.")
+
+  (defcustom magit-commit-provider "google-gemini-cli"
+    "AI provider for commit message generation (google, openai, anthropic, google-gemini-cli)."
+    :type 'string
+    :group 'magit)
+
+  (defcustom magit-commit-model "gemini-3-flash-preview"
+    "Model ID for commit message generation."
+    :type 'string
+    :group 'magit)
+
+  (defun magit-generate-commit-message ()
+    "Generate commit message using pi CLI based on staged changes.
+Inserts the message at point in the commit buffer."
+    (interactive)
+    (let ((diff (with-temp-buffer
+                  (call-process "git" nil t nil "diff" "--cached" "--no-color")
+                  (buffer-string))))
+      (if (string-empty-p diff)
+          (message "No staged changes to generate commit message from")
+        (message "Generating commit message with %s/%s..." magit-commit-provider magit-commit-model)
+        (let* ((truncated-diff (if (> (length diff) 50000)
+                                   (concat (substring diff 0 50000)
+                                           "\n\n[Diff truncated due to length]")
+                                 diff))
+               (prompt (concat "\n\nGenerate a commit message for these changes:\n\n"
+                               "```diff\n"
+                               truncated-diff
+                               "\n```"))
+               (commit-message
+                (with-output-to-string
+                  (with-current-buffer standard-output
+                    ;; Redirect stderr to /dev/null to filter CLI startup noise
+                    (call-process "pi" nil (list t nil) nil
+                                  "--provider" magit-commit-provider
+                                  "--model" magit-commit-model
+                                  "--system-prompt" magit--commit-system-message
+                                  "--no-tools"
+                                  "--no-session"
+                                  "-p" prompt)))))
+          (insert (string-trim commit-message))
+          (message "Commit message inserted"))))))
 
 (use-package diff-hl
   :ensure t

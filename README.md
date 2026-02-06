@@ -248,7 +248,7 @@ All leader bindings use `C-c` prefix (configured via `general.el`).
 | `C-c p` | Project  | `f` find-file, `b` buffer, `d` dired, `k` kill, `p` switch, `s` search              |
 | `C-c s` | Shell    | `s` terminal, `p` project, `e` eshell                                               |
 | `C-c t` | Toggle   | `e` sidebar, `i` inspector, `E` focus sidebar, `I` focus inspector, `m` minimap     |
-| `C-c v` | Version  | `s` status, `l` log, `b` blame, `d` diff                                            |
+| `C-c v` | Version  | `s` status, `l` log, `b` blame, `d` diff, `g` generate message                      |
 | `C-c a` | Agents   | `p` pi, `m` menu, `s` sidebar toggle, `f` sidebar focus                         |
 | `C-c m` | Markdown | `l` link, `c` code, `C` code-block, `b` bold, `i` italic, `h` header                |
 
@@ -268,6 +268,14 @@ In the pi-coding-agent input buffer:
 | `@`       | File reference (auto-completes project files)   |
 | `/`       | Slash command (at line start, auto-completes)   |
 | `TAB`     | Complete paths, files, commands                 |
+
+### Magit Commit Buffer Bindings
+
+In the git commit message buffer (`git-commit-mode`):
+
+| Binding   | Command                                         |
+|-----------|-------------------------------------------------|
+| `C-c C-g` | Generate commit message with Gemini CLI         |
 
 ### Editing Bindings
 
