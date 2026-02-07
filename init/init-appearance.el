@@ -4,11 +4,9 @@
 
 ;;;; Fonts
 
-(use-package fontaine
-  :ensure t
-  :demand t
-  :config
-  (require 'hyalo-fonts))
+(set-face-attribute 'default nil :family "SF Mono" :height 130 :weight 'regular)
+(set-face-attribute 'fixed-pitch nil :family "SF Mono" :height 130 :weight 'regular)
+(set-face-attribute 'variable-pitch nil :family "SF Pro Display" :height 140 :weight 'regular)
 
 ;;;; Icons
 
@@ -37,7 +35,7 @@
 
 (use-package hl-line
   :ensure nil
-  :demand t
+  :preface (require 'color)
   :config
   (global-hl-line-mode 1))
 
@@ -46,8 +44,8 @@
 (use-package ligature
   :ensure t
   :config
-  ;; Monaspace ligatures - comprehensive set for programming
-  ;; Reference: https://github.com/githubnext/monaspace#ligatures
+  ;; SF Mono ligatures (supported via specialized builds or patches,
+  ;; or generic programming ligatures)
   (ligature-set-ligatures 'prog-mode
                           '(;; Arrows
                             "->" "-->" "--->" "-<" "-<<" "-~"
@@ -63,7 +61,7 @@
                             "++" "--" "**" "***"
                             "//" "///" "/*" "*/" "/="
                             ;; Pipes and composition
-                            "|>" "<|" "<|>" "||>" "|>>"
+                            "|> " "<|" "<|>" "||>" "|>>"
                             "<:" ":>" "::" ":::" "::::"
                             ;; Brackets and tags
                             "</" "</>" "/>" "<>"
@@ -82,60 +80,18 @@
                             "|]" "[|" "||]" "[||"))
   (global-ligature-mode t))
 
-;;;; Themes
+;;;; Nano Theme & Layout
 
-(use-package modus-themes
-  :ensure t
-  :demand t
-  :custom
-  (modus-themes-mixed-fonts t)
-  (modus-themes-variable-pitch-ui t)
-  (modus-themes-italic-constructs t)
-  (modus-themes-bold-constructs nil)
-  (modus-themes-completions '((t . (semibold))))
-  (modus-themes-prompts '(semibold))
-  :config
-  (advice-add 'modus-themes-select-dark :after #'hyalo-switch-to-dark)
-  (advice-add 'modus-themes-load-random-dark :after #'hyalo-switch-to-dark)
+(require 'nano-base-colors)
+(require 'nano-faces)
+(require 'nano-theme)
+(require 'nano-layout)
+(require 'hyalo-theme)
 
-  (advice-add 'modus-themes-select-light :after #'hyalo-switch-to-light)
-  (advice-add 'modus-themes-load-random-light :after #'hyalo-switch-to-light))
-(use-package ef-themes
-  :ensure t
-  :after modus-themes
-  :config
-  (modus-themes-include-derivatives-mode 1))
+(require 'hyalo-fonts)
+(hyalo-fonts-setup)
 
-(use-package doric-themes
-  :ensure t)
-
-(use-package kaolin-themes
-  :ensure t
-  :config
-  (defvar kaolin-themes-dark-list
-    '(kaolin-dark kaolin-aurora kaolin-bubblegum kaolin-eclipse kaolin-ocean
-      kaolin-temple kaolin-valley-dark kaolin-blossom kaolin-mono-dark kaolin-shiva)
-    "List of dark Kaolin themes.")
-
-  (defvar kaolin-themes-light-list
-    '(kaolin-light kaolin-galaxy kaolin-valley-light kaolin-breeze kaolin-mono-light)
-    "List of light Kaolin themes.")
-
-  (defun kaolin-themes-load-random-dark ()
-    "Load a random dark Kaolin theme."
-    (interactive)
-    (let ((theme (nth (random (length kaolin-themes-dark-list)) kaolin-themes-dark-list)))
-      (mapc #'disable-theme custom-enabled-themes)
-      (load-theme theme t)
-      (message "Loaded Kaolin theme: %s" theme)))
-
-  (defun kaolin-themes-load-random-light ()
-    "Load a random light Kaolin theme."
-    (interactive)
-    (let ((theme (nth (random (length kaolin-themes-light-list)) kaolin-themes-light-list)))
-      (mapc #'disable-theme custom-enabled-themes)
-      (load-theme theme t)
-      (message "Loaded Kaolin theme: %s" theme))))
+(hyalo-theme-setup)
 
 ;;;; Mixed Pitch
 

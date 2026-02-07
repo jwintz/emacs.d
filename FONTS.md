@@ -1,24 +1,13 @@
 # Fonts
 
-This repository uses several font families for semantic differentiation and visual styling.
+This repository uses the San Francisco font family for all UI and code display.
 
-## Monaspace Superfamily
-
-The [Monaspace](https://monaspace.githubnext.com/) superfamily provides semantic font mixing:
+## SF Family
 
 | Font | Usage |
 |------|-------|
-| **Monaspace Neon Frozen** | Default code, fixed-pitch, input buffers |
-| **Monaspace Xenon Frozen** | Variable-pitch, prose, documentation |
-| **Monaspace Radon Frozen** | Comments, italics (handwriting style) |
-| **Monaspace Krypton Frozen** | Inspector/chat buffers (pi-coding-agent) |
-| **Monaspace Argon Frozen** | Available for custom use |
-
-## System Fonts
-
-| Font | Usage |
-|------|-------|
-| **SF Mono** | Fallback when Monaspace unavailable |
+| **SF Mono** | Default code, fixed-pitch, input buffers, terminals |
+| **SF Pro Display** | Variable-pitch, prose, documentation, UI elements |
 
 ## Icon Fonts
 
@@ -39,9 +28,9 @@ The [Monaspace](https://monaspace.githubnext.com/) superfamily provides semantic
 
 ## Installation
 
-### Monaspace
+### SF Family
 
-Download from [monaspace.githubnext.com](https://monaspace.githubnext.com/) and install the "Frozen" variants.
+Download and install from [developer.apple.com](https://developer.apple.com/fonts/).
 
 ### Nerd Fonts
 
@@ -58,6 +47,6 @@ Download Tengwar Annatar and other Tengwar fonts from various Tolkien fan sites.
 ## Configuration
 
 Font configuration is managed in:
-- `lisp/hyalo-fonts.el` — Fontaine presets and semantic font mixing
+- `lisp/hyalo-fonts.el` — Weight-based highlighting and font setup
 - `init/init-appearance.el` — Font initialization and nerd-icons setup
 - `lisp/hyalo-tengwar.el` — Tengwar font detection and rendering

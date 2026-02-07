@@ -105,8 +105,11 @@
 ;;; Environment & Shell
 ;;; ===========================================================================
 
-;; Initialize environment (PATH, exec-path)
-(load (expand-file-name "conf/eshlogin" emacs-config-dir) 'noerror 'nomessage)
+(use-package exec-path-from-shell
+  :ensure t
+  :config
+  (when (memq window-system '(mac ns x))
+    (exec-path-from-shell-initialize)))
 
 (provide 'init-bootstrap)
 ;;; init-bootstrap.el ends here

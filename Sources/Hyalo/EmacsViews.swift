@@ -5,51 +5,6 @@
 import AppKit
 import SwiftUI
 
-// MARK: - Embedded Emacs View
-
-/// NSViewRepresentable wrapper for embedded Emacs child-frame NSView
-/// Uses EmacsEventForwardingContainer to forward events to the original hidden window
-@available(macOS 26.0, *)
-struct EmbeddedEmacsView: NSViewRepresentable {
-    let embeddedView: NSView
-    let originalWindow: NSWindow?
-    let slot: String
-    var onResize: ((String, CGFloat, CGFloat) -> Void)?
-
-    func makeNSView(context: Context) -> EmacsEventForwardingContainer {
-        let container = EmacsEventForwardingContainer()
-
-        if let originalWindow = originalWindow {
-            // Use event forwarding to route events back to the original Emacs window
-            container.configure(embeddedView: embeddedView, originalWindow: originalWindow)
-        } else {
-            // Fallback without forwarding (shouldn't happen but handles edge cases)
-            container.wantsLayer = true
-            container.layer?.backgroundColor = .clear
-
-            embeddedView.translatesAutoresizingMaskIntoConstraints = false
-            container.addSubview(embeddedView)
-
-            NSLayoutConstraint.activate([
-                embeddedView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-                embeddedView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-                embeddedView.topAnchor.constraint(equalTo: container.topAnchor),
-                embeddedView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
-            ])
-        }
-
-        return container
-    }
-
-    func updateNSView(_ nsView: EmacsEventForwardingContainer, context: Context) {
-        // Notify Elisp of size changes
-        let size = nsView.bounds.size
-        if size.width > 0 && size.height > 0 {
-            onResize?(slot, size.width, size.height)
-        }
-    }
-}
-
 // MARK: - Emacs Content View
 
 /// Wrapper to embed Emacs NSView in SwiftUI

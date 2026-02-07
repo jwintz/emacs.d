@@ -54,21 +54,20 @@ final class NavigationSidebarState {
     /// Alpha for the footer pattern foreground (0.0 to 1.0)
     var footerPatternAlpha: CGFloat = 0.15
 
-    // MARK: - Embedded Child-Frame Views
+    // MARK: - Sidebar Data (from Emacs channels)
 
-    /// Embedded view for left sidebar top (ibuffer)
-    var leftTopView: NSView?
-    /// Original window for left-top (for event forwarding)
-    weak var leftTopWindow: NSWindow?
-    /// Embedded view for left sidebar bottom (dired-sidebar)
-    var leftBottomView: NSView?
-    /// Original window for left-bottom (for event forwarding)
-    weak var leftBottomWindow: NSWindow?
-    /// Embedded view for right sidebar (agent-shell)
-    var rightView: NSView?
-    /// Original window for right (for event forwarding)
-    weak var rightWindow: NSWindow?
+    /// Open buffers list for sidebar display
+    var bufferList: [BufferInfo] = []
+    /// Currently selected buffer name
+    var selectedBuffer: String?
+    /// File tree for project navigation
+    var fileTree: FileTreeNode?
+    /// Current project root path
+    var projectRoot: String = ""
+    /// Currently active file path (for smart folder expansion)
+    var activeFilePath: String?
 
     /// Track last resize sizes to avoid duplicate notifications
     var debugLastResizeSize: [String: String] = [:]
 }
+

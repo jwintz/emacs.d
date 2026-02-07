@@ -41,9 +41,14 @@ final class NavigationSidebarController: NSObject {
         super.init()
     }
 
-    /// Callbacks for visibility changes (visible, needsSetup)
-    var onSidebarVisibilityChanged: ((Bool, Bool) -> Void)?
-    var onDetailVisibilityChanged: ((Bool, Bool) -> Void)?
+    /// Callbacks for visibility changes
+    var onSidebarVisibilityChanged: ((Bool) -> Void)?
+    var onDetailVisibilityChanged: ((Bool) -> Void)?
+
+    /// Callbacks for sidebar selection (wired via hyalo-setup-sidebar-channel)
+    var onBufferSelect: ((String) -> Void)?
+    var onBufferClose: ((String) -> Void)?
+    var onFileSelect: ((String) -> Void)?
 
     /// Callback for mode-line clicks. Parameters: segment ("lhs" or "rhs"), relative position (0.0-1.0)
     var onModeLineClick: ((String, Double) -> Void)?
@@ -718,29 +723,15 @@ final class NavigationSidebarController: NSObject {
             state: state,
             emacsView: emacsView,
             onGeometryUpdate: { [weak self] in self?.updateModeLineGeometry() },
-            onEmbeddedResize: { [weak self] slot, width, height in
-                self?.handleEmbeddedResize(slot: slot, width: width, height: height)
+            onBufferSelect: { [weak self] bufferName in self?.onBufferSelect?(bufferName) },
+            onBufferClose: { [weak self] bufferName in self?.onBufferClose?(bufferName) },
+            onFileSelect: { [weak self] filePath in self?.onFileSelect?(filePath) },
+            onSidebarVisibilityChanged: { visible in
+                NavigationSidebarManager.shared.notifySidebarVisibilityChanged(visible: visible)
             },
-            onSidebarVisibilityChanged: { visible, needsSetup in
-                NavigationSidebarManager.shared.notifySidebarVisibilityChanged(visible: visible, needsSetup: needsSetup)
-            },
-            onDetailVisibilityChanged: { visible, needsSetup in
-                NavigationSidebarManager.shared.notifyDetailVisibilityChanged(visible: visible, needsSetup: needsSetup)
+            onDetailVisibilityChanged: { visible in
+                NavigationSidebarManager.shared.notifyDetailVisibilityChanged(visible: visible)
             }
-        )
-    }
-
-    /// Handle resize of embedded child-frame views
-    private func handleEmbeddedResize(slot: String, width: CGFloat, height: CGFloat) {
-        let key = "resize-\(slot)"
-        let newSize = "\(Int(width))x\(Int(height))"
-        if state.debugLastResizeSize[key] == newSize { return }
-        state.debugLastResizeSize[key] = newSize
-
-        NotificationCenter.default.post(
-            name: NSNotification.Name("HyaloEmbeddedResize"),
-            object: nil,
-            userInfo: ["slot": slot, "width": width, "height": height]
         )
     }
 

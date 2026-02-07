@@ -1,4 +1,0 @@
-# Eshell rc script - runs for each new shell
-
-
-(message "eshrc loaded")

@@ -14,9 +14,11 @@ struct HyaloNavigationLayout: View {
     let emacsView: NSView
 
     var onGeometryUpdate: (() -> Void)?  // Called when sidebar/inspector visibility changes
-    var onEmbeddedResize: ((String, CGFloat, CGFloat) -> Void)?  // Called when embedded view resizes
-    var onSidebarVisibilityChanged: ((Bool, Bool) -> Void)?  // Called when sidebar toggles (visible, needsSetup)
-    var onDetailVisibilityChanged: ((Bool, Bool) -> Void)?  // Called when inspector toggles (visible, needsSetup)
+    var onBufferSelect: ((String) -> Void)?  // Called when a buffer is selected in sidebar
+    var onBufferClose: ((String) -> Void)?  // Called when a buffer close button is clicked
+    var onFileSelect: ((String) -> Void)?  // Called when a file is selected in sidebar
+    var onSidebarVisibilityChanged: ((Bool) -> Void)?  // Called when sidebar toggles
+    var onDetailVisibilityChanged: ((Bool) -> Void)?  // Called when inspector toggles
 
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
 
@@ -64,7 +66,11 @@ struct HyaloNavigationLayout: View {
                 // Sidebar column (left)
                 SidebarContentView(
                     state: state,
-                    onResize: onEmbeddedResize
+                    onBufferSelect: { bufferName in onBufferSelect?(bufferName) },
+                    onBufferClose: onBufferClose.map { callback in
+                        { bufferName in callback(bufferName) }
+                    },
+                    onFileSelect: { filePath in onFileSelect?(filePath) }
                 )
                 .navigationSplitViewColumnWidth(min: 200, ideal: 280, max: 400)
                 .background {
@@ -102,7 +108,7 @@ struct HyaloNavigationLayout: View {
                 }
                 // Inspector (right panel) - symmetric to sidebar
                 .inspector(isPresented: inspectorVisibleBinding) {
-                    DetailPlaceholderView(state: state, onResize: onEmbeddedResize)
+                    DetailPlaceholderView(state: state)
                         .inspectorColumnWidth(min: 300, ideal: 400, max: 500)
                         .background {
                             // Track inspector width
@@ -156,8 +162,7 @@ struct HyaloNavigationLayout: View {
                 withAnimation {
                     columnVisibility = newValue ? .all : .detailOnly
                 }
-                let needsSetup = newValue && (state.leftTopView == nil || state.leftBottomView == nil)
-                onSidebarVisibilityChanged?(newValue, needsSetup)
+                onSidebarVisibilityChanged?(newValue)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     onGeometryUpdate?()
                 }
@@ -167,16 +172,14 @@ struct HyaloNavigationLayout: View {
                 let isSidebarNowVisible = (newValue == .all || newValue == .doubleColumn)
                 if state.sidebarVisible != isSidebarNowVisible {
                     state.sidebarVisible = isSidebarNowVisible
-                    let needsSetup = isSidebarNowVisible && (state.leftTopView == nil || state.leftBottomView == nil)
-                    onSidebarVisibilityChanged?(isSidebarNowVisible, needsSetup)
+                    onSidebarVisibilityChanged?(isSidebarNowVisible)
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     onGeometryUpdate?()
                 }
             }
             .onChange(of: state.detailVisible) { _, newValue in
-                let needsSetup = newValue && state.rightView == nil
-                onDetailVisibilityChanged?(newValue, needsSetup)
+                onDetailVisibilityChanged?(newValue)
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                     onGeometryUpdate?()
                 }

@@ -45,7 +45,7 @@
 (init--require-with-trace 'init-hyalo)      ;; macOS Liquid Glass (ns only)
 (init--require-with-trace 'init-tools)      ;; project, magit, diff-hl, eglot
 (init--require-with-trace 'init-dired)      ;; dired, sidebar
-(init--require-with-trace 'init-agents)     ;; copilot, pi-coding-agent
+(init--require-with-trace 'init-agents)     ;; copilot
 (init--require-with-trace 'init-terminal)   ;; eat
 (init--require-with-trace 'init-markdown)   ;; markdown-mode, obsidian
 (init--require-with-trace 'init-tengwar)    ;; tengwar transliteration

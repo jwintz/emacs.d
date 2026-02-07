@@ -34,10 +34,6 @@
   :ensure nil
   :after hyalo
   :demand t
-  :init
-  ;; Set BEFORE load to ensure frame creation uses these values
-  (setq hyalo-sidebar-internal-border-width 0)
-  (setq hyalo-sidebar-font nil)
   :config
   (hyalo-sidebar-mode 1)
   :general

@@ -41,14 +41,14 @@ final class NavigationSidebarManager {
     private var lastDetailVisible: Bool? = nil
 
     /// Notify about sidebar visibility change (deduplicated)
-    func notifySidebarVisibilityChanged(visible: Bool, needsSetup: Bool) {
+    func notifySidebarVisibilityChanged(visible: Bool) {
         guard lastSidebarVisible != visible else { return }
         lastSidebarVisible = visible
         onSidebarVisibilityChanged?("left", visible)
     }
 
     /// Notify about detail visibility change (deduplicated)
-    func notifyDetailVisibilityChanged(visible: Bool, needsSetup: Bool) {
+    func notifyDetailVisibilityChanged(visible: Bool) {
         guard lastDetailVisible != visible else { return }
         lastDetailVisible = visible
         onDetailVisibilityChanged?("right", visible)
@@ -64,11 +64,11 @@ final class NavigationSidebarManager {
         let controller = NavigationSidebarController(window: window)
 
         // Connect callbacks
-        controller.onSidebarVisibilityChanged = { [weak self] visible, needsSetup in
-            self?.notifySidebarVisibilityChanged(visible: visible, needsSetup: needsSetup)
+        controller.onSidebarVisibilityChanged = { [weak self] visible in
+            self?.notifySidebarVisibilityChanged(visible: visible)
         }
-        controller.onDetailVisibilityChanged = { [weak self] visible, needsSetup in
-            self?.notifyDetailVisibilityChanged(visible: visible, needsSetup: needsSetup)
+        controller.onDetailVisibilityChanged = { [weak self] visible in
+            self?.notifyDetailVisibilityChanged(visible: visible)
         }
         controller.onModeLineClick = { [weak self] segment, position in
             self?.onModeLineClick?(segment, position)
@@ -189,42 +189,6 @@ final class NavigationSidebarManager {
         controllers[window.windowNumber]?.setFooterPatternAlpha(alpha)
     }
 
-    // MARK: - Embedded View Management
-
-    func setEmbeddedView(view: NSView, slot: String, for window: NSWindow, originalWindow: NSWindow? = nil) {
-        guard let controller = controllers[window.windowNumber] else { return }
-
-        switch slot {
-        case "left-top":
-            controller.state.leftTopView = view
-            controller.state.leftTopWindow = originalWindow
-        case "left-bottom":
-            controller.state.leftBottomView = view
-            controller.state.leftBottomWindow = originalWindow
-        case "right":
-            controller.state.rightView = view
-            controller.state.rightWindow = originalWindow
-        default:
-            break
-        }
-    }
-
-    func clearEmbeddedView(slot: String, for window: NSWindow) {
-        guard let controller = controllers[window.windowNumber] else { return }
-        switch slot {
-        case "left-top":
-            controller.state.leftTopView = nil
-            controller.state.leftTopWindow = nil
-        case "left-bottom":
-            controller.state.leftBottomView = nil
-            controller.state.leftBottomWindow = nil
-        case "right":
-            controller.state.rightView = nil
-            controller.state.rightWindow = nil
-        default:
-            break
-        }
-    }
 
     // MARK: - Mode-line Segments
 

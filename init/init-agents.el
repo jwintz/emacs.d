@@ -1,4 +1,4 @@
-;;; init-agents.el --- AI agents: copilot, pi-coding-agent -*- lexical-binding: t; -*-
+;;; init-agents.el --- AI agents: copilot -*- lexical-binding: t; -*-
 
 ;;; Code:
 
@@ -43,48 +43,6 @@
       (apply orig-fun type msg args)))
 
   (advice-add 'copilot--log :around #'emacs/copilot-suppress-log))
-
-;;;; Pi Coding Agent
-
-(use-package pi-coding-agent
-  :ensure nil  ; loaded from contrib/pi-coding-agent (local fork)
-  :defer t
-  :commands (pi-coding-agent pi-coding-agent-menu)
-  :general
-  (leader-def
-    "a" '(:ignore t :wk "agents")
-    "a p" '(pi-coding-agent :wk "pi")
-    "a m" '(pi-coding-agent-menu :wk "menu")
-    "a s" '(hyalo-sidebar-toggle-right :wk "sidebar toggle")
-    "a f" '(hyalo-sidebar-focus-right :wk "sidebar focus"))
-  :hook
-  (pi-coding-agent-chat-mode . (lambda ()
-                                 (face-remap-add-relative 'default :family "Monaspace Krypton")))
-  :init
-  ;; Set up SVG backgrounds for tool blocks (Hyalo transparency compatibility)
-  (with-eval-after-load 'hyalo
-    (require 'hyalo-agent)
-    (hyalo-agent-setup))
-  :config
-  ;; Use a smaller input window for embedded sidebar
-  (setq pi-coding-agent-input-window-height 6)
-
-  ;; Fix: upstream bug - :content is a vector, not a string
-  ;; Use :streaming-content for text delta accumulation
-  (defun pi-coding-agent--handle-message-update-fixed (event)
-    "Handle a message_update EVENT by accumulating text deltas.
-Fixed version that uses :streaming-content instead of :content."
-    (let* ((msg-event (plist-get event :assistantMessageEvent))
-           (event-type (plist-get msg-event :type))
-           (current (plist-get pi-coding-agent--state :current-message)))
-      (when (and current (equal event-type "text_delta"))
-        (let* ((delta (plist-get msg-event :delta))
-               (content (or (plist-get current :streaming-content) ""))
-               (new-content (concat content delta)))
-          (plist-put current :streaming-content new-content)))))
-
-  (advice-add 'pi-coding-agent--handle-message-update
-              :override #'pi-coding-agent--handle-message-update-fixed))
 
 (provide 'init-agents)
 

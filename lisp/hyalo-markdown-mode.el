@@ -96,7 +96,7 @@ Scales all internal dimensions with text-scale-mode."
          (radius (max 2 (round (* container-height 0.15))))
          (stroke (max 1 (round (* container-height 0.08)))))
     (svg-lib-icon+tag "tag" tg nil
-                      :font-family "Roboto Mono"
+                      :font-family "SF Mono"
                       :font-weight 500
                       :font-size font-size
                       :stroke stroke

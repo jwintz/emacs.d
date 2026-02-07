@@ -18,8 +18,8 @@ struct SidebarSectionHeader: View {
 
     @State private var rotation: Double = 0
 
-    /// Standard margin matching embedded frame padding
-    private let sideMargin: CGFloat = 12
+    /// Standard margin matching sidebar padding
+    private let sideMargin: CGFloat = 14
     /// Icon width + spacing to align subtitle with title
     private let iconWidth: CGFloat = 10
     private let iconSpacing: CGFloat = 6
@@ -46,7 +46,7 @@ struct SidebarSectionHeader: View {
                         }
                     }
                 Text(title)
-                    .font(.system(size: 11, weight: .semibold))
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.secondary)
                 Spacer()
             }
@@ -62,183 +62,155 @@ struct SidebarSectionHeader: View {
             }
         }
         .padding(.horizontal, sideMargin)
-        .padding(.top, isFirst ? 6 : sideMargin)
+        .padding(.top, isFirst ? 8 : 14)
         .padding(.bottom, 6)
     }
 }
 
-/// Custom NSSplitView wrapper for sidebar that allows divider customization
-@available(macOS 26.0, *)
-struct StyledSplitView<TopContent: View, BottomContent: View>: NSViewRepresentable {
-    let topContent: TopContent
-    let bottomContent: BottomContent
-    let dividerColor: NSColor
-    let dividerThickness: CGFloat
-
-    init(
-        dividerColor: NSColor = .separatorColor,
-        dividerThickness: CGFloat = 1,
-        @ViewBuilder top: () -> TopContent,
-        @ViewBuilder bottom: () -> BottomContent
-    ) {
-        self.dividerColor = dividerColor
-        self.dividerThickness = dividerThickness
-        self.topContent = top()
-        self.bottomContent = bottom()
-    }
-
-    func makeNSView(context: Context) -> NSSplitView {
-        let splitView = CustomDividerSplitView()
-        splitView.isVertical = false  // Vertical stacking (horizontal divider)
-        splitView.dividerStyle = .thin
-        splitView.customDividerColor = dividerColor
-        splitView.customDividerThickness = dividerThickness
-        splitView.delegate = context.coordinator
-
-        // Create hosting views for SwiftUI content
-        let topHost = NSHostingView(rootView: topContent)
-        let bottomHost = NSHostingView(rootView: bottomContent)
-
-        topHost.translatesAutoresizingMaskIntoConstraints = false
-        bottomHost.translatesAutoresizingMaskIntoConstraints = false
-
-        splitView.addArrangedSubview(topHost)
-        splitView.addArrangedSubview(bottomHost)
-
-        // Set initial proportions
-        splitView.setHoldingPriority(.defaultLow, forSubviewAt: 0)
-        splitView.setHoldingPriority(.defaultLow, forSubviewAt: 1)
-
-        return splitView
-    }
-
-    func updateNSView(_ nsView: NSSplitView, context: Context) {
-        if let customSplit = nsView as? CustomDividerSplitView {
-            customSplit.customDividerColor = dividerColor
-            customSplit.customDividerThickness = dividerThickness
-            customSplit.needsDisplay = true
-        }
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    class Coordinator: NSObject, NSSplitViewDelegate {
-        func splitView(_ splitView: NSSplitView, constrainMinCoordinate proposedMinimumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
-            return 80  // Minimum height for top pane
-        }
-
-        func splitView(_ splitView: NSSplitView, constrainMaxCoordinate proposedMaximumPosition: CGFloat, ofSubviewAt dividerIndex: Int) -> CGFloat {
-            return splitView.bounds.height - 150  // Minimum height for bottom pane
-        }
-    }
-}
-
-/// Custom NSSplitView subclass with configurable divider appearance
-@available(macOS 26.0, *)
-final class CustomDividerSplitView: NSSplitView {
-    var customDividerColor: NSColor = .separatorColor
-    var customDividerThickness: CGFloat = 1
-
-    override var dividerColor: NSColor {
-        return customDividerColor
-    }
-
-    override var dividerThickness: CGFloat {
-        return customDividerThickness
-    }
-}
+// MARK: - Sidebar Content View
 
 /// The sidebar content with Liquid Glass styling
-/// Shows embedded Emacs views when available, falls back to SwiftUI List
+/// Shows buffer list and file tree from Emacs data
 @available(macOS 26.0, *)
 struct SidebarContentView: View {
     var state: NavigationSidebarState
-    var onResize: ((String, CGFloat, CGFloat) -> Void)?
-
-    /// SwiftUI-side margin for embedded frames (matches Emacs internal-border-width)
-    private let embeddedMargin: CGFloat = 12
+    var onBufferSelect: (String) -> Void
+    var onBufferClose: ((String) -> Void)?
+    var onFileSelect: (String) -> Void
 
     var body: some View {
-        // If embedded views are available, use custom StyledSplitView with Emacs frames
-        if let topView = state.leftTopView, let bottomView = state.leftBottomView {
-            StyledSplitView(
-              dividerColor: .separatorColor,
-                dividerThickness: 1,
-                top: {
-                    VStack(spacing: 0) {
-                        SidebarSectionHeader(title: "OPEN BUFFERS", systemImage: "document.on.document.fill", isFirst: true)
-                        EmbeddedEmacsView(embeddedView: topView, originalWindow: state.leftTopWindow, slot: "left-top", onResize: onResize)
-                            .padding(.horizontal, embeddedMargin)
-                            .padding(.bottom, embeddedMargin)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                },
-                bottom: {
-                    VStack(spacing: 0) {
-                        SidebarSectionHeader(title: "WORKSPACE", systemImage: "folder.fill")
-                        EmbeddedEmacsView(embeddedView: bottomView, originalWindow: state.leftBottomWindow, slot: "left-bottom", onResize: onResize)
-                            .padding(.horizontal, embeddedMargin)
-                            .padding(.bottom, embeddedMargin)
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    }
-                }
+        VStack(spacing: 0) {
+            // Open Buffers section
+            SidebarSectionHeader(
+                title: "OPEN BUFFERS",
+                systemImage: "doc.on.doc",
+                isFirst: true
             )
-            .transaction { $0.animation = nil }  // Disable animation to prevent resize flicker
-            .background {
-                Color(nsColor: state.backgroundColor)
-                    .opacity(Double(state.backgroundAlpha))
-                    .ignoresSafeArea()
-            }
-        } else if let topView = state.leftTopView {
-            // Only top view available
-            VStack(spacing: 0) {
-                SidebarSectionHeader(title: "OPEN BUFFERS", systemImage: "doc.on.doc", isFirst: true)
-                EmbeddedEmacsView(embeddedView: topView, originalWindow: state.leftTopWindow, slot: "left-top", onResize: onResize)
-                    .padding(.horizontal, embeddedMargin)
-                    .padding(.bottom, embeddedMargin)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .transaction { $0.animation = nil }
-            .background {
-                Color(nsColor: state.backgroundColor)
-                    .opacity(Double(state.backgroundAlpha))
-                    .ignoresSafeArea()
-            }
-        } else if let bottomView = state.leftBottomView {
-            // Only bottom view available
-            VStack(spacing: 0) {
-                SidebarSectionHeader(title: "WORKSPACE", systemImage: "folder", isFirst: true)
-                EmbeddedEmacsView(embeddedView: bottomView, originalWindow: state.leftBottomWindow, slot: "left-bottom", onResize: onResize)
-                    .padding(.horizontal, embeddedMargin)
-                    .padding(.bottom, embeddedMargin)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-            .transaction { $0.animation = nil }
-            .background {
-                Color(nsColor: state.backgroundColor)
-                    .opacity(Double(state.backgroundAlpha))
-                    .ignoresSafeArea()
-            }
-        } else {
-            // Empty placeholder when no embedded views
-            Color.clear
-                .background {
-                    Color(nsColor: state.backgroundColor)
-                        .opacity(Double(state.backgroundAlpha))
-                        .ignoresSafeArea()
+            
+            if !state.bufferList.isEmpty {
+                BufferListView(
+                    buffers: state.bufferList,
+                    selectedBuffer: state.selectedBuffer,
+                    onSelect: onBufferSelect,
+                    onClose: onBufferClose
+                )
+                .frame(maxHeight: 180)
+            } else {
+                // Empty buffer list placeholder
+                HStack {
+                    Text("No buffers open")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.tertiary)
                 }
+                .frame(height: 40)
+            }
+
+            Divider()
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+
+            // Project Files section
+            SidebarSectionHeader(
+                title: "PROJECT",
+                systemImage: "folder",
+                subtitle: (state.projectRoot as NSString).lastPathComponent
+            )
+            
+            FileTreeView(
+                root: state.fileTree,
+                activeFilePath: state.activeFilePath,
+                onSelect: onFileSelect
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .background {
+            Color(nsColor: state.backgroundColor)
+                .opacity(Double(state.backgroundAlpha))
+                .ignoresSafeArea()
         }
     }
 }
 
+// MARK: - Pi Logo Shape
+
+/// Stylized Pi (π) letter shape for the inspector header.
+/// Derived from the pi-island logo: horizontal bar with two vertical legs,
+/// plus a dot for the "i" in "Pi".
+@available(macOS 26.0, *)
+struct PiLogoShape: Shape {
+    func path(in rect: CGRect) -> Path {
+        let w = rect.width
+        let h = rect.height
+        var path = Path()
+
+        // Horizontal bar (top) — slightly curved ends
+        let barY = h * 0.18
+        let barH = h * 0.10
+        path.addRoundedRect(
+            in: CGRect(x: w * 0.05, y: barY, width: w * 0.90, height: barH),
+            cornerSize: CGSize(width: barH * 0.5, height: barH * 0.5))
+
+        // Left leg
+        let legW = w * 0.12
+        path.addRoundedRect(
+            in: CGRect(x: w * 0.22, y: barY + barH * 0.5, width: legW, height: h * 0.65),
+            cornerSize: CGSize(width: legW * 0.3, height: legW * 0.3))
+
+        // Right leg
+        path.addRoundedRect(
+            in: CGRect(x: w * 0.58, y: barY + barH * 0.5, width: legW, height: h * 0.55),
+            cornerSize: CGSize(width: legW * 0.3, height: legW * 0.3))
+
+        // Dot (the "i" in Pi) — above the right leg
+        let dotR = w * 0.07
+        path.addEllipse(in: CGRect(
+            x: w * 0.82 - dotR, y: h * 0.04,
+            width: dotR * 2, height: dotR * 2))
+
+        return path
+    }
+}
+
+/// Inspector header with Pi logo shape, title, and subtitle.
+/// Vertically centered with the toolbar using `state.toolbarHeight`.
+@available(macOS 26.0, *)
+struct PiLogoHeader: View {
+    var state: NavigationSidebarState
+
+    var body: some View {
+        HStack(spacing: 8) {
+            PiLogoShape()
+                .fill(.secondary)
+                .frame(width: 16, height: 16)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(state.inspectorTitle.uppercased())
+                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.secondary)
+
+                if !state.inspectorSubtitle.isEmpty {
+                    Text(state.inspectorSubtitle)
+                        .font(.system(size: 9, weight: .regular, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+            }
+
+            Spacer()
+        }
+        .frame(height: state.toolbarHeight)
+        .padding(.horizontal, 14)
+    }
+}
+
+// MARK: - Inspector Content View
+
 /// Inspector content view for the detail column (right panel)
-/// Shows embedded agent-shell when available, otherwise placeholder
+/// Will show Pi chat interface
 @available(macOS 26.0, *)
 struct DetailPlaceholderView: View {
     var state: NavigationSidebarState
-    var onResize: ((String, CGFloat, CGFloat) -> Void)?
 
     /// Map vibrancy material to NSVisualEffectView.Material
     private var effectMaterial: NSVisualEffectView.Material {
@@ -267,42 +239,12 @@ struct DetailPlaceholderView: View {
             Color(nsColor: state.backgroundColor)
                 .opacity(Double(state.backgroundAlpha))
 
-            // Show embedded agent-shell or placeholder
-            if let rightView = state.rightView {
-                VStack(spacing: 0) {
-                    SidebarSectionHeader(
-                        title: state.inspectorTitle.uppercased(),
-                        systemImage: state.inspectorIcon,
-                        subtitle: state.inspectorSubtitle,
-                        isBusy: state.inspectorBusy
-                    )
-                    EmbeddedEmacsView(embeddedView: rightView, originalWindow: state.rightWindow, slot: "right", onResize: onResize)
-                        .padding(.top, 6)
-                        .padding(.horizontal, 12)
-                        .padding(.bottom, 12)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
-                .padding(.top, 6)
-            } else {
-                // Placeholder content
-                VStack(spacing: 16) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 48, weight: .ultraLight))
-                        .foregroundStyle(.tertiary)
-
-                    Text("Inspector")
-                        .font(.headline)
-                        .foregroundStyle(.secondary)
-
-                    Text("Run hyalo-sidebar-right-setup\nto embed agent-shell")
-                        .font(.caption)
-                        .foregroundStyle(.tertiary)
-                        .multilineTextAlignment(.center)
-                }
-            }
+            // Pi Chat Interface (full-bleed, no header)
+            PiChatView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .transaction { $0.animation = nil }  // Disable all animation to prevent resize
+        .transaction { $0.animation = nil }
         .ignoresSafeArea(.container, edges: .top)
     }
 }

@@ -403,30 +403,12 @@ final class HyaloModule: Module {
         try env.defun(
             "hyalo-panel-needs-setup",
             with: """
-            Return which panel needs embedded content setup, or nil if none.
-            Returns "right" if inspector is visible but has no embedded content.
-            Returns "left" if sidebar is visible but has no embedded content.
-            Returns nil if all visible panels have content or are hidden.
+            Return which panel needs setup, or nil if none.
+            NOTE: With native SwiftUI sidebar, this is deprecated - always returns nil.
             """
         ) { (env: Environment) throws -> String? in
-            if #available(macOS 26.0, *) {
-                guard let window = findEmacsWindow() else { return nil }
-                let controller = NavigationSidebarManager.shared.getController(for: window)
-
-                // Check if detail/inspector needs setup
-                if controller.state.detailVisible && controller.state.rightView == nil {
-                    return "right"
-                }
-
-                // Check if sidebar needs setup
-                if controller.state.sidebarVisible &&
-                   controller.state.leftTopView == nil &&
-                   controller.state.leftBottomView == nil {
-                    return "left"
-                }
-
-                return nil
-            }
+            // DEPRECATED: Embedded panels no longer used
+            // Native SwiftUI views are always available
             return nil
         }
 
@@ -1267,15 +1249,34 @@ final class HyaloModule: Module {
             with: """
             Register a child-frame for embedding in the sidebar.
             SLOT is the slot identifier: "left-top", "left-bottom", or "right".
-            WINDOW-ID is the frame's window-id (from frame-parameter).
             """
         ) { (env: Environment, slot: String, windowId: String) throws -> Bool in
+            // DEPRECATED: Child-frame embedding removed in favor of channel-based data
+            // Keeping stub for backwards compatibility during transition
+            return false
+        }
+
+        // MARK: - Sidebar Data Channels (New Architecture)
+
+        try env.defun(
+            "hyalo-update-buffer-list",
+            with: """
+            Update the sidebar buffer list from Emacs.
+            JSON-DATA is a JSON array of buffer info objects with keys:
+            id, name, path, modified, icon
+            """
+        ) { (env: Environment, jsonData: String) throws -> Bool in
             if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
-                    guard let window = findEmacsWindow() else {
-                        return
+                    guard let window = findEmacsWindow() else { return }
+                    let controller = NavigationSidebarManager.shared.getController(for: window)
+                    guard let data = jsonData.data(using: .utf8) else { return }
+                    do {
+                        let buffers = try JSONDecoder().decode([BufferInfo].self, from: data)
+                        controller.state.bufferList = buffers
+                    } catch {
+                        // Silently ignore decode errors
                     }
-                    EmbeddedFrameManager.shared.registerFrame(slot: slot, windowId: windowId, parentWindow: window)
                 }
                 return true
             }
@@ -1283,18 +1284,25 @@ final class HyaloModule: Module {
         }
 
         try env.defun(
-            "hyalo-sidebar-embed-frames",
+            "hyalo-update-file-tree",
             with: """
-            Embed registered child-frames for the specified panel.
-            PANEL is "left" or "right".
+            Update the sidebar file tree from Emacs.
+            JSON-DATA is a JSON object representing the file tree with keys:
+            id (path), name, isDirectory, children, icon
             """
-        ) { (env: Environment, panel: String) throws -> Bool in
+        ) { (env: Environment, jsonData: String) throws -> Bool in
             if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
-                    guard let window = findEmacsWindow() else {
-                        return
+                    guard let window = findEmacsWindow() else { return }
+                    let controller = NavigationSidebarManager.shared.getController(for: window)
+                    guard let data = jsonData.data(using: .utf8) else { return }
+                    do {
+                        let tree = try JSONDecoder().decode(FileTreeNode.self, from: data)
+                        controller.state.fileTree = tree
+                        controller.state.projectRoot = tree.id
+                    } catch {
+                        // Silently ignore decode errors
                     }
-                    _ = EmbeddedFrameManager.shared.embedFrames(for: panel, parentWindow: window)
                 }
                 return true
             }
@@ -1302,15 +1310,17 @@ final class HyaloModule: Module {
         }
 
         try env.defun(
-            "hyalo-sidebar-detach-frames",
+            "hyalo-set-selected-buffer",
             with: """
-            Detach embedded frames and return them to their original windows.
-            PANEL is "left" or "right".
+            Set the currently selected buffer in the sidebar.
+            BUFFER-NAME is the name of the buffer to highlight.
             """
-        ) { (env: Environment, panel: String) throws -> Bool in
+        ) { (env: Environment, bufferName: String) throws -> Bool in
             if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
-                    EmbeddedFrameManager.shared.detachFrames(for: panel)
+                    guard let window = findEmacsWindow() else { return }
+                    let controller = NavigationSidebarManager.shared.getController(for: window)
+                    controller.state.selectedBuffer = bufferName
                 }
                 return true
             }
@@ -1318,22 +1328,74 @@ final class HyaloModule: Module {
         }
 
         try env.defun(
-            "hyalo-sidebar-clear-registration",
+            "hyalo-set-active-file-path",
             with: """
-            Clear frame registration for a panel before re-setup.
-            PANEL is "left" or "right".
+            Set the active file path for smart folder expansion in the sidebar.
+            PATH is the absolute file path, or empty string to clear.
             """
-        ) { (env: Environment, panel: String) throws -> Bool in
+        ) { (env: Environment, path: String) throws -> Bool in
             if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
-                    EmbeddedFrameManager.shared.clearRegistration(for: panel)
+                    guard let window = findEmacsWindow() else { return }
+                    let controller = NavigationSidebarManager.shared.getController(for: window)
+                    controller.state.activeFilePath = path.isEmpty ? nil : path
                 }
+                return true
+            }
+            return false
+        }
+
+        try env.defun(
+            "hyalo-setup-sidebar-channel",
+            with: """
+            Setup the async channel for sidebar callbacks (buffer/file selection).
+            Returns t if channel was opened successfully.
+            """
+        ) { (env: Environment) throws -> Bool in
+            if #available(macOS 26.0, *) {
+                // Open a channel for async callbacks from Swift to Elisp
+                let channel = try env.openChannel(name: "hyalo-sidebar")
+                
+                // RETAIN the channel to prevent deallocation
+                HyaloModule.sidebarChannel = channel
+                
+                // Buffer switch callback - calls (switch-to-buffer BUFFER-NAME)
+                let bufferSwitchCallback: (String) -> Void = channel.callback {
+                    (env: Environment, bufferName: String) in
+                    try env.funcall("switch-to-buffer", with: bufferName)
+                }
+
+                // Buffer close callback - calls (kill-buffer BUFFER-NAME)
+                let bufferCloseCallback: (String) -> Void = channel.callback {
+                    (env: Environment, bufferName: String) in
+                    try env.funcall("kill-buffer", with: bufferName)
+                }
+
+                // File open callback - calls (find-file FILE-PATH)
+                let fileOpenCallback: (String) -> Void = channel.callback {
+                    (env: Environment, filePath: String) in
+                    try env.funcall("find-file", with: filePath)
+                }
+
+                // Wire callbacks to controllers
+                DispatchQueue.main.async {
+                    guard let window = findEmacsWindow() else { return }
+                    let controller = NavigationSidebarManager.shared.getController(for: window)
+                    controller.onBufferSelect = bufferSwitchCallback
+                    controller.onBufferClose = bufferCloseCallback
+                    controller.onFileSelect = fileOpenCallback
+                }
+                
                 return true
             }
             return false
         }
     }
+
+    // Static reference to track sidebar channel
+    static var sidebarChannel: Any?
 }
+
 
 // MARK: - Module Factory
 

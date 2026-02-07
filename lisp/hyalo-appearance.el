@@ -98,10 +98,8 @@ This value is shared across light and dark appearances."
            (hyalo-appearance--apply-vibrancy))))
 
 (defcustom hyalo-appearance-alpha-elements
-; '(ns-alpha-all)
   '(ns-alpha-default
     ns-alpha-fringe
-    ns-alpha-relief
     ns-alpha-glyphs)
   "List of Emacs elements to render with transparency.
 Available elements:
@@ -110,10 +108,12 @@ Available elements:
 - `ns-alpha-box': Boxed face outlines
 - `ns-alpha-stipple': Stipple mask background clears
 - `ns-alpha-relief': 3D relief/shadow lines
-- `ns-alpha-glyphs': Glyph background fills (hl-line, region, etc.)
+- `ns-alpha-glyphs': Glyph background fills (transparent when matching
+  default background; faces with distinct backgrounds like hl-line and
+  region remain opaque)
 - `ns-alpha-all': All elements (shortcut for all above)
 
-Default is `ns-alpha-all' for full transparency."
+Default includes glyphs for full vibrancy pass-through."
   :type '(repeat symbol)
   :group 'hyalo-appearance
   :set (lambda (sym val)
@@ -191,7 +191,7 @@ This is the core function for applying visual settings."
 
 (defun hyalo-appearance--apply-frame-settings ()
   "Apply frame-level transparency settings.
-Sets `alpha-background' to 0 for vibrancy pass-through and
+Sets `alpha-background' to 0.0 for vibrancy pass-through and
 configures `ns-alpha-elements' for fine-grained transparency control."
   (dolist (f (frame-list))
     (when (and (display-graphic-p f) (eq (framep f) 'ns))
@@ -386,46 +386,6 @@ Use ultraThin for maximum see-through effect."
   (hyalo-appearance-set 'light)
   (when (fboundp 'hyalo-footer-set-pattern-alpha)
     (hyalo-footer-set-pattern-alpha 0.06)))
-
-(defun hyalo/current-theme ()
-  "Display the currently enabled themes in the echo area."
-  (interactive)
-  (if custom-enabled-themes
-      (message "Current theme(s): %s"
-               (mapconcat #'symbol-name custom-enabled-themes ", "))
-    (message "No custom themes are currently enabled.")))
-
-(defun hyalo/theme-load-random-dark ()
-  "Load a random dark theme from available collections (Modus, Doric, Kaolin)."
-  (interactive)
-  (let ((loaders '()))
-    (when (fboundp 'modus-themes-load-random-dark)
-      (push (lambda () (modus-themes-load-random-dark)) loaders))
-    (when (fboundp 'doric-themes-load-random)
-      (push (lambda () (doric-themes-load-random 'dark)) loaders))
-    (when (fboundp 'kaolin-themes-load-random-dark)
-      (push (lambda () (kaolin-themes-load-random-dark)) loaders))
-    (if loaders
-        (funcall (nth (random (length loaders)) loaders))
-      (user-error "No random theme loader available (modus/doric/kaolin missing)")))
-  (hyalo-switch-to-dark))
-
-(defun hyalo/theme-load-random-light ()
-  "Load a random light theme from available collections (Modus, Doric, Kaolin)."
-  (interactive)
-  (let ((loaders '()))
-    (when (fboundp 'modus-themes-load-random-light)
-      (push (lambda () (modus-themes-load-random-light)) loaders))
-    (when (fboundp 'doric-themes-load-random)
-      (push (lambda () (doric-themes-load-random 'light)) loaders))
-    (when (fboundp 'kaolin-themes-load-random-light)
-      (push (lambda () (kaolin-themes-load-random-light)) loaders))
-    (if loaders
-        (funcall (nth (random (length loaders)) loaders))
-      (user-error "No random theme loader available (modus/doric/kaolin missing)")))
-  (hyalo-switch-to-light))
-
-;;; Panel Timer (active only while panel is open)
 
 (defvar hyalo-appearance--panel-timer nil
   "Timer for syncing panel settings while panel is open.")

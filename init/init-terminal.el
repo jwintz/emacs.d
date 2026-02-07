@@ -1,45 +1,29 @@
-;;; init-terminal.el --- Eshell with starship prompt and eat -*- lexical-binding: t; -*-
+;;; init-terminal.el --- Eat terminal configuration -*- lexical-binding: t; -*-
 
 ;;; Code:
 
-(use-package eshell
-  :bind ("C-c s s" . eshell)
-  :init
-  (setq eshell-error-if-no-glob t)
-  (setq eshell-prefer-lisp-functions nil)
-  (setq eshell-save-history-on-exit t)
-  (setq eshell-hist-ignoredups t)
-  (setq eshell-scroll-to-bottom-on-input 'all)
-  (setq eshell-scroll-to-bottom-on-output 'all)
-  (setq eshell-destroy-buffer-when-process-dies t)
-  (setq eshell-login-script (expand-file-name "conf/eshlogin" emacs-config-dir))
-  (setq eshell-rc-script (expand-file-name "conf/eshrc" emacs-config-dir))
-  (setq eshell-aliases-file (expand-file-name "conf/eshaliases" emacs-config-dir))
+(use-package eat
+  :ensure t
+  :vc (:url "https://codeberg.org/akib/emacs-eat" :rev :newest)
+  :bind (("C-c s s" . eat)
+         :map eat-mode-map
+         ("C-z" . eat-semi-char-mode)) ; Quick toggle to Emacs-friendly mode
   :config
-  (with-eval-after-load 'esh-mode
-    (bind-key "C-c s k" #'iota-shell-clear eshell-mode-map))
-
-  (use-package capf-autosuggest
-    :hook (eshell-mode . capf-autosuggest-mode)
-    :init
-    (with-eval-after-load 'capf-autosuggest
-      (defun hyalo-capf-autosuggest-history-capf ()
-        "Wrapper for history capf that requires 1 char of input in Eshell."
-        (let ((allow t))
-          (when (derived-mode-p 'eshell-mode)
-            (setq allow (and (boundp 'eshell-last-output-end)
-                             eshell-last-output-end
-                             (> (point) eshell-last-output-end))))
-          (when allow
-            (capf-autosuggest-history-capf))))
-
-      (setq capf-autosuggest-capf-functions
-            '(hyalo-capf-autosuggest-history-capf)))))
-
-(use-package iota-shell
-   :ensure nil
-   :after eshell
-   :hook (eshell-mode . iota-shell-mode))
+  (setq eat-kill-buffer-on-exit t)
+  (setq eat-enable-mouse t)
+  
+  ;; Disable annotations and synchronization features that cause "strange characters"
+  ;; when the shell/prompt is complex (like starship).
+  (setq eat-enable-shell-prompt-annotation nil)
+  (setq eat-enable-synchronized-output nil)
+  (setq eat-term-name "xterm-256color")
+  
+  ;; Use char-mode by default for "intuitive" (direct) terminal use
+  (setq eat-terminal-mode 'char)
+  
+  (add-hook 'eat-mode-hook
+            (lambda ()
+              (setq-local scroll-margin 0))))
 
 (provide 'init-terminal)
 
