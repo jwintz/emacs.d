@@ -18,18 +18,12 @@ struct SidebarSectionHeader: View {
 
     @State private var rotation: Double = 0
 
-    /// Standard margin matching sidebar padding
-    private let sideMargin: CGFloat = 14
-    /// Icon width + spacing to align subtitle with title
-    private let iconWidth: CGFloat = 10
-    private let iconSpacing: CGFloat = 6
-
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             // Primary row: icon + title
-            HStack(spacing: iconSpacing) {
+            HStack(spacing: HyaloDesign.Spacing.tight) {
                 Image(systemName: systemImage)
-                    .font(.system(size: iconWidth, weight: .medium))
+                    .font(.system(size: HyaloDesign.IconSize.medium, weight: .medium))
                     .foregroundStyle(.secondary)
                     .symbolEffect(.pulse, isActive: isBusy)
                     .rotationEffect(.degrees(rotation))
@@ -46,24 +40,24 @@ struct SidebarSectionHeader: View {
                         }
                     }
                 Text(title)
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                    .font(.system(size: HyaloDesign.FontSize.caption, weight: .semibold, design: .monospaced))
                     .foregroundStyle(.secondary)
                 Spacer()
             }
             // Secondary row: subtitle (token stats), aligned with title
             if !subtitle.isEmpty {
                 Text(subtitle)
-                    .font(.system(size: 9, weight: .regular, design: .monospaced))
+                    .font(.system(size: HyaloDesign.FontSize.small, weight: .regular, design: .monospaced))
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
                     .truncationMode(.middle)
                     .help(subtitle)  // Full text in tooltip on hover
-                    .padding(.leading, iconWidth + iconSpacing)  // Align with title
+                    .padding(.leading, HyaloDesign.IconSize.medium + HyaloDesign.Spacing.tight)  // Align with title
             }
         }
-        .padding(.horizontal, sideMargin)
-        .padding(.top, isFirst ? 8 : 14)
-        .padding(.bottom, 6)
+        .padding(.horizontal, HyaloDesign.Padding.sidebar)
+        .padding(.top, isFirst ? HyaloDesign.Padding.compact : HyaloDesign.Padding.horizontal)
+        .padding(.bottom, HyaloDesign.Spacing.compact - 2)
     }
 }
 
@@ -99,15 +93,15 @@ struct SidebarContentView: View {
                 // Empty buffer list placeholder
                 HStack {
                     Text("No buffers open")
-                        .font(.system(size: 10, design: .monospaced))
+                        .font(.system(size: HyaloDesign.FontSize.caption, design: .monospaced))
                         .foregroundStyle(.tertiary)
                 }
                 .frame(height: 40)
             }
 
             Divider()
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
+                .padding(.horizontal, HyaloDesign.Padding.sidebar)
+                .padding(.vertical, HyaloDesign.Spacing.compact - 2)
 
             // Project Files section
             SidebarSectionHeader(
@@ -166,10 +160,10 @@ struct DetailPlaceholderView: View {
             Color(nsColor: state.backgroundColor)
                 .opacity(Double(state.backgroundAlpha))
 
-            // Terminal with consistent margins matching sidebar (14pt)
+            // Terminal with consistent margins matching sidebar
             InspectorTerminalView(palette: TerminalPalette.shared)
-                .padding(.horizontal, 14)
-                .padding(.bottom, 8)
+                .padding(.horizontal, HyaloDesign.Padding.sidebar)
+                .padding(.bottom, HyaloDesign.Padding.compact)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

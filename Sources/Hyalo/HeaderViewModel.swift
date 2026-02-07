@@ -3,15 +3,16 @@ import SwiftUI
 
 /// Observable view model for header content
 @MainActor
-final class HeaderViewModel: ObservableObject {
+@Observable
+final class HeaderViewModel {
 
-    // MARK: - Published Properties
+    // MARK: - Properties
 
     /// Mode-line content (single string, parsed in view for LHS/RHS)
-    @Published private(set) var modeLineString: String = ""
+    private(set) var modeLineString: String = ""
 
     /// Header-line content (single string, parsed in view for LHS/RHS)
-    @Published private(set) var headerLineContent: String = ""
+    private(set) var headerLineContent: String = ""
 
     // MARK: - Callbacks
 

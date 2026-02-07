@@ -18,6 +18,55 @@ This repository serves as both a personal Emacs configuration and a showcase for
 
 ---
 
+## Hyalo Module Structure (`Sources/Hyalo/`)
+
+The Hyalo module is a Swift 6 dynamic module providing deep macOS integration with modern SwiftUI patterns.
+
+### Core Components
+
+| File                          | Purpose                                               |
+|-------------------------------|-------------------------------------------------------|
+| **HyaloManager.swift**        | Singleton manager for window controllers               |
+| **HyaloController.swift**     | Window-level controller (legacy fullscreen)           |
+| ** NavigationSidebarManager.swift** | NavigationSplitView manager (macOS 26+)          |
+| ** NavigationSidebarController.swift** | NavigationSplitView per-window state       |
+| ** NavigationSidebarState.swift** | Observable state for SwiftUI reactivity       |
+| ** NavigationSidebarLayout.swift** | Main NavigationSplitView layout              |
+| ** SidebarViews.swift**       | Sidebar and inspector SwiftUI views                  |
+| ** BufferListView.swift**     | Buffer list component                                |
+| ** FileTreeView.swift**       | File tree navigation component                       |
+| ** EmacsViews.swift**         | Emacs NSView wrapper and container                   |
+| ** HeaderView.swift**         | Header mode-line and header-line view                |
+| ** HeaderViewModel.swift**    | Observable view model for header content              |
+| ** HeaderHostingController.swift** | NSHostingController for header SwiftUI      |
+| ** HyaloShared.swift**        | Shared utilities and design constants                |
+| ** GlassEffectView.swift**    | Glass effect for minibuffer frames                   |
+| ** GlassMenuPopover.swift**   | Liquid Glass menu popover                            |
+| ** ModeLineViews.swift**      | Mode-line rendering components                       |
+| ** ModeLineTypes.swift**      | Mode-line data structures                            |
+| ** ModeLineController.swift**  | Mode-line state management                           |
+| ** InspectorTerminalView.swift** | Terminal view with theme integration             |
+| ** VibrancyViews.swift**      | Visual effect and background views                   |
+| ** FooterPattern.swift**      | Decorative footer pattern overlay                    |
+| ** AttributedTextView.swift** | Attributed text rendering with Nerd fonts            |
+| ** AppearancePanel.swift**    | Appearance panel UI                                  |
+
+### Code Quality
+
+The Hyalo module follows modern SwiftUI best practices inspired by CodeEdit:
+
+- **`@Observable` macro** for reactive state (iOS 17+)
+- **`@Bindable`** for binding to observable properties
+- **Extracted subviews** for testability and performance
+- **Centralized design constants** in `HyaloDesign` enum
+- **Reusable components** like `GeometrySizeTracker`
+- **Proper button styles** with `ButtonStyle` protocol
+- **Clean separation** of concerns (Manager → Controller → State → Views)
+
+For detailed refactoring plans, see [PLAN.md](PLAN.md).
+
+---
+
 ## Features
 
 - **Liquid Glass UI** — Transparent backgrounds with vibrancy blur effects

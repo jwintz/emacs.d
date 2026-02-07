@@ -13,14 +13,16 @@ struct HyaloNavigationLayout: View {
     var state: NavigationSidebarState
     let emacsView: NSView
 
-    var onGeometryUpdate: (() -> Void)?  // Called when sidebar/inspector visibility changes
-    var onBufferSelect: ((String) -> Void)?  // Called when a buffer is selected in sidebar
-    var onBufferClose: ((String) -> Void)?  // Called when a buffer close button is clicked
-    var onFileSelect: ((String) -> Void)?  // Called when a file is selected in sidebar
-    var onSidebarVisibilityChanged: ((Bool) -> Void)?  // Called when sidebar toggles
-    var onDetailVisibilityChanged: ((Bool) -> Void)?  // Called when inspector toggles
+    var onGeometryUpdate: (() -> Void)?
+    var onBufferSelect: ((String) -> Void)?
+    var onBufferClose: ((String) -> Void)?
+    var onFileSelect: ((String) -> Void)?
+    var onSidebarVisibilityChanged: ((Bool) -> Void)?
+    var onDetailVisibilityChanged: ((Bool) -> Void)?
 
     @State private var columnVisibility: NavigationSplitViewVisibility = .detailOnly
+
+    // MARK: - Bindings
 
     /// Binding for inspector (right panel) visibility
     /// Uses withTransaction to disable animation and prevent window resize flicker
@@ -37,8 +39,10 @@ struct HyaloNavigationLayout: View {
         )
     }
 
+    // MARK: - Computed Properties
+
     /// Map vibrancy material to NSVisualEffectView.Material
-    private var effectMaterialForState: NSVisualEffectView.Material {
+    private var vibrancyMaterial: NSVisualEffectView.Material {
         switch state.vibrancyMaterial {
         case .none: return .windowBackground
         case .ultraThick: return .headerView
@@ -49,140 +53,39 @@ struct HyaloNavigationLayout: View {
         }
     }
 
-    /// Parse modeline into LHS and RHS segments
-    private func parseSegments(_ input: String) -> (lhs: String, rhs: String) {
-        let trimmed = input.trimmingCharacters(in: .whitespaces)
-        if let range = trimmed.range(of: "   +", options: .regularExpression) {
-            let lhs = String(trimmed[..<range.lowerBound]).trimmingCharacters(in: .whitespaces)
-            let rhs = String(trimmed[range.upperBound...]).trimmingCharacters(in: .whitespaces)
-            return (lhs, rhs)
-        }
-        return (trimmed, "")
-    }
     var body: some View {
         GeometryReader { geometry in
             // 2-column NavigationSplitView with inspector for symmetric toolbar behavior
             NavigationSplitView(columnVisibility: $columnVisibility) {
-                // Sidebar column (left)
-                SidebarContentView(
-                    state: state,
-                    onBufferSelect: { bufferName in onBufferSelect?(bufferName) },
-                    onBufferClose: onBufferClose.map { callback in
-                        { bufferName in callback(bufferName) }
-                    },
-                    onFileSelect: { filePath in onFileSelect?(filePath) }
-                )
-                .navigationSplitViewColumnWidth(min: 200, ideal: 280, max: 400)
-                .background {
-                    // Track sidebar width for modeline calculation
-                    GeometryReader { sidebarGeometry in
-                        Color.clear
-                            .onAppear {
-                                state.sidebarWidth = sidebarGeometry.size.width
-                            }
-                            .onChange(of: sidebarGeometry.size.width) { _, newWidth in
-                                state.sidebarWidth = newWidth
-                                onGeometryUpdate?()
-                            }
-                    }
-                }
+                sidebarColumn
             } detail: {
-                // Content/Detail column - Emacs with inspector
-                EmacsContentView(
-                    emacsView: emacsView,
-                    state: state
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background {
-                    // Track content column width for modeline calculation
-                    GeometryReader { contentGeometry in
-                        Color.clear
-                            .onAppear {
-                                state.contentWidth = contentGeometry.size.width
-                            }
-                            .onChange(of: contentGeometry.size.width) { _, newWidth in
-                                state.contentWidth = newWidth
-                                onGeometryUpdate?()
-                            }
+                contentColumn
+                    .inspector(isPresented: inspectorVisibleBinding) {
+                        inspectorColumn
                     }
-                }
-                // Inspector (right panel) - symmetric to sidebar
-                .inspector(isPresented: inspectorVisibleBinding) {
-                    DetailPlaceholderView(state: state)
-                        .inspectorColumnWidth(min: 300, ideal: 400, max: 500)
-                        .background {
-                            // Track inspector width
-                            GeometryReader { inspectorGeometry in
-                                Color.clear
-                                    .onAppear {
-                                        state.detailWidth = inspectorGeometry.size.width
-                                    }
-                                    .onChange(of: inspectorGeometry.size.width) { _, newWidth in
-                                        state.detailWidth = newWidth
-                                        onGeometryUpdate?()
-                                    }
-                            }
-                        }
-                }
             }
             .navigationSplitViewStyle(.balanced)
             .transaction { $0.disablesAnimations = true }
             .toolbarBackgroundVisibility(state.decorationsVisible ? .visible : .hidden, for: .windowToolbar)
             .toolbarTitleDisplayMode(.inline)
             .toolbar {
-                // Inspector toggle button - symmetric to sidebar toggle
-                // Visibility animated via AppKit in NavigationSidebarController.setToolbarItemsVisible
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        var transaction = Transaction()
-                        transaction.disablesAnimations = true
-                        withTransaction(transaction) {
-                            state.detailVisible.toggle()
-                        }
-                    } label: {
-                        Image(systemName: "sidebar.right")
-                            .symbolVariant(state.detailVisible ? .none : .none)
-                    }
-                    .help(state.detailVisible ? "Hide Inspector" : "Show Inspector")
-                }
+                NavigationToolbarContent(state: state)
             }
             .background {
                 ZStack {
-                    VibrancyBackgroundView(
-                        material: effectMaterialForState,
-                        blendingMode: .behindWindow,
-                        isActive: state.vibrancyMaterial != .none
-                    )
-                    Color(nsColor: state.backgroundColor)
-                        .opacity(Double(state.backgroundAlpha))
+                    vibrancyBackground
+                    tintOverlay
                 }
                 .ignoresSafeArea()
             }
             .onChange(of: state.sidebarVisible) { _, newValue in
-                withAnimation {
-                    columnVisibility = newValue ? .all : .detailOnly
-                }
-                onSidebarVisibilityChanged?(newValue)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    onGeometryUpdate?()
-                }
+                updateSidebarVisibility(newValue)
             }
             .onChange(of: columnVisibility) { _, newValue in
-                // Sync state.sidebarVisible when NavigationSplitView's built-in toggle is used
-                let isSidebarNowVisible = (newValue == .all || newValue == .doubleColumn)
-                if state.sidebarVisible != isSidebarNowVisible {
-                    state.sidebarVisible = isSidebarNowVisible
-                    onSidebarVisibilityChanged?(isSidebarNowVisible)
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    onGeometryUpdate?()
-                }
+                syncSidebarVisibility(newValue)
             }
             .onChange(of: state.detailVisible) { _, newValue in
-                onDetailVisibilityChanged?(newValue)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    onGeometryUpdate?()
-                }
+                updateDetailVisibility(newValue)
             }
             .onChange(of: geometry.size) { _, newSize in
                 state.toolbarWidth = newSize.width
@@ -192,5 +95,131 @@ struct HyaloNavigationLayout: View {
                 state.toolbarWidth = geometry.size.width
             }
         }
+    }
+
+    // MARK: - Column Views
+
+    private var sidebarColumn: some View {
+        SidebarContentView(
+            state: state,
+            onBufferSelect: { onBufferSelect?($0) },
+            onBufferClose: onBufferClose.map { callback in
+                { bufferName in callback(bufferName) }
+            },
+            onFileSelect: { onFileSelect?($0) }
+        )
+        .navigationSplitViewColumnWidth(
+            min: HyaloDesign.Width.sidebarMin,
+            ideal: HyaloDesign.Width.sidebarIdeal,
+            max: HyaloDesign.Width.sidebarMax
+        )
+        .background(
+            GeometrySizeTracker(
+                onChange: { state.sidebarWidth = $0 },
+                onUpdate: { onGeometryUpdate?() }
+            )
+        )
+    }
+
+    private var contentColumn: some View {
+        EmacsContentView(
+            emacsView: emacsView,
+            state: state
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(
+            GeometrySizeTracker(
+                onChange: { state.contentWidth = $0 },
+                onUpdate: { onGeometryUpdate?() }
+            )
+        )
+    }
+
+    private var inspectorColumn: some View {
+        DetailPlaceholderView(state: state)
+            .inspectorColumnWidth(
+                min: HyaloDesign.Width.inspectorMin,
+                ideal: HyaloDesign.Width.inspectorIdeal,
+                max: HyaloDesign.Width.inspectorMax
+            )
+            .background(
+                GeometrySizeTracker(
+                    onChange: { state.detailWidth = $0 },
+                    onUpdate: { onGeometryUpdate?() }
+                )
+            )
+    }
+
+    // MARK: - Background Layers
+
+    private var vibrancyBackground: some View {
+        VibrancyBackgroundView(
+            material: vibrancyMaterial,
+            blendingMode: .behindWindow,
+            isActive: state.vibrancyMaterial != .none
+        )
+    }
+
+    private var tintOverlay: some View {
+        Color(nsColor: state.backgroundColor)
+            .opacity(Double(state.backgroundAlpha))
+    }
+
+    // MARK: - Visibility Updates
+
+    private func updateSidebarVisibility(_ visible: Bool) {
+        withAnimation {
+            columnVisibility = visible ? .all : .detailOnly
+        }
+        onSidebarVisibilityChanged?(visible)
+        triggerGeometryUpdate()
+    }
+
+    private func syncSidebarVisibility(_ visibility: NavigationSplitViewVisibility) {
+        // Sync state.sidebarVisible when NavigationSplitView's built-in toggle is used
+        let isSidebarNowVisible = (visibility == .all || visibility == .doubleColumn)
+        if state.sidebarVisible != isSidebarNowVisible {
+            state.sidebarVisible = isSidebarNowVisible
+            onSidebarVisibilityChanged?(isSidebarNowVisible)
+        }
+        triggerGeometryUpdate()
+    }
+
+    private func updateDetailVisibility(_ visible: Bool) {
+        onDetailVisibilityChanged?(visible)
+        triggerGeometryUpdate()
+    }
+
+    private func triggerGeometryUpdate() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            onGeometryUpdate?()
+        }
+    }
+}
+
+// MARK: - Navigation Toolbar Content
+
+@available(macOS 26.0, *)
+struct NavigationToolbarContent: ToolbarContent {
+    @Bindable var state: NavigationSidebarState
+
+    var body: some ToolbarContent {
+        ToolbarItem(placement: .primaryAction) {
+            inspectorToggleButton
+        }
+    }
+
+    private var inspectorToggleButton: some View {
+        Button {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                state.detailVisible.toggle()
+            }
+        } label: {
+            Image(systemName: "sidebar.right")
+                .symbolVariant(state.detailVisible ? .none : .none)
+        }
+        .help(state.detailVisible ? "Hide Inspector" : "Show Inspector")
     }
 }
