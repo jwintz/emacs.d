@@ -4,8 +4,9 @@
 
 ;;;; Fonts
 
-(set-face-attribute 'default nil :family "SF Mono" :height 130 :weight 'regular)
-(set-face-attribute 'fixed-pitch nil :family "SF Mono" :height 130 :weight 'regular)
+(setq nano-font-size 11)
+(set-face-attribute 'default nil :family "SF Mono" :height 110 :weight 'regular)
+(set-face-attribute 'fixed-pitch nil :family "SF Mono" :height 110 :weight 'regular)
 (set-face-attribute 'variable-pitch nil :family "SF Pro Display" :height 140 :weight 'regular)
 
 ;;;; Icons

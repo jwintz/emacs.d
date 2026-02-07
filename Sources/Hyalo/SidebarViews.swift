@@ -131,83 +131,10 @@ struct SidebarContentView: View {
     }
 }
 
-// MARK: - Pi Logo Shape
-
-/// Stylized Pi (π) letter shape for the inspector header.
-/// Derived from the pi-island logo: horizontal bar with two vertical legs,
-/// plus a dot for the "i" in "Pi".
-@available(macOS 26.0, *)
-struct PiLogoShape: Shape {
-    func path(in rect: CGRect) -> Path {
-        let w = rect.width
-        let h = rect.height
-        var path = Path()
-
-        // Horizontal bar (top) — slightly curved ends
-        let barY = h * 0.18
-        let barH = h * 0.10
-        path.addRoundedRect(
-            in: CGRect(x: w * 0.05, y: barY, width: w * 0.90, height: barH),
-            cornerSize: CGSize(width: barH * 0.5, height: barH * 0.5))
-
-        // Left leg
-        let legW = w * 0.12
-        path.addRoundedRect(
-            in: CGRect(x: w * 0.22, y: barY + barH * 0.5, width: legW, height: h * 0.65),
-            cornerSize: CGSize(width: legW * 0.3, height: legW * 0.3))
-
-        // Right leg
-        path.addRoundedRect(
-            in: CGRect(x: w * 0.58, y: barY + barH * 0.5, width: legW, height: h * 0.55),
-            cornerSize: CGSize(width: legW * 0.3, height: legW * 0.3))
-
-        // Dot (the "i" in Pi) — above the right leg
-        let dotR = w * 0.07
-        path.addEllipse(in: CGRect(
-            x: w * 0.82 - dotR, y: h * 0.04,
-            width: dotR * 2, height: dotR * 2))
-
-        return path
-    }
-}
-
-/// Inspector header with Pi logo shape, title, and subtitle.
-/// Vertically centered with the toolbar using `state.toolbarHeight`.
-@available(macOS 26.0, *)
-struct PiLogoHeader: View {
-    var state: NavigationSidebarState
-
-    var body: some View {
-        HStack(spacing: 8) {
-            PiLogoShape()
-                .fill(.secondary)
-                .frame(width: 16, height: 16)
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text(state.inspectorTitle.uppercased())
-                    .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.secondary)
-
-                if !state.inspectorSubtitle.isEmpty {
-                    Text(state.inspectorSubtitle)
-                        .font(.system(size: 9, weight: .regular, design: .monospaced))
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-            }
-
-            Spacer()
-        }
-        .frame(height: state.toolbarHeight)
-        .padding(.horizontal, 14)
-    }
-}
-
 // MARK: - Inspector Content View
 
-/// Inspector content view for the detail column (right panel)
-/// Will show Pi chat interface
+/// Inspector content view for the detail column (right panel).
+/// Embeds a SwiftTerm terminal with transparent background and hyalo-derived colors.
 @available(macOS 26.0, *)
 struct DetailPlaceholderView: View {
     var state: NavigationSidebarState
@@ -239,8 +166,10 @@ struct DetailPlaceholderView: View {
             Color(nsColor: state.backgroundColor)
                 .opacity(Double(state.backgroundAlpha))
 
-            // Pi Chat Interface (full-bleed, no header)
-            PiChatView()
+            // Terminal with consistent margins matching sidebar (14pt)
+            InspectorTerminalView(palette: TerminalPalette.shared)
+                .padding(.horizontal, 14)
+                .padding(.bottom, 8)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

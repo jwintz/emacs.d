@@ -238,11 +238,30 @@ final class NavigationSidebarController: NSObject {
             }
         }
 
+        // Don't steal focus from the inspector terminal
+        if let firstResponder = window.firstResponder as? NSView,
+           isTerminalView(firstResponder) {
+            return
+        }
+
         if !window.isKeyWindow {
             window.makeKeyAndOrderFront(nil)
         }
 
         window.makeFirstResponder(emacs)
+    }
+
+    /// Check whether a view is part of the inspector terminal.
+    /// Walks up the view hierarchy looking for our container or SwiftTerm views.
+    private func isTerminalView(_ view: NSView) -> Bool {
+        var current: NSView? = view
+        while let v = current {
+            if v is TerminalContainerView || v is HyaloTerminalView {
+                return true
+            }
+            current = v.superview
+        }
+        return false
     }
 
     /// Find the Emacs NSView in the view hierarchy
@@ -431,14 +450,6 @@ final class NavigationSidebarController: NSObject {
     /// Check if sidebar is currently visible
     var isSidebarVisible: Bool {
         state.sidebarVisible
-    }
-
-    func setInspectorHeader(title: String, icon: String, busy: Bool, subtitle: String = "") {
-        print("[NavigationSidebarController] setInspectorHeader. Title: \(title), Busy: \(busy), Subtitle: \(subtitle)")
-        state.inspectorTitle = title
-        state.inspectorIcon = icon
-        state.inspectorBusy = busy
-        state.inspectorSubtitle = subtitle
     }
 
     // MARK: - Detail Panel

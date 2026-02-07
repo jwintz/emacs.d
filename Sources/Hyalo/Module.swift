@@ -572,20 +572,28 @@ final class HyaloModule: Module {
         }
 
         try env.defun(
-            "hyalo-set-inspector-header",
+            "hyalo-set-terminal-palette",
             with: """
-            Set the inspector header properties.
-            TITLE: The title string (e.g., model name).
-            ICON: The SF Symbols icon name.
-            BUSY: Whether to animate the icon (boolean).
-            SUBTITLE: Optional secondary text (e.g., token usage stats).
+            Set the terminal color palette for the inspector terminal.
+            PALETTE-JSON is a JSON object with keys:
+            - foreground: hex color string
+            - background: hex color string
+            - cursor: hex color string
+            - ansi: array of 16 hex color strings (ANSI 0-15)
             """
-        ) { (env: Environment, title: String, icon: String, busy: Bool, subtitle: String) throws -> Bool in
-            // print("[Hyalo Module] hyalo-set-inspector-header called with title: \(title), busy: \(busy), subtitle: \(subtitle)")
+        ) { (env: Environment, paletteJson: String) throws -> Bool in
             if #available(macOS 26.0, *) {
                 DispatchQueue.main.async {
-                    guard let window = findEmacsWindow() else { return }
-                    NavigationSidebarManager.shared.setInspectorHeader(for: window, title: title, icon: icon, busy: busy, subtitle: subtitle)
+                    guard let data = paletteJson.data(using: .utf8),
+                          let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+                    else { return }
+                    let palette = TerminalPalette.shared
+                    if let fg = dict["foreground"] as? String { palette.foreground = fg }
+                    if let bg = dict["background"] as? String { palette.background = bg }
+                    if let cur = dict["cursor"] as? String { palette.cursor = cur }
+                    if let ansi = dict["ansi"] as? [String], ansi.count == 16 {
+                        palette.ansiColors = ansi
+                    }
                 }
                 return true
             }

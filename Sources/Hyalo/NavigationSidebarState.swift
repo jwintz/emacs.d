@@ -23,12 +23,6 @@ final class NavigationSidebarState {
     /// Whether decorations (toolbar and traffic lights) are visible
     var decorationsVisible: Bool = true
 
-    // Inspector Header
-    var inspectorTitle: String = "PI AGENT"
-    var inspectorIcon: String = "sparkles"
-    var inspectorBusy: Bool = false
-    var inspectorSubtitle: String = ""  // Secondary info (e.g., token usage)
-
     /// Available toolbar width (calculated from window geometry)
     var toolbarWidth: CGFloat = 600
     /// Toolbar/titlebar height (calculated from window geometry)

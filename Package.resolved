@@ -1,5 +1,5 @@
 {
-  "originHash" : "464e683165fc1cb10ba00aff670dd0db8128af770ea798101c7308e83632c896",
+  "originHash" : "fce0e2885001f5cc4a0c491ac02dfa0a9e6dce8dbe46a757ed0061dc4092fe19",
   "pins" : [
     {
       "identity" : "emacs-swift-module",
@@ -11,30 +11,12 @@
       }
     },
     {
-      "identity" : "networkimage",
+      "identity" : "swift-argument-parser",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/gonzalezreal/NetworkImage",
+      "location" : "https://github.com/apple/swift-argument-parser",
       "state" : {
-        "revision" : "2849f5323265386e200484b0d0f896e73c3411b9",
-        "version" : "6.0.1"
-      }
-    },
-    {
-      "identity" : "swift-cmark",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swiftlang/swift-cmark",
-      "state" : {
-        "revision" : "5d9bdaa4228b381639fff09403e39a04926e2dbe",
-        "version" : "0.7.1"
-      }
-    },
-    {
-      "identity" : "swift-markdown-ui",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/gonzalezreal/swift-markdown-ui",
-      "state" : {
-        "revision" : "5f613358148239d0292c0cef674a3c2314737f9e",
-        "version" : "2.4.1"
+        "revision" : "c5d11a805e765f52ba34ec7284bd4fcd6ba68615",
+        "version" : "1.7.0"
       }
     }
   ],

@@ -23,6 +23,7 @@ This repository serves as both a personal Emacs configuration and a showcase for
 - **Liquid Glass UI** — Transparent backgrounds with vibrancy blur effects
 - **SwiftUI Integration** — Native SwiftUI components with embedded Emacs frames
 - **San Francisco Fonts** — SF Mono and SF Pro for consistent macOS aesthetic
+- **Inspector Terminal** — SwiftTerm-based terminal in the inspector panel with theme-derived colors
 - **AI Agents** — GitHub Copilot integration
 - **Hyalo Theme** — Dichromatic Violet/Zinc palette with automatic appearance switching
 - **Nano Layout** — Minimalist layout based on N Λ N O Emacs
@@ -108,7 +109,7 @@ Custom Elisp libraries providing Hyalo functionality and TTY-compatible utilitie
 | **hyalo-tengwar-tutorial.el** | Interactive Tengwar tutorial         | `hyalo-tengwar-tutorial`                                           |
 | **hyalo-system.el**           | macOS system integration             | `hyalo-reveal-in-finder`, `hyalo-share`, `hyalo-show-emoji-picker` |
 | **hyalo-splash.el**           | Startup splash screen                | `hyalo-splash`, `hyalo-splash-setup`                               |
-| **hyalo-theme.el**            | Hyalo theme implementation           | `hyalo-theme-setup`, `hyalo-theme-light`, `hyalo-theme-dark`       |
+| **hyalo-theme.el**            | Hyalo theme and terminal palette     | `hyalo-theme-setup`, `hyalo-theme-light`, `hyalo-theme-dark`, `hyalo-theme-send-palette` |
 
 ### Iota Libraries (TTY Compatible)
 

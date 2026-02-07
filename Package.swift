@@ -21,8 +21,7 @@ let package = Package(
             branch: "main"
         ),
         .package(
-            url: "https://github.com/gonzalezreal/swift-markdown-ui",
-            from: "2.4.0"
+            path: "../SwiftTerm"
         )
     ],
     targets: [
@@ -30,7 +29,7 @@ let package = Package(
             name: "Hyalo",
             dependencies: [
                 .product(name: "EmacsSwiftModule", package: "emacs-swift-module"),
-                .product(name: "MarkdownUI", package: "swift-markdown-ui")
+                .product(name: "SwiftTerm", package: "SwiftTerm")
             ],
             swiftSettings: [
                 .swiftLanguageMode(.v5)
