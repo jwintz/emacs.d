@@ -113,7 +113,7 @@ struct BufferListView: View {
     var onClose: ((String) -> Void)?
 
     var body: some View {
-        ScrollView(.vertical, showsIndicators: false) {
+        ScrollView(.vertical, showsIndicators: true) {
             LazyVStack(alignment: .leading, spacing: 1) {
                 ForEach(buffers) { buffer in
                     BufferRow(

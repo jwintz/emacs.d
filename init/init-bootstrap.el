@@ -22,8 +22,10 @@
 ;; Prevent early UI allocation
 (setq-default tool-bar-mode nil)
 (setq-default scroll-bar-mode nil)
+(when (fboundp 'scroll-bar-mode) (scroll-bar-mode -1))
 (push '(tool-bar-lines . 0) default-frame-alist)
 (push '(vertical-scroll-bars . nil) default-frame-alist)
+(push '(horizontal-scroll-bars . nil) default-frame-alist)
 
 ;; Suppress warnings during startup
 (setq byte-compile-warnings nil)

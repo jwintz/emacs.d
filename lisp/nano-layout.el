@@ -26,6 +26,7 @@
 	           '(min-width  . 1)
                '(width      . 81)
                '(vertical-scroll-bars . nil)
+               '(horizontal-scroll-bars . nil)
                '(internal-border-width . 24)
                '(left-fringe    . 1)
                '(right-fringe   . 1)

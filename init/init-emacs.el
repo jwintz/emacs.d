@@ -73,8 +73,6 @@
   (setq initial-frame-alist
         `((width . (text-pixels . ,hyalo-initial-frame-width))
           (height . (text-pixels . ,hyalo-initial-frame-height))
-          (vertical-scroll-bars . nil)
-          (horizontal-scroll-bars . nil)
           (tool-bar-lines . 0)))
   (setq visible-bell nil)
   (setq ring-bell-function 'ignore)
@@ -82,8 +80,6 @@
   (advice-add 'display-startup-echo-area-message :override #'ignore)
   (blink-cursor-mode 0)
   (show-paren-mode 1)
-  ;; UI elements
-  (when (fboundp 'scroll-bar-mode) (set-scroll-bar-mode nil))
   ;; UI elements are now handled via default-frame-alist in init-bootstrap.el
   (if (display-graphic-p) (menu-bar-mode 1) (menu-bar-mode -1))
   ;; Remove continuation indicators in fringe

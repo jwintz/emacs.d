@@ -280,6 +280,11 @@ struct InspectorTerminalView: NSViewRepresentable {
         func processTerminated(source: TerminalView, exitCode: Int32?) {
             // Restart the shell when the process exits
             guard let tv = terminalView else { return }
+
+            // Clear the terminal and reset state using RIS (Reset to Initial State)
+            tv.terminal.feed(text: "\u{001b}c")
+            tv.terminal.feed(text: "\u{001b}[2J\u{001b}[H")
+
             let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
             tv.startProcess(
                 executable: shell,
